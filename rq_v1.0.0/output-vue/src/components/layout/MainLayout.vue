@@ -201,22 +201,54 @@ const formatMoney = (value) => {
 
 .nav-menu {
   :deep(.t-menu) {
-    background: transparent;
-    border: none;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    
+    // 确保菜单容器横向排列
+    .t-menu__inner {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      background: transparent !important;
+    }
     
     .t-menu__item {
-      color: rgba(255, 255, 255, 0.7);
+      color: rgba(255, 255, 255, 0.7) !important;
+      display: inline-flex !important;
+      align-items: center;
+      white-space: nowrap;
+      padding: 0 16px !important;
+      height: 56px !important;
+      line-height: 56px !important;
+      background: transparent !important;
+      border: none !important;
       
       &:hover {
-        color: #fff;
+        color: #fff !important;
+        background: rgba(255, 255, 255, 0.05) !important;
       }
       
       &.t-is-active {
-        color: #fff;
-        background: transparent;
+        color: #fff !important;
+        background: transparent !important;
         
         &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 24px;
+          height: 2px;
           background-color: var(--brand);
+          border-radius: 1px;
         }
       }
     }
