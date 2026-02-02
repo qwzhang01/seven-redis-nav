@@ -306,38 +306,75 @@ const cancelAllOrders = () => {
 }
 
 :deep(.t-table) {
-  background: transparent;
+  background: transparent !important;
   
-  .t-table__header th {
-    background: #21262d;
-    color: rgba(255, 255, 255, 0.6);
-    border-color: #30363d;
+  // 表格容器
+  .t-table__content {
+    background: transparent !important;
   }
   
-  .t-table__body td {
-    color: #fff;
-    border-color: #21262d;
-    background: transparent;
+  // 表头
+  .t-table__header {
+    background: #21262d !important;
+    
+    th {
+      background: #21262d !important;
+      color: rgba(255, 255, 255, 0.8) !important;
+      border-color: #30363d !important;
+      font-weight: 500;
+    }
+    
+    .t-table__th-cell {
+      color: rgba(255, 255, 255, 0.8) !important;
+    }
   }
   
-  .t-table__body tr:hover td {
-    background: #21262d;
+  // 表体
+  .t-table__body {
+    background: transparent !important;
+    
+    td {
+      color: rgba(255, 255, 255, 0.9) !important;
+      border-color: #30363d !important;
+      background: transparent !important;
+    }
+    
+    tr {
+      background: transparent !important;
+      
+      &:nth-child(even) {
+        background: rgba(33, 38, 45, 0.5) !important;
+      }
+      
+      &:hover td {
+        background: rgba(48, 54, 61, 0.8) !important;
+      }
+    }
+    
+    .t-table__td-cell {
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
+  
+  // 空数据状态
+  .t-table__empty {
+    color: rgba(255, 255, 255, 0.5) !important;
   }
   
   .buy {
-    color: var(--green);
+    color: var(--green) !important;
   }
   
   .sell {
-    color: var(--red);
+    color: var(--red) !important;
   }
   
   .positive {
-    color: var(--green);
+    color: var(--green) !important;
   }
   
   .negative {
-    color: var(--red);
+    color: var(--red) !important;
   }
 }
 
@@ -350,6 +387,36 @@ const cancelAllOrders = () => {
   .page-info {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.6);
+  }
+  
+  :deep(.t-pagination) {
+    .t-pagination__btn,
+    .t-pagination__number {
+      color: rgba(255, 255, 255, 0.7) !important;
+      background: transparent !important;
+      border-color: #30363d !important;
+      
+      &:hover {
+        color: #fff !important;
+        border-color: var(--brand) !important;
+      }
+      
+      &.t-is-current {
+        color: #fff !important;
+        background: var(--brand) !important;
+        border-color: var(--brand) !important;
+      }
+    }
+    
+    .t-pagination__jump {
+      color: rgba(255, 255, 255, 0.6) !important;
+      
+      .t-input {
+        background: #21262d !important;
+        border-color: #30363d !important;
+        color: #fff !important;
+      }
+    }
   }
 }
 </style>

@@ -360,14 +360,36 @@ const newReview = reactive({
 
 // 图表配置
 const equityChartOptions = {
-  chart: { toolbar: { show: false }, zoom: { enabled: false } },
+  chart: { 
+    toolbar: { show: false }, 
+    zoom: { enabled: false },
+    animations: { enabled: true, easing: 'easeinout', speed: 800 }
+  },
   colors: ['#00A870'],
   fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1, stops: [0, 100] } },
   stroke: { curve: 'smooth', width: 2 },
-  xaxis: { type: 'datetime', labels: { style: { colors: '#666' } } },
-  yaxis: { labels: { style: { colors: '#666' }, formatter: (val) => val.toFixed(0) } },
-  grid: { borderColor: '#e7e7e7' },
-  tooltip: { x: { format: 'yyyy-MM-dd' } }
+  dataLabels: { enabled: false },
+  xaxis: { 
+    type: 'datetime', 
+    labels: { 
+      style: { colors: '#666' },
+      datetimeFormatter: { year: 'yyyy', month: "MMM 'yy", day: 'dd MMM' }
+    },
+    axisBorder: { show: false },
+    axisTicks: { show: false }
+  },
+  yaxis: { 
+    labels: { 
+      style: { colors: '#666' }, 
+      formatter: (val) => '$' + (val / 1000).toFixed(1) + 'k'
+    }
+  },
+  grid: { borderColor: '#e7e7e7', strokeDashArray: 4 },
+  tooltip: { 
+    x: { format: 'yyyy-MM-dd' },
+    y: { formatter: (val) => '$' + val.toFixed(2) }
+  },
+  markers: { size: 0, hover: { size: 5 } }
 }
 
 const equityChartSeries = ref([{
@@ -376,9 +398,36 @@ const equityChartSeries = ref([{
 }])
 
 const drawdownChartOptions = {
-  ...equityChartOptions,
+  chart: { 
+    toolbar: { show: false }, 
+    zoom: { enabled: false },
+    animations: { enabled: true, easing: 'easeinout', speed: 800 }
+  },
   colors: ['#E34D59'],
-  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1, stops: [0, 100] } }
+  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1, stops: [0, 100] } },
+  stroke: { curve: 'smooth', width: 2 },
+  dataLabels: { enabled: false },
+  xaxis: { 
+    type: 'datetime', 
+    labels: { 
+      style: { colors: '#666' },
+      datetimeFormatter: { year: 'yyyy', month: "MMM 'yy", day: 'dd MMM' }
+    },
+    axisBorder: { show: false },
+    axisTicks: { show: false }
+  },
+  yaxis: { 
+    labels: { 
+      style: { colors: '#666' }, 
+      formatter: (val) => val.toFixed(1) + '%'
+    }
+  },
+  grid: { borderColor: '#e7e7e7', strokeDashArray: 4 },
+  tooltip: { 
+    x: { format: 'yyyy-MM-dd' },
+    y: { formatter: (val) => val.toFixed(2) + '%' }
+  },
+  markers: { size: 0, hover: { size: 5 } }
 }
 
 const drawdownChartSeries = ref([{

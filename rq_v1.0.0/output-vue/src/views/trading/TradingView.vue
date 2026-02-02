@@ -315,6 +315,27 @@ onUnmounted(() => {
   border-bottom: 1px solid #30363d;
   display: flex;
   gap: 8px;
+  
+  :deep(.t-button) {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 15px;
+    padding: 8px 16px;
+    
+    &:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    &.t-button--theme-primary {
+      color: var(--brand);
+      font-weight: 500;
+      
+      &:hover {
+        color: var(--brand);
+        background: rgba(18, 95, 255, 0.15);
+      }
+    }
+  }
 }
 
 .trading-header {

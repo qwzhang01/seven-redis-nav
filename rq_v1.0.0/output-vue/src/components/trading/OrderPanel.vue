@@ -240,14 +240,16 @@ const submitOrder = async () => {
   gap: 8px;
   margin-top: 8px;
   
-  .t-button {
+  :deep(.t-button) {
     flex: 1;
-    color: rgba(255, 255, 255, 0.6);
-    border-color: #30363d;
+    color: rgba(255, 255, 255, 0.8) !important;
+    border-color: #30363d !important;
+    background: transparent !important;
     
     &:hover {
-      color: #fff;
-      border-color: #fff;
+      color: #fff !important;
+      border-color: var(--brand) !important;
+      background: rgba(18, 95, 255, 0.1) !important;
     }
   }
 }

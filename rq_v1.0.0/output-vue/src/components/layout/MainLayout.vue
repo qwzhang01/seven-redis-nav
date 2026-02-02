@@ -8,29 +8,16 @@
           <span>CryptoQuant</span>
         </div>
         <nav class="nav-menu">
-          <t-menu
-            :value="activeNav"
-            mode="horizontal"
-            theme="dark"
-            @change="handleNavChange"
+          <div 
+            v-for="item in navItems" 
+            :key="item.value"
+            class="nav-item"
+            :class="{ active: activeNav === item.value }"
+            @click="handleNavChange(item.value)"
           >
-            <t-menu-item value="trading">
-              <template #icon><t-icon name="chart" /></template>
-              行情
-            </t-menu-item>
-            <t-menu-item value="strategy">
-              <template #icon><t-icon name="root-list" /></template>
-              策略广场
-            </t-menu-item>
-            <t-menu-item value="my-strategy">
-              <template #icon><t-icon name="file-code" /></template>
-              我的策略
-            </t-menu-item>
-            <t-menu-item value="risk">
-              <template #icon><t-icon name="secured" /></template>
-              风控中心
-            </t-menu-item>
-          </t-menu>
+            <t-icon :name="item.icon" />
+            <span>{{ item.label }}</span>
+          </div>
         </nav>
       </div>
       
@@ -106,12 +93,20 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
+// 导航项配置
+const navItems = [
+  { value: 'trading', label: '行情', icon: 'chart' },
+  { value: 'strategy', label: '策略广场', icon: 'root-list' },
+  { value: 'my-strategy', label: '我的策略', icon: 'file-code' },
+  { value: 'risk', label: '风控中心', icon: 'secured' }
+]
+
 // 当前导航
 const activeNav = computed(() => {
   const path = route.path
   if (path.includes('trading') || path.includes('contract')) return 'trading'
-  if (path.includes('strategy')) return 'strategy'
   if (path.includes('my-strategy')) return 'my-strategy'
+  if (path.includes('strategy')) return 'strategy'
   if (path.includes('risk')) return 'risk'
   return 'trading'
 })
@@ -200,57 +195,38 @@ const formatMoney = (value) => {
 }
 
 .nav-menu {
-  :deep(.t-menu) {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    width: auto !important;
-    height: auto !important;
-    padding: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
     
-    // 确保菜单容器横向排列
-    .t-menu__inner {
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: nowrap !important;
-      background: transparent !important;
+    &:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
     }
     
-    .t-menu__item {
-      color: rgba(255, 255, 255, 0.7) !important;
-      display: inline-flex !important;
-      align-items: center;
-      white-space: nowrap;
-      padding: 0 16px !important;
-      height: 56px !important;
-      line-height: 56px !important;
-      background: transparent !important;
-      border: none !important;
+    &.active {
+      color: #fff;
+      background: rgba(18, 95, 255, 0.2);
       
-      &:hover {
-        color: #fff !important;
-        background: rgba(255, 255, 255, 0.05) !important;
+      .t-icon {
+        color: var(--brand);
       }
-      
-      &.t-is-active {
-        color: #fff !important;
-        background: transparent !important;
-        
-        &::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 24px;
-          height: 2px;
-          background-color: var(--brand);
-          border-radius: 1px;
-        }
-      }
+    }
+    
+    .t-icon {
+      font-size: 18px;
     }
   }
 }
