@@ -1,0 +1,225 @@
+// 全局CSS变量
+:root {
+  --brand: #125FFF;
+  --brand-hover: #0052D9;
+  --success: #00A870;
+  --error: #E34D59;
+  --warning: #ED7B2F;
+  --paper: #FF9800;
+  --paper-light: rgba(255, 152, 0, 0.1);
+  --bg: #f5f7fa;
+  --card: #fff;
+  --text: rgba(0, 0, 0, 0.9);
+  --text2: rgba(0, 0, 0, 0.6);
+  --border: #e7e7e7;
+  --green: #00A870;
+  --red: #E34D59;
+  
+  // 深色主题变量
+  --dark-bg: #0d1117;
+  --dark-card: #161b22;
+  --dark-border: #30363d;
+  --dark-text: #fff;
+  --dark-text2: rgba(255, 255, 255, 0.6);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+// 全局滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
+
+// 价格颜色
+.price-up {
+  color: var(--green) !important;
+}
+
+.price-down {
+  color: var(--red) !important;
+}
+
+// 通用卡片
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+// 深色卡片
+.dark-card {
+  background: var(--dark-card);
+  border: 1px solid var(--dark-border);
+  border-radius: 8px;
+}
+
+// 页面标题
+.page-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 24px;
+}
+
+// 页面内容容器
+.page-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+// 状态标签
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  
+  &.running {
+    background: rgba(0, 168, 112, 0.1);
+    color: var(--green);
+  }
+  
+  &.paused {
+    background: rgba(237, 123, 47, 0.1);
+    color: var(--warning);
+  }
+  
+  &.stopped {
+    background: rgba(227, 77, 89, 0.1);
+    color: var(--red);
+  }
+}
+
+// 风险标签
+.risk-tag {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  
+  &.low {
+    background: rgba(0, 168, 112, 0.1);
+    color: var(--green);
+  }
+  
+  &.medium {
+    background: rgba(237, 123, 47, 0.1);
+    color: var(--warning);
+  }
+  
+  &.high {
+    background: rgba(227, 77, 89, 0.1);
+    color: var(--red);
+  }
+}
+
+// 图表容器
+.chart-container {
+  width: 100%;
+  min-height: 300px;
+}
+
+// 表格样式增强
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  
+  th {
+    text-align: left;
+    padding: 12px;
+    background: #f5f7fa;
+    font-weight: 500;
+    font-size: 14px;
+  }
+  
+  td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  
+  .positive {
+    color: var(--green);
+  }
+  
+  .negative {
+    color: var(--red);
+  }
+}
+
+// 动画
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+// 价格闪动动画
+@keyframes priceFlashUp {
+  0% { background-color: transparent; }
+  50% { background-color: rgba(0, 168, 112, 0.2); }
+  100% { background-color: transparent; }
+}
+
+@keyframes priceFlashDown {
+  0% { background-color: transparent; }
+  50% { background-color: rgba(227, 77, 89, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.price-flash-up {
+  animation: priceFlashUp 0.5s ease-out;
+}
+
+.price-flash-down {
+  animation: priceFlashDown 0.5s ease-out;
+}
+
+// 骨架屏
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
