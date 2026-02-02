@@ -1,0 +1,46 @@
+# EditorConfig 帮助开发者在不同编辑器间保持一致的代码风格
+# https://editorconfig.org
+
+root = true
+
+# 所有文件的默认配置
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Go 文件 - 使用 Tab
+[*.go]
+indent_style = tab
+indent_size = 4
+
+# YAML 文件
+[*.{yaml,yml}]
+indent_size = 2
+
+# JSON 文件
+[*.json]
+indent_size = 2
+
+# Makefile - 必须使用 Tab
+[Makefile]
+indent_style = tab
+
+# Shell 脚本
+[*.sh]
+indent_size = 2
+
+# SQL 文件
+[*.sql]
+indent_size = 2
+
+# Markdown 文件
+[*.md]
+trim_trailing_whitespace = false
+
+# Docker 文件
+[Dockerfile*]
+indent_size = 4
