@@ -168,12 +168,14 @@ Thumbs.db
 
 # 数据文件
 data/
-*.csv
 *.parquet
 *.h5
 *.hdf5
 *.feather
+
+# 示例数据文件（允许提交）
 !examples/*.csv
+!examples/*.json
 
 # 模型文件
 models/
@@ -189,8 +191,10 @@ models/
 # 回测结果
 backtest_results/
 reports/
-*.html
+
+# 文档文件（允许提交）
 !docs/**/*.html
+!examples/**/*.html
 
 # 日志文件
 logs/
