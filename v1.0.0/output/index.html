@@ -80,14 +80,26 @@
                     <span class="mode-label live" id="liveLabel">实盘</span>
                     <span class="mode-label paper" id="paperLabel">模拟</span>
                 </div>
-                <div class="header-icon">🔔</div>
+                <div class="header-icon notification-bell" onclick="showPage('notificationPage')">
+                    🔔
+                    <span class="notification-badge">5</span>
+                </div>
                 <div class="header-icon" onclick="showPage('profilePage')">⚙️</div>
                 <div class="user-menu" onclick="toggleDropdown()"><div class="user-avatar">张</div><span>张三</span><span>▼</span>
                     <div class="user-dropdown" id="userDropdown">
-                        <div class="dropdown-item" onclick="showPage('profilePage')">个人中心</div>
-                        <div class="dropdown-item" onclick="showPage('profilePage')">交易所配置</div>
-                        <div class="dropdown-item" onclick="showPage('virtualAccountPage')">虚拟账户管理</div>
-                        <div class="dropdown-item logout" onclick="showPage('loginPage')">退出登录</div>
+                        <div class="dropdown-item" onclick="showPage('profilePage')">👤 个人中心</div>
+                        <div class="dropdown-item" onclick="showPage('communityPage')">💬 社区资讯</div>
+                        <div class="dropdown-item" onclick="showPage('notificationPage')">📬 消息中心</div>
+                        <div class="dropdown-item" onclick="showPage('marketOverviewPage')">📊 市场总览</div>
+                        <div class="dropdown-item" onclick="showPage('watchlistPage')">⭐ 自选管理</div>
+                        <div class="dropdown-item" onclick="showPage('priceAlertPage')">🔔 价格预警</div>
+                        <div class="dropdown-item" onclick="showPage('exchangeComparePage')">🔄 交易所对比</div>
+                        <div class="dropdown-item" onclick="showPage('assetDetailPage')">💰 资产详情</div>
+                        <div class="dropdown-item" onclick="showPage('feeStatPage')">📋 手续费统计</div>
+                        <div class="dropdown-item" onclick="showPage('strategyTemplatePage')">📦 策略模板</div>
+                        <div class="dropdown-item" onclick="showPage('sdkDocPage')">📖 SDK文档</div>
+                        <div class="dropdown-item" onclick="showPage('virtualAccountPage')">🎮 虚拟账户</div>
+                        <div class="dropdown-item logout" onclick="showPage('loginPage')">🚪 退出登录</div>
                     </div>
                 </div>
             </div>
@@ -113,8 +125,57 @@
             </div>
             <div class="trading-main">
                 <div class="chart-section">
-                    <div class="chart-toolbar"><div class="period-btns"><button class="period-btn">1m</button><button class="period-btn">5m</button><button class="period-btn active">1h</button><button class="period-btn">4h</button><button class="period-btn">1d</button></div><button class="indicator-btn" onclick="showIndicatorPanel()">📊 指标</button><button class="indicator-btn" onclick="showDrawingTools()">✏️ 画线</button></div>
+                    <div class="chart-toolbar">
+                        <div class="period-btns"><button class="period-btn">1m</button><button class="period-btn">5m</button><button class="period-btn active">1h</button><button class="period-btn">4h</button><button class="period-btn">1d</button></div>
+                        <div class="indicator-selector">
+                            <button class="indicator-btn" onclick="toggleIndicatorDropdown()">📊 技术指标 <span class="indicator-count" id="indicatorCount">3</span></button>
+                            <div class="indicator-dropdown" id="indicatorDropdown">
+                                <div class="indicator-group">
+                                    <div class="indicator-group-title">趋势指标</div>
+                                    <label class="indicator-option"><input type="checkbox" checked onchange="toggleIndicator('MA')"><span class="indicator-name">MA 均线</span><span class="indicator-desc">移动平均线</span></label>
+                                    <label class="indicator-option"><input type="checkbox" checked onchange="toggleIndicator('EMA')"><span class="indicator-name">EMA</span><span class="indicator-desc">指数移动平均</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('BOLL')"><span class="indicator-name">BOLL 布林带</span><span class="indicator-desc">波动区间</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('SAR')"><span class="indicator-name">SAR 抛物线</span><span class="indicator-desc">止损转向</span></label>
+                                </div>
+                                <div class="indicator-group">
+                                    <div class="indicator-group-title">动量指标</div>
+                                    <label class="indicator-option"><input type="checkbox" checked onchange="toggleIndicator('MACD')"><span class="indicator-name">MACD</span><span class="indicator-desc">异同移动平均</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('RSI')"><span class="indicator-name">RSI</span><span class="indicator-desc">相对强弱指数</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('KDJ')"><span class="indicator-name">KDJ 随机指标</span><span class="indicator-desc">超买超卖</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('WR')"><span class="indicator-name">WR 威廉指标</span><span class="indicator-desc">买卖时机</span></label>
+                                </div>
+                                <div class="indicator-group">
+                                    <div class="indicator-group-title">成交量指标</div>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('VOL')"><span class="indicator-name">VOL 成交量</span><span class="indicator-desc">量能分析</span></label>
+                                    <label class="indicator-option"><input type="checkbox" onchange="toggleIndicator('OBV')"><span class="indicator-name">OBV 能量潮</span><span class="indicator-desc">量价配合</span></label>
+                                </div>
+                                <div class="indicator-actions">
+                                    <button class="btn secondary small" onclick="resetIndicators()">重置</button>
+                                    <button class="btn primary small" onclick="applyIndicators()">应用</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="indicator-btn" onclick="showDrawingTools()">✏️ 画线</button>
+                    </div>
+                    <!-- 技术指标展示区 -->
+                    <div class="active-indicators" id="activeIndicators">
+                        <span class="active-indicator" data-indicator="MA">MA(7,25,99) <button onclick="removeIndicator('MA')">×</button></span>
+                        <span class="active-indicator" data-indicator="EMA">EMA(12,26) <button onclick="removeIndicator('EMA')">×</button></span>
+                        <span class="active-indicator" data-indicator="MACD">MACD <button onclick="removeIndicator('MACD')">×</button></span>
+                    </div>
                     <div class="chart-container" id="chartContainer"></div>
+                    <!-- MACD 副图 -->
+                    <div class="sub-chart-container" id="macdChart">
+                        <div class="sub-chart-header">
+                            <span class="sub-chart-title">MACD(12,26,9)</span>
+                            <span class="sub-chart-values">
+                                <span class="macd-dif">DIF: <em>125.32</em></span>
+                                <span class="macd-dea">DEA: <em>98.45</em></span>
+                                <span class="macd-bar positive">MACD: <em>26.87</em></span>
+                            </span>
+                        </div>
+                        <div class="sub-chart-body" id="macdChartBody"></div>
+                    </div>
                     <div class="connection-status"><div class="status-dot connected"></div><span>实时数据已连接</span></div>
                 </div>
                 <div class="order-panel">
@@ -178,8 +239,70 @@
             </div>
             <div class="trading-main">
                 <div class="chart-section">
-                    <div class="chart-toolbar"><div class="period-btns"><button class="period-btn">1m</button><button class="period-btn">5m</button><button class="period-btn active">1h</button><button class="period-btn">4h</button><button class="period-btn">1d</button></div><button class="indicator-btn" onclick="showIndicatorPanel()">📊 指标</button><button class="indicator-btn" onclick="showDrawingTools()">✏️ 画线</button></div>
+                    <div class="chart-toolbar">
+                        <div class="period-btns"><button class="period-btn">1m</button><button class="period-btn">5m</button><button class="period-btn active">1h</button><button class="period-btn">4h</button><button class="period-btn">1d</button></div>
+                        <div class="indicator-selector">
+                            <button class="indicator-btn" onclick="toggleIndicatorDropdown('contract')">📊 技术指标 <span class="indicator-count">4</span></button>
+                            <div class="indicator-dropdown" id="contractIndicatorDropdown">
+                                <div class="indicator-group">
+                                    <div class="indicator-group-title">趋势指标</div>
+                                    <label class="indicator-option"><input type="checkbox" checked><span class="indicator-name">MA 均线</span></label>
+                                    <label class="indicator-option"><input type="checkbox" checked><span class="indicator-name">EMA</span></label>
+                                    <label class="indicator-option"><input type="checkbox" checked><span class="indicator-name">BOLL 布林带</span></label>
+                                </div>
+                                <div class="indicator-group">
+                                    <div class="indicator-group-title">动量指标</div>
+                                    <label class="indicator-option"><input type="checkbox" checked><span class="indicator-name">RSI</span></label>
+                                    <label class="indicator-option"><input type="checkbox"><span class="indicator-name">MACD</span></label>
+                                    <label class="indicator-option"><input type="checkbox"><span class="indicator-name">KDJ</span></label>
+                                </div>
+                                <div class="indicator-actions">
+                                    <button class="btn primary small" onclick="applyIndicators()">应用</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="indicator-btn" onclick="showDrawingTools()">✏️ 画线</button>
+                        <div class="contract-chart-tools">
+                            <button class="tool-btn active" onclick="switchChartType('candle')">K线</button>
+                            <button class="tool-btn" onclick="switchChartType('line')">分时</button>
+                            <button class="tool-btn" onclick="switchChartType('depth')">深度</button>
+                        </div>
+                    </div>
+                    <!-- 活跃指标展示 -->
+                    <div class="active-indicators" id="contractActiveIndicators">
+                        <span class="active-indicator">MA(7,25,99) <button>×</button></span>
+                        <span class="active-indicator">EMA(12,26) <button>×</button></span>
+                        <span class="active-indicator">BOLL(20,2) <button>×</button></span>
+                        <span class="active-indicator">RSI(14) <button>×</button></span>
+                    </div>
                     <div class="chart-container" id="contractChartContainer"></div>
+                    <!-- RSI 副图 -->
+                    <div class="sub-chart-container" id="rsiChart">
+                        <div class="sub-chart-header">
+                            <span class="sub-chart-title">RSI(14)</span>
+                            <span class="sub-chart-values">
+                                <span class="rsi-value">RSI: <em class="neutral">52.35</em></span>
+                                <span class="rsi-zone">超买:70 | 超卖:30</span>
+                            </span>
+                        </div>
+                        <div class="sub-chart-body" id="rsiChartBody">
+                            <div class="rsi-zones">
+                                <div class="rsi-zone-line overbought" style="top: 30%;">70</div>
+                                <div class="rsi-zone-line oversold" style="top: 70%;">30</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 多空比例 -->
+                    <div class="long-short-ratio">
+                        <div class="ratio-header">
+                            <span class="ratio-title">📊 多空持仓比</span>
+                            <span class="ratio-time">更新于 12:30:00</span>
+                        </div>
+                        <div class="ratio-bar">
+                            <div class="long-bar" style="width: 58%;">多 58%</div>
+                            <div class="short-bar" style="width: 42%;">空 42%</div>
+                        </div>
+                    </div>
                     <div class="connection-status"><div class="status-dot connected"></div><span>实时数据已连接</span></div>
                 </div>
                 <div class="order-panel contract-order-panel">
@@ -1653,6 +1776,1872 @@
         <div class="panel-footer"><button class="btn secondary" onclick="clearAllDrawings()">清除所有</button><button class="btn primary" onclick="closeDrawingPanel()">完成</button></div>
     </div>
     
+    <!-- 市场总览页面 (US-009) -->
+    <div class="page" id="marketOverviewPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item active" data-page="marketOverviewPage">市场总览</span>
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="trade-mode-switch" onclick="toggleTradeMode()">
+                    <div class="mode-indicator"></div>
+                    <span class="mode-label live">实盘</span>
+                    <span class="mode-label paper">模拟</span>
+                </div>
+                <div class="header-icon">🔔</div>
+                <div class="header-icon" onclick="showPage('profilePage')">⚙️</div>
+                <div class="user-menu" onclick="toggleDropdown()">
+                    <div class="user-avatar">张</div><span>张三</span><span>▼</span>
+                </div>
+            </div>
+        </header>
+        <div class="page-content market-overview-content">
+            <h1 class="page-title">📊 市场总览</h1>
+            
+            <!-- 市场概览卡片 -->
+            <div class="market-summary-cards">
+                <div class="summary-card">
+                    <div class="summary-icon">💰</div>
+                    <div class="summary-info">
+                        <div class="summary-label">加密市场总市值</div>
+                        <div class="summary-value">$2.45T</div>
+                        <div class="summary-change positive">+2.35% (24h)</div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">📈</div>
+                    <div class="summary-info">
+                        <div class="summary-label">24h总交易量</div>
+                        <div class="summary-value">$98.5B</div>
+                        <div class="summary-change positive">+15.2%</div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">🔥</div>
+                    <div class="summary-info">
+                        <div class="summary-label">BTC主导率</div>
+                        <div class="summary-value">52.3%</div>
+                        <div class="summary-change negative">-0.5%</div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">📉</div>
+                    <div class="summary-info">
+                        <div class="summary-label">恐惧贪婪指数</div>
+                        <div class="summary-value fear-greed">68 贪婪</div>
+                        <div class="summary-change">上周: 55</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 涨跌幅榜 -->
+            <div class="market-rankings">
+                <div class="ranking-section">
+                    <div class="section-title">🚀 涨幅榜 TOP 10</div>
+                    <div class="ranking-list">
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">1</span>
+                            <div class="coin-info"><span class="coin-icon">🔶</span><span class="coin-name">SOL/USDT</span></div>
+                            <span class="coin-price">$125.50</span>
+                            <span class="coin-change positive">+18.52%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">2</span>
+                            <div class="coin-info"><span class="coin-icon">⬛</span><span class="coin-name">AVAX/USDT</span></div>
+                            <span class="coin-price">$42.30</span>
+                            <span class="coin-change positive">+15.23%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">3</span>
+                            <div class="coin-info"><span class="coin-icon">🟣</span><span class="coin-name">DOT/USDT</span></div>
+                            <span class="coin-price">$8.65</span>
+                            <span class="coin-change positive">+12.85%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">4</span>
+                            <div class="coin-info"><span class="coin-icon">🔵</span><span class="coin-name">LINK/USDT</span></div>
+                            <span class="coin-price">$18.92</span>
+                            <span class="coin-change positive">+10.56%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">5</span>
+                            <div class="coin-info"><span class="coin-icon">🟡</span><span class="coin-name">DOGE/USDT</span></div>
+                            <span class="coin-price">$0.0852</span>
+                            <span class="coin-change positive">+9.35%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ranking-section">
+                    <div class="section-title">📉 跌幅榜 TOP 10</div>
+                    <div class="ranking-list">
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">1</span>
+                            <div class="coin-info"><span class="coin-icon">🟠</span><span class="coin-name">FTM/USDT</span></div>
+                            <span class="coin-price">$0.42</span>
+                            <span class="coin-change negative">-12.35%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">2</span>
+                            <div class="coin-info"><span class="coin-icon">🔷</span><span class="coin-name">NEAR/USDT</span></div>
+                            <span class="coin-price">$5.82</span>
+                            <span class="coin-change negative">-8.56%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">3</span>
+                            <div class="coin-info"><span class="coin-icon">⚪</span><span class="coin-name">ATOM/USDT</span></div>
+                            <span class="coin-price">$9.15</span>
+                            <span class="coin-change negative">-6.23%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">4</span>
+                            <div class="coin-info"><span class="coin-icon">🔴</span><span class="coin-name">APE/USDT</span></div>
+                            <span class="coin-price">$1.85</span>
+                            <span class="coin-change negative">-5.82%</span>
+                        </div>
+                        <div class="ranking-item" onclick="showPage('tradingPage')">
+                            <span class="rank">5</span>
+                            <div class="coin-info"><span class="coin-icon">🟤</span><span class="coin-name">SAND/USDT</span></div>
+                            <span class="coin-price">$0.52</span>
+                            <span class="coin-change negative">-4.95%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 市值排行榜 -->
+            <div class="chart-card">
+                <div class="section-title">📊 市值排行榜 TOP 20</div>
+                <table class="data-table market-cap-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>币种</th>
+                            <th>价格</th>
+                            <th>24h涨跌</th>
+                            <th>7d涨跌</th>
+                            <th>市值</th>
+                            <th>24h成交量</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td><div class="coin-info"><span class="coin-icon">🟠</span><span>BTC</span></div></td>
+                            <td>$45,230.50</td>
+                            <td class="positive">+2.35%</td>
+                            <td class="positive">+8.52%</td>
+                            <td>$886.5B</td>
+                            <td>$28.5B</td>
+                            <td><button class="btn-small primary" onclick="showPage('tradingPage')">交易</button></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><div class="coin-info"><span class="coin-icon">💎</span><span>ETH</span></div></td>
+                            <td>$3,200.80</td>
+                            <td class="positive">+3.12%</td>
+                            <td class="positive">+12.35%</td>
+                            <td>$384.2B</td>
+                            <td>$15.8B</td>
+                            <td><button class="btn-small primary" onclick="showPage('tradingPage')">交易</button></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td><div class="coin-info"><span class="coin-icon">🟢</span><span>USDT</span></div></td>
+                            <td>$1.00</td>
+                            <td>+0.01%</td>
+                            <td>+0.00%</td>
+                            <td>$92.3B</td>
+                            <td>$45.2B</td>
+                            <td><button class="btn-small secondary" disabled>稳定币</button></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><div class="coin-info"><span class="coin-icon">🔵</span><span>BNB</span></div></td>
+                            <td>$325.50</td>
+                            <td class="positive">+1.85%</td>
+                            <td class="positive">+5.62%</td>
+                            <td>$50.1B</td>
+                            <td>$1.2B</td>
+                            <td><button class="btn-small primary" onclick="showPage('tradingPage')">交易</button></td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td><div class="coin-info"><span class="coin-icon">🔶</span><span>SOL</span></div></td>
+                            <td>$125.50</td>
+                            <td class="positive">+18.52%</td>
+                            <td class="positive">+35.2%</td>
+                            <td>$54.2B</td>
+                            <td>$3.8B</td>
+                            <td><button class="btn-small primary" onclick="showPage('tradingPage')">交易</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 热门交易对 -->
+            <div class="chart-card">
+                <div class="section-title">🔥 热门交易对 (24h交易量)</div>
+                <div class="hot-pairs-grid">
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">BTC/USDT</div>
+                        <div class="pair-price">$45,230.50</div>
+                        <div class="pair-change positive">+2.35%</div>
+                        <div class="pair-volume">Vol: $28.5B</div>
+                    </div>
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">ETH/USDT</div>
+                        <div class="pair-price">$3,200.80</div>
+                        <div class="pair-change positive">+3.12%</div>
+                        <div class="pair-volume">Vol: $15.8B</div>
+                    </div>
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">SOL/USDT</div>
+                        <div class="pair-price">$125.50</div>
+                        <div class="pair-change positive">+18.52%</div>
+                        <div class="pair-volume">Vol: $3.8B</div>
+                    </div>
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">DOGE/USDT</div>
+                        <div class="pair-price">$0.0852</div>
+                        <div class="pair-change positive">+9.35%</div>
+                        <div class="pair-volume">Vol: $1.2B</div>
+                    </div>
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">XRP/USDT</div>
+                        <div class="pair-price">$0.625</div>
+                        <div class="pair-change positive">+5.62%</div>
+                        <div class="pair-volume">Vol: $2.5B</div>
+                    </div>
+                    <div class="hot-pair-card" onclick="showPage('tradingPage')">
+                        <div class="pair-name">AVAX/USDT</div>
+                        <div class="pair-price">$42.30</div>
+                        <div class="pair-change positive">+15.23%</div>
+                        <div class="pair-volume">Vol: $1.5B</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 多交易所价格对比页面 (US-008) -->
+    <div class="page" id="exchangeComparePage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="page-content">
+            <div class="compare-header">
+                <h1 class="page-title">🔄 多交易所价格对比</h1>
+                <div class="compare-pair-selector">
+                    <select class="config-input" id="comparePairSelect">
+                        <option value="BTC/USDT">BTC/USDT</option>
+                        <option value="ETH/USDT">ETH/USDT</option>
+                        <option value="SOL/USDT">SOL/USDT</option>
+                    </select>
+                    <button class="btn primary" onclick="refreshCompareData()">刷新数据</button>
+                </div>
+            </div>
+            
+            <!-- 价格对比卡片 -->
+            <div class="exchange-compare-cards">
+                <div class="compare-card best-buy">
+                    <div class="compare-badge">最佳买入</div>
+                    <div class="exchange-logo binance">B</div>
+                    <div class="exchange-name">Binance</div>
+                    <div class="compare-price">$45,228.50</div>
+                    <div class="compare-spread">买一: $45,228.50 | 卖一: $45,230.00</div>
+                    <div class="compare-depth">深度: 15.8 BTC</div>
+                </div>
+                <div class="compare-card">
+                    <div class="exchange-logo okx">O</div>
+                    <div class="exchange-name">OKX</div>
+                    <div class="compare-price">$45,235.00</div>
+                    <div class="compare-diff negative">+$6.50 (+0.014%)</div>
+                    <div class="compare-spread">买一: $45,232.00 | 卖一: $45,238.00</div>
+                    <div class="compare-depth">深度: 12.3 BTC</div>
+                </div>
+                <div class="compare-card">
+                    <div class="exchange-logo bybit">By</div>
+                    <div class="exchange-name">Bybit</div>
+                    <div class="compare-price">$45,242.50</div>
+                    <div class="compare-diff negative">+$14.00 (+0.031%)</div>
+                    <div class="compare-spread">买一: $45,240.00 | 卖一: $45,245.00</div>
+                    <div class="compare-depth">深度: 8.5 BTC</div>
+                </div>
+                <div class="compare-card best-sell">
+                    <div class="compare-badge sell">最佳卖出</div>
+                    <div class="exchange-logo huobi">H</div>
+                    <div class="exchange-name">Huobi</div>
+                    <div class="compare-price">$45,248.00</div>
+                    <div class="compare-diff positive">+$19.50 (+0.043%)</div>
+                    <div class="compare-spread">买一: $45,245.00 | 卖一: $45,251.00</div>
+                    <div class="compare-depth">深度: 6.2 BTC</div>
+                </div>
+            </div>
+            
+            <!-- 套利机会提示 -->
+            <div class="arbitrage-section">
+                <div class="section-title">💰 套利机会分析</div>
+                <div class="arbitrage-cards">
+                    <div class="arbitrage-card">
+                        <div class="arb-route">Binance → Huobi</div>
+                        <div class="arb-spread positive">+0.043%</div>
+                        <div class="arb-profit">$19.50/BTC</div>
+                        <div class="arb-status">扣除手续费后: +0.023%</div>
+                    </div>
+                    <div class="arbitrage-card">
+                        <div class="arb-route">Binance → Bybit</div>
+                        <div class="arb-spread positive">+0.031%</div>
+                        <div class="arb-profit">$14.00/BTC</div>
+                        <div class="arb-status">扣除手续费后: +0.011%</div>
+                    </div>
+                </div>
+                <div class="arbitrage-note">
+                    <span class="note-icon">⚠️</span>
+                    <span>注意: 套利收益需考虑提币时间和手续费，以上数据仅供参考</span>
+                </div>
+            </div>
+            
+            <!-- 历史价差图表 -->
+            <div class="chart-card">
+                <div class="card-title">📈 交易所价差历史 (24h)</div>
+                <div class="real-chart" id="spreadHistoryChart"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 自选交易对管理页面 (US-005) -->
+    <div class="page" id="watchlistPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="page-content">
+            <div class="watchlist-header">
+                <h1 class="page-title">⭐ 我的自选</h1>
+                <div class="watchlist-actions">
+                    <button class="btn secondary" onclick="showAddWatchlistModal()">+ 添加交易对</button>
+                    <button class="btn secondary" onclick="showToast('已同步到所有设备','success')">🔄 同步</button>
+                </div>
+            </div>
+            
+            <!-- 自选分组 -->
+            <div class="watchlist-tabs">
+                <span class="watchlist-tab active" onclick="switchWatchlistGroup('all')">全部 (12)</span>
+                <span class="watchlist-tab" onclick="switchWatchlistGroup('main')">主流币 (5)</span>
+                <span class="watchlist-tab" onclick="switchWatchlistGroup('defi')">DeFi (4)</span>
+                <span class="watchlist-tab" onclick="switchWatchlistGroup('meme')">Meme (3)</span>
+                <span class="watchlist-tab add" onclick="showToast('新建分组功能开发中','info')">+ 新建分组</span>
+            </div>
+            
+            <!-- 自选列表 -->
+            <div class="watchlist-table-wrapper">
+                <table class="data-table watchlist-table">
+                    <thead>
+                        <tr>
+                            <th>排序</th>
+                            <th>交易对</th>
+                            <th>最新价</th>
+                            <th>24h涨跌</th>
+                            <th>24h最高</th>
+                            <th>24h最低</th>
+                            <th>24h成交量</th>
+                            <th>预警</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="watchlistBody">
+                        <tr draggable="true">
+                            <td><span class="drag-handle">☰</span></td>
+                            <td><div class="coin-info"><span class="fav-star active">★</span><span class="coin-icon">🟠</span><span>BTC/USDT</span></div></td>
+                            <td>$45,230.50</td>
+                            <td class="positive">+2.35%</td>
+                            <td>$45,800</td>
+                            <td>$44,200</td>
+                            <td>12,345 BTC</td>
+                            <td><span class="alert-badge active" onclick="showPage('priceAlertPage')">🔔 2</span></td>
+                            <td>
+                                <button class="btn-small primary" onclick="showPage('tradingPage')">交易</button>
+                                <button class="btn-small secondary" onclick="removeFromWatchlist('BTC')">移除</button>
+                            </td>
+                        </tr>
+                        <tr draggable="true">
+                            <td><span class="drag-handle">☰</span></td>
+                            <td><div class="coin-info"><span class="fav-star active">★</span><span class="coin-icon">💎</span><span>ETH/USDT</span></div></td>
+                            <td>$3,200.80</td>
+                            <td class="positive">+3.12%</td>
+                            <td>$3,280</td>
+                            <td>$3,100</td>
+                            <td>85,230 ETH</td>
+                            <td><span class="alert-badge" onclick="showPage('priceAlertPage')">🔔</span></td>
+                            <td>
+                                <button class="btn-small primary" onclick="showPage('tradingPage')">交易</button>
+                                <button class="btn-small secondary" onclick="removeFromWatchlist('ETH')">移除</button>
+                            </td>
+                        </tr>
+                        <tr draggable="true">
+                            <td><span class="drag-handle">☰</span></td>
+                            <td><div class="coin-info"><span class="fav-star active">★</span><span class="coin-icon">🔶</span><span>SOL/USDT</span></div></td>
+                            <td>$125.50</td>
+                            <td class="positive">+18.52%</td>
+                            <td>$128.50</td>
+                            <td>$105.20</td>
+                            <td>2.5M SOL</td>
+                            <td><span class="alert-badge active" onclick="showPage('priceAlertPage')">🔔 1</span></td>
+                            <td>
+                                <button class="btn-small primary" onclick="showPage('tradingPage')">交易</button>
+                                <button class="btn-small secondary" onclick="removeFromWatchlist('SOL')">移除</button>
+                            </td>
+                        </tr>
+                        <tr draggable="true">
+                            <td><span class="drag-handle">☰</span></td>
+                            <td><div class="coin-info"><span class="fav-star active">★</span><span class="coin-icon">🔵</span><span>LINK/USDT</span></div></td>
+                            <td>$18.92</td>
+                            <td class="positive">+10.56%</td>
+                            <td>$19.50</td>
+                            <td>$17.00</td>
+                            <td>8.2M LINK</td>
+                            <td><span class="alert-badge" onclick="showPage('priceAlertPage')">🔔</span></td>
+                            <td>
+                                <button class="btn-small primary" onclick="showPage('tradingPage')">交易</button>
+                                <button class="btn-small secondary" onclick="removeFromWatchlist('LINK')">移除</button>
+                            </td>
+                        </tr>
+                        <tr draggable="true">
+                            <td><span class="drag-handle">☰</span></td>
+                            <td><div class="coin-info"><span class="fav-star active">★</span><span class="coin-icon">🟡</span><span>DOGE/USDT</span></div></td>
+                            <td>$0.0852</td>
+                            <td class="positive">+9.35%</td>
+                            <td>$0.0895</td>
+                            <td>$0.0780</td>
+                            <td>15B DOGE</td>
+                            <td><span class="alert-badge" onclick="showPage('priceAlertPage')">🔔</span></td>
+                            <td>
+                                <button class="btn-small primary" onclick="showPage('tradingPage')">交易</button>
+                                <button class="btn-small secondary" onclick="removeFromWatchlist('DOGE')">移除</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 价格预警配置页面 (US-007) -->
+    <div class="page" id="priceAlertPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="page-content">
+            <div class="alert-page-header">
+                <h1 class="page-title">🔔 价格预警设置</h1>
+                <button class="btn primary" onclick="showCreateAlertModal()">+ 创建预警</button>
+            </div>
+            
+            <!-- 预警统计 -->
+            <div class="alert-stats">
+                <div class="alert-stat-card">
+                    <div class="stat-value">8</div>
+                    <div class="stat-label">活跃预警</div>
+                </div>
+                <div class="alert-stat-card">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">今日触发</div>
+                </div>
+                <div class="alert-stat-card">
+                    <div class="stat-value">25</div>
+                    <div class="stat-label">历史预警</div>
+                </div>
+            </div>
+            
+            <!-- 通知渠道设置 -->
+            <div class="chart-card">
+                <div class="section-title">📱 通知渠道设置</div>
+                <div class="notify-channels">
+                    <div class="channel-item">
+                        <div class="channel-info">
+                            <span class="channel-icon">📧</span>
+                            <span class="channel-name">邮件通知</span>
+                            <span class="channel-detail">user@example.com</span>
+                        </div>
+                        <div class="switch on" onclick="this.classList.toggle('on')"></div>
+                    </div>
+                    <div class="channel-item">
+                        <div class="channel-info">
+                            <span class="channel-icon">📱</span>
+                            <span class="channel-name">APP推送</span>
+                            <span class="channel-detail">已绑定设备: 2</span>
+                        </div>
+                        <div class="switch on" onclick="this.classList.toggle('on')"></div>
+                    </div>
+                    <div class="channel-item">
+                        <div class="channel-info">
+                            <span class="channel-icon">💬</span>
+                            <span class="channel-name">短信通知</span>
+                            <span class="channel-detail">138****8000 (每日限10条)</span>
+                        </div>
+                        <div class="switch" onclick="this.classList.toggle('on')"></div>
+                    </div>
+                    <div class="channel-item">
+                        <div class="channel-info">
+                            <span class="channel-icon">🤖</span>
+                            <span class="channel-name">Telegram Bot</span>
+                            <span class="channel-detail">未绑定</span>
+                        </div>
+                        <button class="btn-small primary">绑定</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 活跃预警列表 -->
+            <div class="chart-card">
+                <div class="section-title">🔔 活跃预警</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>交易对</th>
+                            <th>预警类型</th>
+                            <th>触发条件</th>
+                            <th>当前价格</th>
+                            <th>创建时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="pair-badge">BTC/USDT</span></td>
+                            <td>价格上穿</td>
+                            <td class="positive">≥ $46,000</td>
+                            <td>$45,230.50</td>
+                            <td>2026-02-01 10:30</td>
+                            <td><span class="status-badge running">监控中</span></td>
+                            <td>
+                                <button class="btn-small secondary" onclick="editAlert(1)">编辑</button>
+                                <button class="btn-small danger" onclick="deleteAlert(1)">删除</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="pair-badge">BTC/USDT</span></td>
+                            <td>价格下穿</td>
+                            <td class="negative">≤ $44,000</td>
+                            <td>$45,230.50</td>
+                            <td>2026-02-01 10:30</td>
+                            <td><span class="status-badge running">监控中</span></td>
+                            <td>
+                                <button class="btn-small secondary" onclick="editAlert(2)">编辑</button>
+                                <button class="btn-small danger" onclick="deleteAlert(2)">删除</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="pair-badge">SOL/USDT</span></td>
+                            <td>涨跌幅</td>
+                            <td class="positive">24h涨幅 ≥ 20%</td>
+                            <td>$125.50 (+18.52%)</td>
+                            <td>2026-01-30 15:00</td>
+                            <td><span class="status-badge running">监控中</span></td>
+                            <td>
+                                <button class="btn-small secondary" onclick="editAlert(3)">编辑</button>
+                                <button class="btn-small danger" onclick="deleteAlert(3)">删除</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="pair-badge">ETH/USDT</span></td>
+                            <td>成交量异动</td>
+                            <td>24h成交量突增 ≥ 50%</td>
+                            <td>$3,200.80</td>
+                            <td>2026-01-28 09:00</td>
+                            <td><span class="status-badge running">监控中</span></td>
+                            <td>
+                                <button class="btn-small secondary" onclick="editAlert(4)">编辑</button>
+                                <button class="btn-small danger" onclick="deleteAlert(4)">删除</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 已触发预警历史 -->
+            <div class="chart-card">
+                <div class="section-title">📜 预警触发历史</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>触发时间</th>
+                            <th>交易对</th>
+                            <th>预警类型</th>
+                            <th>触发价格</th>
+                            <th>通知渠道</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>2026-02-02 14:25:30</td>
+                            <td><span class="pair-badge">SOL/USDT</span></td>
+                            <td>价格上穿</td>
+                            <td>$120.00</td>
+                            <td>📧 邮件 | 📱 APP</td>
+                            <td><span class="status-done">已通知</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-02 10:15:00</td>
+                            <td><span class="pair-badge">BTC/USDT</span></td>
+                            <td>涨跌幅</td>
+                            <td>$45,000 (+5%)</td>
+                            <td>📧 邮件</td>
+                            <td><span class="status-done">已通知</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-01 22:30:00</td>
+                            <td><span class="pair-badge">ETH/USDT</span></td>
+                            <td>价格下穿</td>
+                            <td>$3,100</td>
+                            <td>📱 APP</td>
+                            <td><span class="status-done">已通知</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 资产详情页面 (US-020) -->
+    <div class="page" id="assetDetailPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="breadcrumb"><a onclick="showPage('profilePage')">资产管理</a> > <span>BTC 详情</span></div>
+        <div class="page-content">
+            <!-- 币种概览 -->
+            <div class="asset-overview">
+                <div class="asset-header">
+                    <div class="asset-icon-large">🟠</div>
+                    <div class="asset-info">
+                        <h1 class="asset-name">Bitcoin (BTC)</h1>
+                        <div class="asset-price-info">
+                            <span class="current-price">$45,230.50</span>
+                            <span class="price-change positive">+$1,032.50 (+2.35%)</span>
+                        </div>
+                    </div>
+                    <div class="asset-actions">
+                        <button class="btn primary" onclick="showPage('tradingPage')">交易</button>
+                        <button class="btn secondary" onclick="showToast('充值功能暂未开放','info')">充值</button>
+                        <button class="btn secondary" onclick="showToast('提现功能暂未开放','info')">提现</button>
+                    </div>
+                </div>
+                
+                <!-- 持仓详情 -->
+                <div class="holding-cards">
+                    <div class="holding-card">
+                        <div class="holding-label">总持有量</div>
+                        <div class="holding-value">0.5823 BTC</div>
+                        <div class="holding-usd">≈ $26,346.76</div>
+                    </div>
+                    <div class="holding-card">
+                        <div class="holding-label">可用余额</div>
+                        <div class="holding-value">0.4823 BTC</div>
+                        <div class="holding-usd">≈ $21,823.26</div>
+                    </div>
+                    <div class="holding-card">
+                        <div class="holding-label">冻结数量</div>
+                        <div class="holding-value">0.1000 BTC</div>
+                        <div class="holding-usd">≈ $4,523.05 (挂单中)</div>
+                    </div>
+                    <div class="holding-card">
+                        <div class="holding-label">持仓成本</div>
+                        <div class="holding-value">$42,500.00</div>
+                        <div class="holding-usd">平均买入价</div>
+                    </div>
+                    <div class="holding-card">
+                        <div class="holding-label">未实现盈亏</div>
+                        <div class="holding-value positive">+$1,591.47</div>
+                        <div class="holding-usd positive">+6.43%</div>
+                    </div>
+                    <div class="holding-card">
+                        <div class="holding-label">已实现盈亏</div>
+                        <div class="holding-value positive">+$3,250.00</div>
+                        <div class="holding-usd">累计</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 交易记录 -->
+            <div class="chart-card">
+                <div class="section-title">📜 交易记录</div>
+                <div class="filter-bar">
+                    <select class="filter-select"><option>全部类型</option><option>买入</option><option>卖出</option><option>充值</option><option>提现</option></select>
+                    <select class="filter-select"><option>最近7天</option><option>最近30天</option><option>最近90天</option><option>全部</option></select>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>类型</th>
+                            <th>交易对</th>
+                            <th>价格</th>
+                            <th>数量</th>
+                            <th>成交额</th>
+                            <th>手续费</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>2026-02-02 14:30</td>
+                            <td class="buy">买入</td>
+                            <td>BTC/USDT</td>
+                            <td>$45,000.00</td>
+                            <td>0.1000 BTC</td>
+                            <td>$4,500.00</td>
+                            <td>$4.50 (0.1%)</td>
+                            <td><span class="status-done">已成交</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-01 10:15</td>
+                            <td class="sell">卖出</td>
+                            <td>BTC/USDT</td>
+                            <td>$44,800.00</td>
+                            <td>0.0500 BTC</td>
+                            <td>$2,240.00</td>
+                            <td>$2.24 (0.1%)</td>
+                            <td><span class="status-done">已成交</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-01-30 16:45</td>
+                            <td class="buy">买入</td>
+                            <td>BTC/USDT</td>
+                            <td>$43,500.00</td>
+                            <td>0.2000 BTC</td>
+                            <td>$8,700.00</td>
+                            <td>$8.70 (0.1%)</td>
+                            <td><span class="status-done">已成交</span></td>
+                        </tr>
+                        <tr>
+                            <td>2026-01-28 09:30</td>
+                            <td class="buy">买入</td>
+                            <td>BTC/USDT</td>
+                            <td>$42,000.00</td>
+                            <td>0.3323 BTC</td>
+                            <td>$13,956.60</td>
+                            <td>$13.96 (0.1%)</td>
+                            <td><span class="status-done">已成交</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 持仓价值走势 -->
+            <div class="chart-card">
+                <div class="card-title">📈 持仓价值走势</div>
+                <div class="real-chart" id="assetValueChart"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 交易手续费统计页面 (US-022) -->
+    <div class="page" id="feeStatPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="page-content">
+            <h1 class="page-title">💰 交易手续费统计</h1>
+            
+            <!-- 手续费概览 -->
+            <div class="fee-overview">
+                <div class="fee-card main">
+                    <div class="fee-icon">💸</div>
+                    <div class="fee-info">
+                        <div class="fee-label">累计手续费支出</div>
+                        <div class="fee-value">$1,256.85</div>
+                        <div class="fee-detail">自 2025-06-15 起</div>
+                    </div>
+                </div>
+                <div class="fee-card">
+                    <div class="fee-info">
+                        <div class="fee-label">本月手续费</div>
+                        <div class="fee-value">$156.32</div>
+                        <div class="fee-detail">2026-02</div>
+                    </div>
+                </div>
+                <div class="fee-card">
+                    <div class="fee-info">
+                        <div class="fee-label">当前费率等级</div>
+                        <div class="fee-value">VIP 1</div>
+                        <div class="fee-detail">Maker: 0.08% | Taker: 0.10%</div>
+                    </div>
+                </div>
+                <div class="fee-card">
+                    <div class="fee-info">
+                        <div class="fee-label">距下一等级</div>
+                        <div class="fee-value">$8,743.15</div>
+                        <div class="fee-detail">30日交易量</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 费率说明 -->
+            <div class="chart-card">
+                <div class="section-title">📊 费率等级说明</div>
+                <table class="data-table fee-tier-table">
+                    <thead>
+                        <tr>
+                            <th>等级</th>
+                            <th>30日交易量要求</th>
+                            <th>Maker费率</th>
+                            <th>Taker费率</th>
+                            <th>您的状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>普通用户</td>
+                            <td>< $10,000</td>
+                            <td>0.10%</td>
+                            <td>0.10%</td>
+                            <td>-</td>
+                        </tr>
+                        <tr class="current-tier">
+                            <td><span class="tier-badge">VIP 1</span></td>
+                            <td>$10,000 - $50,000</td>
+                            <td>0.08%</td>
+                            <td>0.10%</td>
+                            <td class="positive">✓ 当前等级</td>
+                        </tr>
+                        <tr>
+                            <td><span class="tier-badge vip2">VIP 2</span></td>
+                            <td>$50,000 - $100,000</td>
+                            <td>0.06%</td>
+                            <td>0.08%</td>
+                            <td>还需 $8,743</td>
+                        </tr>
+                        <tr>
+                            <td><span class="tier-badge vip3">VIP 3</span></td>
+                            <td>$100,000 - $500,000</td>
+                            <td>0.04%</td>
+                            <td>0.06%</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td><span class="tier-badge vip4">VIP 4</span></td>
+                            <td>> $500,000</td>
+                            <td>0.02%</td>
+                            <td>0.04%</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 手续费明细 -->
+            <div class="chart-card">
+                <div class="section-title">📜 手续费明细</div>
+                <div class="filter-bar">
+                    <select class="filter-select"><option>全部交易所</option><option>Binance</option><option>OKX</option></select>
+                    <select class="filter-select"><option>全部交易对</option><option>BTC/USDT</option><option>ETH/USDT</option></select>
+                    <select class="filter-select"><option>本月</option><option>上月</option><option>近3个月</option><option>全部</option></select>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>交易所</th>
+                            <th>交易对</th>
+                            <th>交易类型</th>
+                            <th>成交额</th>
+                            <th>费率</th>
+                            <th>手续费</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>2026-02-02 14:30</td>
+                            <td>Binance</td>
+                            <td>BTC/USDT</td>
+                            <td>Taker (买入)</td>
+                            <td>$4,500.00</td>
+                            <td>0.10%</td>
+                            <td>$4.50</td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-02 10:15</td>
+                            <td>Binance</td>
+                            <td>ETH/USDT</td>
+                            <td>Maker (卖出)</td>
+                            <td>$3,200.00</td>
+                            <td>0.08%</td>
+                            <td>$2.56</td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-01 16:45</td>
+                            <td>Binance</td>
+                            <td>BTC/USDT</td>
+                            <td>Taker (卖出)</td>
+                            <td>$2,240.00</td>
+                            <td>0.10%</td>
+                            <td>$2.24</td>
+                        </tr>
+                        <tr>
+                            <td>2026-02-01 09:30</td>
+                            <td>Binance</td>
+                            <td>SOL/USDT</td>
+                            <td>Maker (买入)</td>
+                            <td>$1,255.00</td>
+                            <td>0.08%</td>
+                            <td>$1.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="fee-summary">
+                    <span>本页合计: <strong>$10.30</strong></span>
+                    <span>筛选条件内合计: <strong>$156.32</strong></span>
+                </div>
+            </div>
+            
+            <!-- 手续费趋势图 -->
+            <div class="chart-card">
+                <div class="card-title">📈 月度手续费趋势</div>
+                <div class="real-chart" id="feeChart"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 策略模板库页面 (US-032) -->
+    <div class="page" id="strategyTemplatePage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item active" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="page-content">
+            <div class="template-header">
+                <h1 class="page-title">📋 策略模板库</h1>
+                <p class="template-desc">使用预置模板快速创建量化策略，无需编写代码</p>
+            </div>
+            
+            <!-- 模板分类 -->
+            <div class="template-categories">
+                <button class="filter-btn active">全部模板</button>
+                <button class="filter-btn">趋势跟踪</button>
+                <button class="filter-btn">网格交易</button>
+                <button class="filter-btn">套利策略</button>
+                <button class="filter-btn">定投策略</button>
+                <button class="filter-btn">突破策略</button>
+            </div>
+            
+            <!-- 模板列表 -->
+            <div class="template-grid">
+                <div class="template-card">
+                    <div class="template-icon">📈</div>
+                    <div class="template-info">
+                        <h3>双均线交叉策略</h3>
+                        <p>当短期均线上穿长期均线时买入，下穿时卖出</p>
+                        <div class="template-tags">
+                            <span class="tag">趋势跟踪</span>
+                            <span class="tag">入门级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 短期周期、长期周期、止损比例</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('ma_cross')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('ma_cross')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">📊</div>
+                    <div class="template-info">
+                        <h3>网格交易策略</h3>
+                        <p>在设定价格区间内自动挂单，低买高卖赚取差价</p>
+                        <div class="template-tags">
+                            <span class="tag">网格交易</span>
+                            <span class="tag">入门级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 价格上限、价格下限、网格数量、每格金额</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('grid')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('grid')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">🔄</div>
+                    <div class="template-info">
+                        <h3>MACD背离策略</h3>
+                        <p>根据MACD指标背离信号进行交易</p>
+                        <div class="template-tags">
+                            <span class="tag">趋势跟踪</span>
+                            <span class="tag">中级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 快线周期、慢线周期、信号线周期</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('macd')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('macd')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">💰</div>
+                    <div class="template-info">
+                        <h3>定投策略</h3>
+                        <p>按设定周期和金额自动买入，分散投资风险</p>
+                        <div class="template-tags">
+                            <span class="tag">定投策略</span>
+                            <span class="tag">入门级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 定投周期、每次金额、交易对</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('dca')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('dca')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">⚡</div>
+                    <div class="template-info">
+                        <h3>布林带突破策略</h3>
+                        <p>价格突破布林带上轨做多，突破下轨做空</p>
+                        <div class="template-tags">
+                            <span class="tag">突破策略</span>
+                            <span class="tag">中级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 周期、标准差倍数、止盈止损</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('boll')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('boll')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">🔗</div>
+                    <div class="template-info">
+                        <h3>跨交易所套利</h3>
+                        <p>监控多个交易所价差，自动执行套利交易</p>
+                        <div class="template-tags">
+                            <span class="tag">套利策略</span>
+                            <span class="tag">高级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 交易所列表、最小价差、交易金额</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('arb')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('arb')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">📉</div>
+                    <div class="template-info">
+                        <h3>RSI超买超卖策略</h3>
+                        <p>RSI进入超卖区买入，进入超买区卖出</p>
+                        <div class="template-tags">
+                            <span class="tag">趋势跟踪</span>
+                            <span class="tag">入门级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: RSI周期、超买阈值、超卖阈值</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('rsi')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('rsi')">使用模板</button>
+                    </div>
+                </div>
+                
+                <div class="template-card">
+                    <div class="template-icon">🎯</div>
+                    <div class="template-info">
+                        <h3>海龟交易策略</h3>
+                        <p>经典趋势跟踪策略，使用唐奇安通道突破</p>
+                        <div class="template-tags">
+                            <span class="tag">趋势跟踪</span>
+                            <span class="tag">高级</span>
+                        </div>
+                        <div class="template-params">
+                            <span>可配置参数: 入场周期、出场周期、ATR倍数</span>
+                        </div>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn secondary" onclick="previewTemplate('turtle')">预览</button>
+                        <button class="btn primary" onclick="useTemplate('turtle')">使用模板</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 自定义策略入口 -->
+            <div class="custom-strategy-section">
+                <div class="custom-card">
+                    <div class="custom-icon">✨</div>
+                    <div class="custom-info">
+                        <h3>想要更灵活的策略？</h3>
+                        <p>使用策略开发SDK编写自定义策略，支持Python/JavaScript</p>
+                    </div>
+                    <button class="btn primary" onclick="showPage('sdkDocPage')">查看SDK文档 →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- SDK文档页面 (US-033) -->
+    <div class="page" id="sdkDocPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item active" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="sdk-doc-layout">
+            <!-- 左侧导航 -->
+            <div class="sdk-sidebar">
+                <div class="sdk-nav-title">📚 SDK文档</div>
+                <div class="sdk-nav-list">
+                    <div class="nav-group">
+                        <div class="nav-group-title">快速入门</div>
+                        <a class="nav-link active" onclick="switchSdkDoc('intro')">简介</a>
+                        <a class="nav-link" onclick="switchSdkDoc('install')">安装配置</a>
+                        <a class="nav-link" onclick="switchSdkDoc('quickstart')">第一个策略</a>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">核心概念</div>
+                        <a class="nav-link" onclick="switchSdkDoc('lifecycle')">策略生命周期</a>
+                        <a class="nav-link" onclick="switchSdkDoc('context')">上下文对象</a>
+                        <a class="nav-link" onclick="switchSdkDoc('order')">订单管理</a>
+                        <a class="nav-link" onclick="switchSdkDoc('position')">持仓管理</a>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">API参考</div>
+                        <a class="nav-link" onclick="switchSdkDoc('market')">行情数据API</a>
+                        <a class="nav-link" onclick="switchSdkDoc('trade')">交易执行API</a>
+                        <a class="nav-link" onclick="switchSdkDoc('indicator')">技术指标API</a>
+                        <a class="nav-link" onclick="switchSdkDoc('risk')">风控API</a>
+                    </div>
+                    <div class="nav-group">
+                        <div class="nav-group-title">进阶主题</div>
+                        <a class="nav-link" onclick="switchSdkDoc('backtest')">回测框架</a>
+                        <a class="nav-link" onclick="switchSdkDoc('optimize')">参数优化</a>
+                        <a class="nav-link" onclick="switchSdkDoc('debug')">调试技巧</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧内容 -->
+            <div class="sdk-content">
+                <div class="doc-section" id="sdkIntroDoc">
+                    <h1>策略开发SDK简介</h1>
+                    <p>CryptoQuant SDK 是一个功能强大的量化交易策略开发框架，支持 Python 和 JavaScript 两种编程语言。</p>
+                    
+                    <h2>主要特性</h2>
+                    <ul>
+                        <li>✅ <strong>简洁的API设计</strong> - 几行代码即可实现复杂策略</li>
+                        <li>✅ <strong>丰富的技术指标</strong> - 内置50+常用技术指标</li>
+                        <li>✅ <strong>完整的回测框架</strong> - 支持历史数据回测和参数优化</li>
+                        <li>✅ <strong>实盘无缝切换</strong> - 回测通过后一键部署实盘</li>
+                        <li>✅ <strong>多交易所支持</strong> - 支持 Binance、OKX、Bybit 等主流交易所</li>
+                    </ul>
+                    
+                    <h2>快速示例</h2>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>Python</span>
+                            <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        </div>
+                        <pre><code class="language-python">from cryptoquant import Strategy, Context
+
+class MACrossStrategy(Strategy):
+    """双均线交叉策略"""
+    
+    def __init__(self):
+        self.short_period = 5
+        self.long_period = 20
+    
+    def on_bar(self, ctx: Context):
+        # 计算均线
+        ma_short = ctx.ta.SMA(ctx.close, self.short_period)
+        ma_long = ctx.ta.SMA(ctx.close, self.long_period)
+        
+        # 金叉买入
+        if ma_short[-2] < ma_long[-2] and ma_short[-1] > ma_long[-1]:
+            ctx.buy(percent=100)
+        
+        # 死叉卖出
+        if ma_short[-2] > ma_long[-2] and ma_short[-1] < ma_long[-1]:
+            ctx.sell(percent=100)
+
+# 运行回测
+if __name__ == "__main__":
+    strategy = MACrossStrategy()
+    strategy.backtest(
+        symbol="BTC/USDT",
+        start="2024-01-01",
+        end="2024-12-31",
+        initial_capital=10000
+    )</code></pre>
+                    </div>
+                    
+                    <h2>下一步</h2>
+                    <div class="next-steps">
+                        <a class="next-step-card" onclick="switchSdkDoc('install')">
+                            <span class="step-icon">📦</span>
+                            <span class="step-title">安装配置</span>
+                            <span class="step-desc">安装SDK并配置开发环境</span>
+                        </a>
+                        <a class="next-step-card" onclick="switchSdkDoc('quickstart')">
+                            <span class="step-icon">🚀</span>
+                            <span class="step-title">第一个策略</span>
+                            <span class="step-desc">从零开始创建您的第一个量化策略</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 添加自选弹窗 -->
+    <div class="modal-overlay" id="addWatchlistModal" onclick="closeAddWatchlistModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title">⭐ 添加自选交易对</div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <label>搜索交易对</label>
+                    <input type="text" class="form-input" id="watchlistSearch" placeholder="输入币种名称或代码..." oninput="searchPairs(this.value)">
+                </div>
+                <div class="search-results" id="pairSearchResults">
+                    <div class="search-hint">输入关键词搜索，如: BTC, ETH, SOL...</div>
+                </div>
+                <div class="form-group">
+                    <label>添加到分组</label>
+                    <select class="form-input" id="watchlistGroup">
+                        <option value="all">全部</option>
+                        <option value="main">主流币</option>
+                        <option value="defi">DeFi</option>
+                        <option value="meme">Meme</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn secondary" onclick="closeAddWatchlistModal()">取消</button>
+                <button class="btn primary" onclick="confirmAddWatchlist()">添加</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 创建价格预警弹窗 -->
+    <div class="modal-overlay" id="createAlertModal" onclick="closeCreateAlertModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title">🔔 创建价格预警</div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <label>交易对</label>
+                    <select class="form-input" id="alertPair">
+                        <option value="BTC/USDT">BTC/USDT</option>
+                        <option value="ETH/USDT">ETH/USDT</option>
+                        <option value="SOL/USDT">SOL/USDT</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>预警类型</label>
+                    <select class="form-input" id="alertType">
+                        <option value="price_above">价格上穿</option>
+                        <option value="price_below">价格下穿</option>
+                        <option value="change_up">涨幅达到</option>
+                        <option value="change_down">跌幅达到</option>
+                        <option value="volume">成交量异动</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>触发条件</label>
+                    <div class="input-with-unit">
+                        <input type="number" class="form-input" id="alertValue" placeholder="输入价格或百分比">
+                        <span class="unit" id="alertUnit">USDT</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>通知方式</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label"><input type="checkbox" checked> 📧 邮件</label>
+                        <label class="checkbox-label"><input type="checkbox" checked> 📱 APP推送</label>
+                        <label class="checkbox-label"><input type="checkbox"> 💬 短信</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input type="text" class="form-input" id="alertNote" placeholder="可选，添加备注信息">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn secondary" onclick="closeCreateAlertModal()">取消</button>
+                <button class="btn primary" onclick="confirmCreateAlert()">创建预警</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 消息通知页面 -->
+    <div class="page" id="notificationPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item" data-page="communityPage">社区资讯</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon notification-bell active" onclick="showPage('notificationPage')">🔔<span class="notification-badge">5</span></div>
+                <div class="header-icon" onclick="showPage('profilePage')">⚙️</div>
+                <div class="user-menu" onclick="toggleDropdown()"><div class="user-avatar">张</div><span>张三</span><span>▼</span></div>
+            </div>
+        </header>
+        <div class="page-content notification-content">
+            <div class="notification-header">
+                <h1 class="page-title">🔔 消息中心</h1>
+                <div class="notification-actions">
+                    <button class="btn secondary" onclick="markAllRead()">全部已读</button>
+                    <button class="btn secondary" onclick="clearNotifications()">清空消息</button>
+                </div>
+            </div>
+            
+            <!-- 消息分类标签 -->
+            <div class="notification-tabs">
+                <button class="notif-tab active" onclick="switchNotifTab('all', this)">全部 <span class="tab-badge">12</span></button>
+                <button class="notif-tab" onclick="switchNotifTab('system', this)">系统公告 <span class="tab-badge">3</span></button>
+                <button class="notif-tab" onclick="switchNotifTab('alert', this)">价格预警 <span class="tab-badge">5</span></button>
+                <button class="notif-tab" onclick="switchNotifTab('trade', this)">交易通知 <span class="tab-badge">2</span></button>
+                <button class="notif-tab" onclick="switchNotifTab('strategy', this)">策略消息 <span class="tab-badge">2</span></button>
+            </div>
+            
+            <!-- 消息列表 -->
+            <div class="notification-list">
+                <!-- 系统公告 - 置顶 -->
+                <div class="notification-item pinned unread" onclick="viewNotification(1)">
+                    <div class="notif-icon system">📢</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">【重要】系统升级公告</span>
+                            <span class="notif-tag system">系统公告</span>
+                            <span class="notif-pin">📌 置顶</span>
+                        </div>
+                        <div class="notif-body">系统将于 2026年2月5日 02:00-06:00 进行升级维护，届时将暂停所有交易功能。请提前做好仓位管理。</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-02 10:00</span>
+                            <span class="notif-status unread">未读</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 重大新闻 -->
+                <div class="notification-item unread" onclick="viewNotification(2)">
+                    <div class="notif-icon news">📰</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">【快讯】美联储宣布维持利率不变</span>
+                            <span class="notif-tag news">重大新闻</span>
+                        </div>
+                        <div class="notif-body">美联储宣布维持联邦基金利率在 5.25%-5.50% 区间不变，BTC 短线上涨突破 46000 美元。</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-02 14:30</span>
+                            <span class="notif-status unread">未读</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 价格预警触发 -->
+                <div class="notification-item unread" onclick="viewNotification(3)">
+                    <div class="notif-icon alert">⚠️</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">价格预警触发：SOL/USDT 上穿 $120</span>
+                            <span class="notif-tag alert">价格预警</span>
+                        </div>
+                        <div class="notif-body">您设置的 SOL/USDT 价格预警已触发。当前价格: $125.50，触发条件: 价格上穿 $120.00</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-02 14:25</span>
+                            <span class="notif-actions">
+                                <button class="btn-small primary" onclick="event.stopPropagation(); showPage('tradingPage')">去交易</button>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 交易成功 -->
+                <div class="notification-item" onclick="viewNotification(4)">
+                    <div class="notif-icon trade">💰</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">订单成交：买入 0.1 BTC</span>
+                            <span class="notif-tag trade">交易通知</span>
+                        </div>
+                        <div class="notif-body">您的限价买单已成交。交易对: BTC/USDT，数量: 0.1 BTC，成交价: $45,000.00</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-02 12:00</span>
+                            <span class="notif-status read">已读</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 策略运行异常 -->
+                <div class="notification-item unread" onclick="viewNotification(5)">
+                    <div class="notif-icon strategy">🤖</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">策略告警：双均线策略触发止损</span>
+                            <span class="notif-tag strategy">策略消息</span>
+                        </div>
+                        <div class="notif-body">您的"双均线趋势跟踪"策略已触发止损条件，自动平仓 ETH/USDT 多单 0.5 ETH</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-02 11:45</span>
+                            <span class="notif-actions">
+                                <button class="btn-small secondary" onclick="event.stopPropagation(); showPage('myStrategyPage')">查看策略</button>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 新功能上线 -->
+                <div class="notification-item" onclick="viewNotification(6)">
+                    <div class="notif-icon system">🎉</div>
+                    <div class="notif-content">
+                        <div class="notif-header">
+                            <span class="notif-title">【新功能】社区资讯模块正式上线！</span>
+                            <span class="notif-tag system">系统公告</span>
+                        </div>
+                        <div class="notif-body">全新社区资讯模块已上线，您可以浏览实时行情资讯、发布交易心得、与其他用户互动交流。</div>
+                        <div class="notif-footer">
+                            <span class="notif-time">2026-02-01 09:00</span>
+                            <span class="notif-actions">
+                                <button class="btn-small primary" onclick="event.stopPropagation(); showPage('communityPage')">立即体验</button>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="notification-pagination">
+                <span class="page-info">共 12 条消息</span>
+                <div class="pagination">
+                    <button class="page-btn disabled">‹</button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">›</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 社区资讯页面 -->
+    <div class="page" id="communityPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item active" data-page="communityPage">社区资讯</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon notification-bell" onclick="showPage('notificationPage')">🔔<span class="notification-badge">5</span></div>
+                <div class="header-icon" onclick="showPage('profilePage')">⚙️</div>
+                <div class="user-menu" onclick="toggleDropdown()"><div class="user-avatar">张</div><span>张三</span><span>▼</span></div>
+            </div>
+        </header>
+        <div class="page-content community-content">
+            <div class="community-layout">
+                <!-- 左侧：资讯和动态 -->
+                <div class="community-main">
+                    <!-- 发布动态区域 -->
+                    <div class="post-composer">
+                        <div class="composer-header">
+                            <div class="user-avatar">张</div>
+                            <textarea class="composer-input" placeholder="分享您的交易心得、策略想法..." id="postContent"></textarea>
+                        </div>
+                        <div class="composer-footer">
+                            <div class="composer-tools">
+                                <button class="tool-btn" onclick="addPostImage()">🖼️ 图片</button>
+                                <button class="tool-btn" onclick="addPostChart()">📊 K线截图</button>
+                                <button class="tool-btn" onclick="addPostPoll()">📊 投票</button>
+                                <button class="tool-btn" onclick="addPostTopic()"># 话题</button>
+                            </div>
+                            <button class="btn primary" onclick="publishPost()">发布</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 内容标签切换 -->
+                    <div class="content-tabs">
+                        <button class="content-tab active" onclick="switchContentTab('recommend', this)">推荐</button>
+                        <button class="content-tab" onclick="switchContentTab('news', this)">快讯</button>
+                        <button class="content-tab" onclick="switchContentTab('following', this)">关注</button>
+                        <button class="content-tab" onclick="switchContentTab('hot', this)">热门</button>
+                    </div>
+                    
+                    <!-- 快讯区域 -->
+                    <div class="news-ticker">
+                        <div class="ticker-header">
+                            <span class="ticker-icon">⚡</span>
+                            <span class="ticker-title">实时快讯</span>
+                            <span class="ticker-time">更新于 14:35:00</span>
+                        </div>
+                        <div class="ticker-list">
+                            <div class="ticker-item">
+                                <span class="ticker-dot hot"></span>
+                                <span class="ticker-text">【重大】美联储宣布维持利率不变，BTC 短线上涨突破 46000 美元</span>
+                                <span class="ticker-meta">14:30</span>
+                            </div>
+                            <div class="ticker-item">
+                                <span class="ticker-dot"></span>
+                                <span class="ticker-text">【行情】SOL 24小时涨幅达 18.52%，领涨主流币</span>
+                                <span class="ticker-meta">14:15</span>
+                            </div>
+                            <div class="ticker-item">
+                                <span class="ticker-dot"></span>
+                                <span class="ticker-text">【数据】BTC 永续合约资金费率转正，多头情绪升温</span>
+                                <span class="ticker-meta">14:00</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 动态列表 -->
+                    <div class="posts-list">
+                        <!-- 官方公告 - 置顶 -->
+                        <div class="post-card official pinned">
+                            <div class="post-header">
+                                <div class="post-author">
+                                    <div class="author-avatar official">📢</div>
+                                    <div class="author-info">
+                                        <span class="author-name">CryptoQuant 官方 <span class="badge official">官方</span></span>
+                                        <span class="post-time">2026-02-02 10:00 · 📌 置顶</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="post-content">
+                                <h3 class="post-title">【系统升级公告】2月5日凌晨维护通知</h3>
+                                <p>亲爱的用户：系统将于 <strong>2026年2月5日 02:00-06:00</strong> 进行升级维护，届时暂停所有交易功能，请提前做好仓位管理。</p>
+                            </div>
+                            <div class="post-footer">
+                                <div class="post-stats"><span class="stat-item">👁️ 2,345 阅读</span></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 用户动态1 -->
+                        <div class="post-card">
+                            <div class="post-header">
+                                <div class="post-author">
+                                    <div class="author-avatar">李</div>
+                                    <div class="author-info">
+                                        <span class="author-name">量化老李 <span class="badge vip">VIP</span></span>
+                                        <span class="post-time">2026-02-02 13:45</span>
+                                    </div>
+                                </div>
+                                <button class="follow-btn" onclick="toggleFollow(this)">+ 关注</button>
+                            </div>
+                            <div class="post-content">
+                                <p>刚刚用<strong>双均线策略</strong>抓住了 SOL 的这波行情 🎉 分享一下我的参数：MA7 和 MA25 交叉，配合 RSI 过滤假信号。这次收益率达到了 15.8%！</p>
+                                <div class="post-chart">
+                                    <div class="chart-preview">
+                                        <div class="chart-placeholder">📊 SOL/USDT 4H K线图</div>
+                                        <div class="chart-indicators">
+                                            <span class="ind-tag">MA(7,25)</span>
+                                            <span class="ind-tag">RSI(14)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="post-tags">
+                                    <span class="tag">#策略分享</span>
+                                    <span class="tag">#SOL</span>
+                                </div>
+                            </div>
+                            <div class="post-footer">
+                                <div class="post-actions">
+                                    <button class="action-btn" onclick="likePost(1)">👍 赞 <span>128</span></button>
+                                    <button class="action-btn" onclick="showComments(1)">💬 评论 <span>32</span></button>
+                                    <button class="action-btn" onclick="sharePost(1)">🔗 分享</button>
+                                    <button class="action-btn" onclick="collectPost(1)">⭐ 收藏</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 用户动态2 - 带投票 -->
+                        <div class="post-card">
+                            <div class="post-header">
+                                <div class="post-author">
+                                    <div class="author-avatar">王</div>
+                                    <div class="author-info">
+                                        <span class="author-name">币圈小王子</span>
+                                        <span class="post-time">2026-02-02 12:30</span>
+                                    </div>
+                                </div>
+                                <button class="follow-btn following" onclick="toggleFollow(this)">已关注</button>
+                            </div>
+                            <div class="post-content">
+                                <p>大家觉得 BTC 这波能突破 5 万吗？📈 从技术面来看，目前处于上升通道中。</p>
+                                <div class="post-poll">
+                                    <div class="poll-title">📊 BTC 本周能否突破 $50,000？</div>
+                                    <div class="poll-options">
+                                        <div class="poll-option" onclick="votePoll(1, 'yes')">
+                                            <div class="option-bar" style="width: 62%;"></div>
+                                            <span class="option-text">能，牛市来了！ 🚀</span>
+                                            <span class="option-percent">62%</span>
+                                        </div>
+                                        <div class="poll-option" onclick="votePoll(1, 'no')">
+                                            <div class="option-bar" style="width: 28%;"></div>
+                                            <span class="option-text">不能，还要震荡</span>
+                                            <span class="option-percent">28%</span>
+                                        </div>
+                                        <div class="poll-option" onclick="votePoll(1, 'maybe')">
+                                            <div class="option-bar" style="width: 10%;"></div>
+                                            <span class="option-text">不好说 🤔</span>
+                                            <span class="option-percent">10%</span>
+                                        </div>
+                                    </div>
+                                    <div class="poll-meta">共 1,256 人参与投票 · 还剩 2 天结束</div>
+                                </div>
+                            </div>
+                            <div class="post-footer">
+                                <div class="post-actions">
+                                    <button class="action-btn liked">👍 赞 <span>256</span></button>
+                                    <button class="action-btn" onclick="showComments(2)">💬 评论 <span>89</span></button>
+                                    <button class="action-btn" onclick="sharePost(2)">🔗 分享</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 用户动态3 -->
+                        <div class="post-card">
+                            <div class="post-header">
+                                <div class="post-author">
+                                    <div class="author-avatar">陈</div>
+                                    <div class="author-info">
+                                        <span class="author-name">DeFi研究员</span>
+                                        <span class="post-time">2026-02-02 11:00</span>
+                                    </div>
+                                </div>
+                                <button class="follow-btn" onclick="toggleFollow(this)">+ 关注</button>
+                            </div>
+                            <div class="post-content">
+                                <p>网格策略在震荡行情中真的很香！分享一下我的 ETH 网格设置：</p>
+                                <div class="strategy-card-mini">
+                                    <div class="strategy-info">
+                                        <span class="strategy-name">📦 ETH/USDT 网格策略</span>
+                                        <div class="strategy-params">
+                                            <span>区间: $3,000 - $3,500</span>
+                                            <span>网格数: 20</span>
+                                        </div>
+                                    </div>
+                                    <div class="strategy-profit positive">
+                                        <span class="profit-label">运行收益</span>
+                                        <span class="profit-value">+8.32%</span>
+                                    </div>
+                                </div>
+                                <div class="post-tags">
+                                    <span class="tag">#网格交易</span>
+                                    <span class="tag">#ETH</span>
+                                </div>
+                            </div>
+                            <div class="post-footer">
+                                <div class="post-actions">
+                                    <button class="action-btn" onclick="likePost(3)">👍 赞 <span>89</span></button>
+                                    <button class="action-btn" onclick="showComments(3)">💬 评论 <span>24</span></button>
+                                    <button class="action-btn" onclick="sharePost(3)">🔗 分享</button>
+                                    <button class="action-btn collected">⭐ 已收藏</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="load-more">
+                        <button class="btn secondary" onclick="loadMorePosts()">加载更多</button>
+                    </div>
+                </div>
+                
+                <!-- 右侧：侧边栏 -->
+                <div class="community-sidebar">
+                    <!-- 热门话题 -->
+                    <div class="sidebar-card">
+                        <div class="sidebar-title">🔥 热门话题</div>
+                        <div class="hot-topics">
+                            <a class="topic-item" onclick="searchTopic('BTC')">
+                                <span class="topic-rank hot">1</span>
+                                <span class="topic-name">#BTC突破45000</span>
+                                <span class="topic-heat">2.3万 讨论</span>
+                            </a>
+                            <a class="topic-item" onclick="searchTopic('美联储')">
+                                <span class="topic-rank hot">2</span>
+                                <span class="topic-name">#美联储利率决议</span>
+                                <span class="topic-heat">1.8万 讨论</span>
+                            </a>
+                            <a class="topic-item" onclick="searchTopic('SOL')">
+                                <span class="topic-rank">3</span>
+                                <span class="topic-name">#SOL暴涨</span>
+                                <span class="topic-heat">9,523 讨论</span>
+                            </a>
+                            <a class="topic-item" onclick="searchTopic('策略')">
+                                <span class="topic-rank">4</span>
+                                <span class="topic-name">#策略分享</span>
+                                <span class="topic-heat">5,821 讨论</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- 活跃用户 -->
+                    <div class="sidebar-card">
+                        <div class="sidebar-title">⭐ 活跃大V</div>
+                        <div class="active-users">
+                            <div class="user-item">
+                                <div class="user-avatar">李</div>
+                                <div class="user-info">
+                                    <span class="user-name">量化老李</span>
+                                    <span class="user-desc">粉丝 12.5万</span>
+                                </div>
+                                <button class="follow-btn-small" onclick="toggleFollow(this)">关注</button>
+                            </div>
+                            <div class="user-item">
+                                <div class="user-avatar">王</div>
+                                <div class="user-info">
+                                    <span class="user-name">币圈小王子</span>
+                                    <span class="user-desc">粉丝 8.3万</span>
+                                </div>
+                                <button class="follow-btn-small following" onclick="toggleFollow(this)">已关注</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 系统升级计划 -->
+                    <div class="sidebar-card upgrade-notice">
+                        <div class="sidebar-title">📅 升级计划</div>
+                        <div class="upgrade-list">
+                            <div class="upgrade-item upcoming">
+                                <div class="upgrade-date">
+                                    <span class="date-day">05</span>
+                                    <span class="date-month">2月</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <span class="upgrade-title">系统升级维护</span>
+                                    <span class="upgrade-time">02:00-06:00</span>
+                                    <span class="upgrade-status upcoming">即将进行</span>
+                                </div>
+                            </div>
+                            <div class="upgrade-item">
+                                <div class="upgrade-date">
+                                    <span class="date-day">15</span>
+                                    <span class="date-month">2月</span>
+                                </div>
+                                <div class="upgrade-info">
+                                    <span class="upgrade-title">新版本发布 v2.1</span>
+                                    <span class="upgrade-time">预计 10:00</span>
+                                    <span class="upgrade-status planned">计划中</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

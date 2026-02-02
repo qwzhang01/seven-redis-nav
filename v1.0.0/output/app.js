@@ -1550,3 +1550,404 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 100);
 });
+
+// ===================== 新增页面功能 =====================
+
+// 自选管理功能 (US-005)
+function switchWatchlistGroup(tab) {
+    document.querySelectorAll('.watchlist-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    showToast('已切换到 ' + tab.textContent, 'info');
+}
+
+function showAddWatchlistModal() {
+    document.getElementById('addWatchlistModal').classList.add('show');
+}
+
+function closeAddWatchlistModal() {
+    document.getElementById('addWatchlistModal').classList.remove('show');
+}
+
+function searchPairs(query) {
+    // 模拟搜索功能
+    console.log('搜索交易对:', query);
+}
+
+function addToWatchlist(pair) {
+    showToast(`已添加 ${pair} 到自选`, 'success');
+    closeAddWatchlistModal();
+}
+
+function removeFromWatchlist(pair) {
+    if (confirm(`确定要从自选中移除 ${pair} 吗？`)) {
+        showToast(`已移除 ${pair}`, 'info');
+    }
+}
+
+// 价格预警功能 (US-007)
+function showCreateAlertModal() {
+    document.getElementById('createAlertModal').classList.add('show');
+}
+
+function closeCreateAlertModal() {
+    document.getElementById('createAlertModal').classList.remove('show');
+}
+
+function confirmCreateAlert() {
+    const pair = document.getElementById('alertPair')?.value || 'BTC/USDT';
+    const condition = document.getElementById('alertCondition')?.value || '价格高于';
+    const price = document.getElementById('alertPrice')?.value || '100000';
+    
+    showToast(`预警已创建: ${pair} ${condition} $${price}`, 'success');
+    closeCreateAlertModal();
+}
+
+function editAlert(id) {
+    showToast('编辑预警 #' + id, 'info');
+    showCreateAlertModal();
+}
+
+function deleteAlert(id) {
+    if (confirm('确定要删除这条预警吗？')) {
+        showToast('预警已删除', 'success');
+    }
+}
+
+function toggleNotifyChannel(element) {
+    element.classList.toggle('active');
+    const channelName = element.parentElement.querySelector('.channel-name').textContent;
+    const isActive = element.classList.contains('active');
+    showToast(`${channelName} 通知已${isActive ? '开启' : '关闭'}`, 'info');
+}
+
+// 多交易所对比功能 (US-008)
+function refreshCompareData() {
+    showToast('正在刷新价格数据...', 'info');
+    setTimeout(() => {
+        showToast('价格数据已更新', 'success');
+    }, 1000);
+}
+
+function changeComparePair(select) {
+    const pair = select.value;
+    showToast(`已切换到 ${pair} 对比`, 'info');
+}
+
+// 策略模板功能 (US-032)
+function previewTemplate(templateId) {
+    const templateNames = {
+        'ma-cross': '均线交叉策略',
+        'grid': '网格交易策略',
+        'macd': 'MACD趋势策略',
+        'dca': '定投策略',
+        'bollinger': '布林带突破策略',
+        'arbitrage': '套利策略',
+        'rsi': 'RSI超买超卖策略',
+        'turtle': '海龟交易策略'
+    };
+    
+    showModal(
+        templateNames[templateId] || '策略预览',
+        `策略ID: ${templateId}\n\n该策略包含完整的买入/卖出逻辑、风控规则和参数配置。\n\n点击"使用模板"可以快速创建基于此模板的个人策略。`
+    );
+}
+
+function useTemplate(templateId) {
+    const templateNames = {
+        'ma-cross': '均线交叉策略',
+        'grid': '网格交易策略',
+        'macd': 'MACD趋势策略',
+        'dca': '定投策略',
+        'bollinger': '布林带突破策略',
+        'arbitrage': '套利策略',
+        'rsi': 'RSI超买超卖策略',
+        'turtle': '海龟交易策略'
+    };
+    
+    showToast(`正在基于"${templateNames[templateId]}"创建策略...`, 'info');
+    setTimeout(() => {
+        showPage('myStrategyPage');
+        showToast('策略已创建，请配置参数', 'success');
+    }, 500);
+}
+
+function filterTemplates(category) {
+    document.querySelectorAll('.category-tag').forEach(tag => tag.classList.remove('active'));
+    event.target.classList.add('active');
+    showToast(`筛选: ${category === 'all' ? '全部' : category}`, 'info');
+}
+
+// SDK文档功能 (US-033)
+function switchSdkDoc(docId, element) {
+    document.querySelectorAll('.sdk-nav-item').forEach(item => item.classList.remove('active'));
+    element.classList.add('active');
+    
+    // 这里可以根据docId加载不同的文档内容
+    const docTitles = {
+        'quick-start': '快速开始',
+        'api-reference': 'API参考',
+        'market-data': '行情数据',
+        'order-api': '订单接口',
+        'account-api': '账户接口',
+        'strategy-sdk': '策略SDK',
+        'backtest': '回测引擎',
+        'examples': '示例代码'
+    };
+    
+    showToast(`已切换到: ${docTitles[docId] || docId}`, 'info');
+}
+
+function copyCode(button) {
+    const codeBlock = button.parentElement.querySelector('pre');
+    const code = codeBlock.textContent;
+    
+    navigator.clipboard.writeText(code).then(() => {
+        const originalText = button.textContent;
+        button.textContent = '已复制!';
+        setTimeout(() => {
+            button.textContent = originalText;
+        }, 2000);
+    }).catch(() => {
+        showToast('复制失败，请手动复制', 'error');
+    });
+}
+
+// 资产详情功能 (US-020)
+function filterTransactions(type) {
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    showToast(`筛选: ${type === 'all' ? '全部' : type === 'buy' ? '买入' : '卖出'}`, 'info');
+}
+
+// 手续费统计功能 (US-022)
+function exportFeeReport() {
+    showToast('正在导出手续费报表...', 'info');
+    setTimeout(() => {
+        showToast('报表已导出', 'success');
+    }, 1000);
+}
+
+// 导航功能扩展
+function navigateToPage(pageName) {
+    showPage(pageName);
+}
+
+// 扩展showPage函数以支持新页面
+const originalShowPage = showPage;
+showPage = function(pageId) {
+    // 支持所有新页面
+    const newPages = [
+        'marketOverviewPage', 
+        'exchangeComparePage', 
+        'watchlistPage', 
+        'priceAlertPage',
+        'assetDetailPage',
+        'feeStatPage',
+        'strategyTemplatePage',
+        'sdkDocPage',
+        'notificationPage',
+        'communityPage'
+    ];
+    
+    if (newPages.includes(pageId)) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const targetPage = document.getElementById(pageId);
+        if (targetPage) {
+            targetPage.classList.add('active');
+            // 更新导航状态
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.page === pageId) {
+                    item.classList.add('active');
+                }
+            });
+        }
+        return;
+    }
+    
+    // 调用原有的showPage函数
+    if (typeof originalShowPage === 'function') {
+        originalShowPage(pageId);
+    } else {
+        // 基础实现
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const targetPage = document.getElementById(pageId);
+        if (targetPage) {
+            targetPage.classList.add('active');
+        }
+    }
+};
+
+// ===================== 技术指标功能 =====================
+function toggleIndicatorDropdown(type) {
+    const dropdownId = type === 'contract' ? 'contractIndicatorDropdown' : 'indicatorDropdown';
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+}
+
+function toggleIndicator(indicator) {
+    updateIndicatorCount();
+    showToast(`${indicator} 指标已切换`, 'info');
+}
+
+function updateIndicatorCount() {
+    const dropdown = document.getElementById('indicatorDropdown');
+    if (dropdown) {
+        const checked = dropdown.querySelectorAll('input[type="checkbox"]:checked').length;
+        const countEl = document.getElementById('indicatorCount');
+        if (countEl) {
+            countEl.textContent = checked;
+        }
+    }
+}
+
+function removeIndicator(indicator) {
+    const activeIndicators = document.getElementById('activeIndicators');
+    if (activeIndicators) {
+        const indicatorEl = activeIndicators.querySelector(`[data-indicator="${indicator}"]`);
+        if (indicatorEl) {
+            indicatorEl.remove();
+        }
+    }
+    showToast(`已移除 ${indicator} 指标`, 'info');
+}
+
+function resetIndicators() {
+    document.querySelectorAll('.indicator-dropdown input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+    });
+    updateIndicatorCount();
+    showToast('已重置所有指标', 'info');
+}
+
+function applyIndicators() {
+    const dropdown = document.getElementById('indicatorDropdown');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+    const contractDropdown = document.getElementById('contractIndicatorDropdown');
+    if (contractDropdown) {
+        contractDropdown.classList.remove('show');
+    }
+    showToast('指标设置已应用', 'success');
+}
+
+function switchChartType(type) {
+    document.querySelectorAll('.contract-chart-tools .tool-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    showToast(`已切换到${type === 'candle' ? 'K线' : type === 'line' ? '分时' : '深度'}图`, 'info');
+}
+
+// ===================== 消息通知功能 =====================
+function switchNotifTab(type, element) {
+    document.querySelectorAll('.notif-tab').forEach(tab => tab.classList.remove('active'));
+    element.classList.add('active');
+    showToast(`筛选: ${type === 'all' ? '全部' : type}`, 'info');
+}
+
+function markAllRead() {
+    document.querySelectorAll('.notification-item.unread').forEach(item => {
+        item.classList.remove('unread');
+    });
+    document.querySelectorAll('.notif-status.unread').forEach(status => {
+        status.classList.remove('unread');
+        status.classList.add('read');
+        status.textContent = '已读';
+    });
+    showToast('已全部标记为已读', 'success');
+}
+
+function clearNotifications() {
+    if (confirm('确定要清空所有消息吗？')) {
+        showToast('消息已清空', 'success');
+    }
+}
+
+function viewNotification(id) {
+    showToast(`查看消息 #${id}`, 'info');
+}
+
+// ===================== 社区功能 =====================
+function switchContentTab(type, element) {
+    document.querySelectorAll('.content-tab').forEach(tab => tab.classList.remove('active'));
+    element.classList.add('active');
+}
+
+function publishPost() {
+    const content = document.getElementById('postContent');
+    if (content && content.value.trim()) {
+        showToast('动态发布成功！', 'success');
+        content.value = '';
+    } else {
+        showToast('请输入内容后再发布', 'error');
+    }
+}
+
+function addPostImage() {
+    showToast('选择图片功能', 'info');
+}
+
+function addPostChart() {
+    showToast('添加K线截图', 'info');
+}
+
+function addPostPoll() {
+    showToast('创建投票', 'info');
+}
+
+function addPostTopic() {
+    showToast('添加话题标签', 'info');
+}
+
+function likePost(id) {
+    showToast('点赞成功！', 'success');
+}
+
+function showComments(id) {
+    showToast(`查看评论 #${id}`, 'info');
+}
+
+function sharePost(id) {
+    showToast('分享链接已复制', 'success');
+}
+
+function collectPost(id) {
+    showToast('已收藏到我的收藏', 'success');
+}
+
+function toggleFollow(element) {
+    if (element.classList.contains('following')) {
+        element.classList.remove('following');
+        element.textContent = '+ 关注';
+        showToast('已取消关注', 'info');
+    } else {
+        element.classList.add('following');
+        element.textContent = '已关注';
+        showToast('关注成功', 'success');
+    }
+}
+
+function votePoll(pollId, option) {
+    showToast(`已投票: ${option}`, 'success');
+}
+
+function searchTopic(topic) {
+    showToast(`搜索话题: #${topic}`, 'info');
+}
+
+function loadMorePosts() {
+    showToast('正在加载更多...', 'info');
+}
+
+// 点击外部关闭下拉菜单
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.indicator-selector')) {
+        document.querySelectorAll('.indicator-dropdown').forEach(dropdown => {
+            dropdown.classList.remove('show');
+        });
+    }
+});
