@@ -1,0 +1,2175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密货币量化交易系统</title>
+    <!-- TDesign CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tdesign-web-components/dist/tdesign.css">
+    <!-- TDesign Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tdesign-icons-web-components/dist/index.css">
+    <!-- Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        /* ==================== 设计令牌 ==================== */
+        :root {
+            /* 主色调 - TradingView 风格深色主题 */
+            --bg-primary: #131722;
+            --bg-secondary: #1e222d;
+            --bg-tertiary: #2a2e39;
+            --bg-hover: #363a45;
+            --bg-active: #434651;
+            
+            /* 文字颜色 */
+            --text-primary: #d1d4dc;
+            --text-secondary: #787b86;
+            --text-disabled: #4c525e;
+            --text-inverse: #131722;
+            
+            /* 功能色 */
+            --color-success: #26a69a;
+            --color-success-hover: #2bbd8d;
+            --color-danger: #ef5350;
+            --color-danger-hover: #f77c79;
+            --color-warning: #ff9800;
+            --color-info: #2196f3;
+            
+            /* 涨跌色 */
+            --color-up: #26a69a;
+            --color-down: #ef5350;
+            
+            /* 边框 */
+            --border-color: #2a2e39;
+            --border-color-light: #363a45;
+            
+            /* 阴影 */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.5);
+            
+            /* 间距 */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            
+            /* 圆角 */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            
+            /* 字体 */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            
+            /* 过渡 */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.25s ease;
+            --transition-slow: 0.4s ease;
+        }
+
+        /* ==================== 重置样式 ==================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* ==================== 通用组件样式 ==================== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-xs);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--color-success);
+            color: white;
+        }
+        .btn-primary:hover { background: var(--color-success-hover); }
+
+        .btn-danger {
+            background: var(--color-danger);
+            color: white;
+        }
+        .btn-danger:hover { background: var(--color-danger-hover); }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover { background: var(--bg-hover); }
+
+        .btn-text {
+            background: transparent;
+            color: var(--color-info);
+        }
+        .btn-text:hover { color: var(--text-primary); }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-lg { padding: var(--spacing-md) var(--spacing-lg); font-size: 16px; }
+        .btn-sm { padding: var(--spacing-xs) var(--spacing-sm); font-size: 12px; }
+        .btn-block { width: 100%; }
+
+        /* 输入框 */
+        .input-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .input {
+            width: 100%;
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: border-color var(--transition-fast);
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--color-info);
+        }
+
+        .input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .input-error {
+            border-color: var(--color-danger);
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-suffix {
+            position: absolute;
+            right: var(--spacing-sm);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .error-text {
+            color: var(--color-danger);
+            font-size: 12px;
+            margin-top: var(--spacing-xs);
+        }
+
+        /* 选项卡 */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .tab-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+
+        .tab-item:hover { color: var(--text-primary); }
+        .tab-item.active {
+            color: var(--color-info);
+            border-bottom-color: var(--color-info);
+        }
+
+        /* 卡片 */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: var(--spacing-md);
+        }
+
+        /* 表格 */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th, .table td {
+            padding: var(--spacing-sm) var(--spacing-md);
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .table tr:hover td {
+            background: var(--bg-hover);
+        }
+
+        /* 状态标签 */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+        }
+
+        .tag-success { background: rgba(38,166,154,0.2); color: var(--color-success); }
+        .tag-danger { background: rgba(239,83,80,0.2); color: var(--color-danger); }
+        .tag-warning { background: rgba(255,152,0,0.2); color: var(--color-warning); }
+        .tag-info { background: rgba(33,150,243,0.2); color: var(--color-info); }
+
+        /* 涨跌颜色 */
+        .text-up { color: var(--color-up); }
+        .text-down { color: var(--color-down); }
+
+        /* 价格闪烁动画 */
+        @keyframes priceFlashUp {
+            0%, 100% { background: transparent; }
+            50% { background: rgba(38,166,154,0.3); }
+        }
+        @keyframes priceFlashDown {
+            0%, 100% { background: transparent; }
+            50% { background: rgba(239,83,80,0.3); }
+        }
+        .flash-up { animation: priceFlashUp 0.5s ease; }
+        .flash-down { animation: priceFlashDown 0.5s ease; }
+
+        /* ==================== 布局样式 ==================== */
+        .page {
+            display: none;
+            min-height: 100vh;
+        }
+        .page.active { display: block; }
+
+        /* 顶部导航 */
+        .header {
+            height: 56px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 var(--spacing-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--color-success);
+            margin-right: var(--spacing-xl);
+        }
+
+        .nav {
+            display: flex;
+            gap: var(--spacing-lg);
+            flex: 1;
+        }
+
+        .nav-item {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: color var(--transition-fast);
+        }
+        .nav-item:hover, .nav-item.active { color: var(--text-primary); }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== 登录页面 ==================== */
+        .auth-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1f2e 100%);
+        }
+
+        .auth-container {
+            width: 400px;
+            padding: var(--spacing-xl);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .auth-logo {
+            text-align: center;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .auth-logo h1 {
+            font-size: 24px;
+            color: var(--color-success);
+        }
+
+        .auth-logo p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: var(--spacing-xs);
+        }
+
+        .password-strength {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            margin-top: var(--spacing-xs);
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            transition: all var(--transition-normal);
+            border-radius: 2px;
+        }
+
+        .strength-weak { width: 33%; background: var(--color-danger); }
+        .strength-medium { width: 66%; background: var(--color-warning); }
+        .strength-strong { width: 100%; background: var(--color-success); }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: var(--spacing-md);
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .auth-footer a {
+            color: var(--color-info);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .verify-code-row {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        .verify-code-row .input { flex: 1; }
+        .verify-code-btn {
+            white-space: nowrap;
+            min-width: 120px;
+        }
+
+        /* ==================== 交易主页面 ==================== */
+        .trading-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            grid-template-rows: auto 1fr auto;
+            height: calc(100vh - 56px);
+            gap: 1px;
+            background: var(--border-color);
+        }
+
+        .chart-panel {
+            background: var(--bg-secondary);
+            grid-row: 1 / 3;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .symbol-select {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            cursor: pointer;
+        }
+
+        .symbol-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .symbol-price {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .symbol-change {
+            font-size: 14px;
+        }
+
+        .timeframe-tabs {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-left: auto;
+        }
+
+        .timeframe-btn {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+        }
+        .timeframe-btn:hover { background: var(--bg-hover); }
+        .timeframe-btn.active { background: var(--bg-tertiary); color: var(--text-primary); }
+
+        .chart-container {
+            flex: 1;
+            min-height: 400px;
+        }
+
+        /* 下单面板 */
+        .order-panel {
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .order-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .order-tab {
+            flex: 1;
+            padding: var(--spacing-md);
+            text-align: center;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+
+        .order-tab.buy { color: var(--text-secondary); }
+        .order-tab.buy.active { color: var(--color-up); border-bottom: 2px solid var(--color-up); }
+        .order-tab.sell { color: var(--text-secondary); }
+        .order-tab.sell.active { color: var(--color-down); border-bottom: 2px solid var(--color-down); }
+
+        .order-form {
+            padding: var(--spacing-md);
+            flex: 1;
+        }
+
+        .order-type-select {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .order-type-btn {
+            flex: 1;
+            padding: var(--spacing-xs) var(--spacing-sm);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+        }
+        .order-type-btn.active {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--color-info);
+        }
+
+        .balance-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .percent-btns {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin: var(--spacing-sm) 0;
+        }
+
+        .percent-btn {
+            flex: 1;
+            padding: var(--spacing-xs);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+        }
+        .percent-btn:hover { background: var(--bg-hover); }
+
+        .order-summary {
+            padding: var(--spacing-sm);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            margin: var(--spacing-md) 0;
+            font-size: 12px;
+        }
+
+        .order-summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-xs);
+        }
+        .order-summary-row:last-child { margin-bottom: 0; }
+
+        .btn-buy {
+            background: var(--color-up);
+            color: white;
+        }
+        .btn-buy:hover { background: var(--color-success-hover); }
+
+        .btn-sell {
+            background: var(--color-down);
+            color: white;
+        }
+        .btn-sell:hover { background: var(--color-danger-hover); }
+
+        /* 订单列表 */
+        .orders-panel {
+            background: var(--bg-secondary);
+            grid-column: 1 / -1;
+            max-height: 250px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .orders-tabs {
+            display: flex;
+            padding: 0 var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .orders-tab {
+            padding: var(--spacing-sm) var(--spacing-md);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 2px solid transparent;
+        }
+        .orders-tab:hover { color: var(--text-primary); }
+        .orders-tab.active { color: var(--text-primary); border-bottom-color: var(--color-info); }
+
+        .orders-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .empty-state {
+            padding: var(--spacing-xl);
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== 资产页面 ==================== */
+        .assets-page {
+            padding: var(--spacing-lg);
+        }
+
+        .assets-overview {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .asset-card {
+            background: var(--bg-secondary);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .asset-card-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .asset-card-value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .asset-card-sub {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* ==================== 交易所配置页面 ==================== */
+        .exchange-page {
+            padding: var(--spacing-lg);
+        }
+
+        .exchange-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: var(--spacing-md);
+        }
+
+        .exchange-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-md);
+        }
+
+        .exchange-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .exchange-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .exchange-info h3 {
+            font-size: 16px;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .exchange-status {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            font-size: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.online { background: var(--color-success); }
+        .status-dot.offline { background: var(--color-danger); }
+
+        .exchange-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .exchange-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--spacing-xs) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .exchange-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+        }
+
+        .add-exchange-card {
+            border: 2px dashed var(--border-color);
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .add-exchange-card:hover {
+            border-color: var(--color-info);
+            background: var(--bg-secondary);
+        }
+
+        .add-exchange-content {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .add-exchange-icon {
+            font-size: 48px;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        /* ==================== 策略开发页面 ==================== */
+        .strategy-page {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: calc(100vh - 56px);
+        }
+
+        .strategy-sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .strategy-list-header {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .strategy-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .strategy-item {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+        .strategy-item:hover { background: var(--bg-hover); }
+        .strategy-item.active { background: var(--bg-tertiary); border-left: 3px solid var(--color-info); }
+
+        .strategy-item-name {
+            font-weight: 500;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .strategy-item-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .strategy-main {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .strategy-toolbar {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .strategy-name-input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 500;
+            flex: 1;
+        }
+        .strategy-name-input:focus { outline: none; }
+
+        .code-editor {
+            flex: 1;
+            background: var(--bg-primary);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            line-height: 1.6;
+            padding: var(--spacing-md);
+            overflow: auto;
+        }
+
+        .code-editor textarea {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            resize: none;
+        }
+        .code-editor textarea:focus { outline: none; }
+
+        /* ==================== 回测页面 ==================== */
+        .backtest-page {
+            padding: var(--spacing-lg);
+        }
+
+        .backtest-config {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .backtest-results {
+            display: none;
+        }
+        .backtest-results.active { display: block; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== 弹窗样式 ==================== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            width: 480px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 20px;
+        }
+        .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+        .modal-body {
+            padding: var(--spacing-lg);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--spacing-sm);
+        }
+
+        /* ==================== Toast 提示 ==================== */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: var(--spacing-lg);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+
+        .toast {
+            padding: var(--spacing-md);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            min-width: 280px;
+            animation: toastIn 0.3s ease;
+            border-left: 4px solid;
+        }
+
+        .toast-success { border-color: var(--color-success); }
+        .toast-error { border-color: var(--color-danger); }
+        .toast-warning { border-color: var(--color-warning); }
+        .toast-info { border-color: var(--color-info); }
+
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes toastIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ==================== 加载状态 ==================== */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(19,23,34,0.9);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+        .loading-overlay.active { display: flex; }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--color-info);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ==================== 响应式调整 ==================== */
+        @media (max-width: 1200px) {
+            .assets-overview { grid-template-columns: repeat(2, 1fr); }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .trading-layout { grid-template-columns: 1fr; }
+            .order-panel { display: none; }
+            .strategy-page { grid-template-columns: 1fr; }
+            .strategy-sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- ==================== 登录页面 ==================== -->
+    <div class="page auth-page active" id="loginPage">
+        <div class="auth-container">
+            <div class="auth-logo">
+                <h1>🚀 QuantTrade</h1>
+                <p>专业的加密货币量化交易平台</p>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab-item active" onclick="switchLoginTab('password')">密码登录</div>
+                <div class="tab-item" onclick="switchLoginTab('code')">验证码登录</div>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label class="input-label">邮箱 / 手机号</label>
+                    <input type="text" class="input" id="loginAccount" placeholder="请输入邮箱或手机号" required>
+                </div>
+
+                <div id="passwordLoginFields">
+                    <div class="input-group">
+                        <label class="input-label">密码</label>
+                        <div class="input-wrapper">
+                            <input type="password" class="input" id="loginPassword" placeholder="请输入密码">
+                            <span class="input-suffix" onclick="togglePassword('loginPassword')">👁</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="codeLoginFields" style="display:none;">
+                    <div class="input-group">
+                        <label class="input-label">验证码</label>
+                        <div class="verify-code-row">
+                            <input type="text" class="input" id="loginCode" placeholder="请输入验证码" maxlength="6">
+                            <button type="button" class="btn btn-secondary verify-code-btn" onclick="sendVerifyCode('login')">获取验证码</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg btn-block">登 录</button>
+            </form>
+
+            <div class="auth-footer">
+                还没有账号？<a onclick="showPage('registerPage')">立即注册</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 注册页面 ==================== -->
+    <div class="page auth-page" id="registerPage">
+        <div class="auth-container">
+            <div class="auth-logo">
+                <h1>🚀 QuantTrade</h1>
+                <p>创建您的交易账户</p>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab-item active" onclick="switchRegisterTab('email')">邮箱注册</div>
+                <div class="tab-item" onclick="switchRegisterTab('phone')">手机注册</div>
+            </div>
+
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div id="emailRegisterFields">
+                    <div class="input-group">
+                        <label class="input-label">邮箱地址</label>
+                        <input type="email" class="input" id="registerEmail" placeholder="请输入邮箱地址">
+                    </div>
+                </div>
+
+                <div id="phoneRegisterFields" style="display:none;">
+                    <div class="input-group">
+                        <label class="input-label">手机号码</label>
+                        <input type="tel" class="input" id="registerPhone" placeholder="请输入手机号码">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">验证码</label>
+                    <div class="verify-code-row">
+                        <input type="text" class="input" id="registerCode" placeholder="请输入验证码" maxlength="6">
+                        <button type="button" class="btn btn-secondary verify-code-btn" onclick="sendVerifyCode('register')">获取验证码</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">设置密码</label>
+                    <div class="input-wrapper">
+                        <input type="password" class="input" id="registerPassword" placeholder="8-20位，包含字母和数字" oninput="checkPasswordStrength()">
+                        <span class="input-suffix" onclick="togglePassword('registerPassword')">👁</span>
+                    </div>
+                    <div class="password-strength">
+                        <div class="password-strength-bar" id="strengthBar"></div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">确认密码</label>
+                    <input type="password" class="input" id="registerConfirmPassword" placeholder="请再次输入密码">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg btn-block">注 册</button>
+            </form>
+
+            <div class="auth-footer">
+                已有账号？<a onclick="showPage('loginPage')">立即登录</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 主应用页面 ==================== -->
+    <div class="page" id="mainApp">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="logo">🚀 QuantTrade</div>
+            <nav class="nav">
+                <a class="nav-item active" onclick="switchMainTab('trading')">交易</a>
+                <a class="nav-item" onclick="switchMainTab('assets')">资产</a>
+                <a class="nav-item" onclick="switchMainTab('exchange')">交易所</a>
+                <a class="nav-item" onclick="switchMainTab('strategy')">策略</a>
+                <a class="nav-item" onclick="switchMainTab('backtest')">回测</a>
+            </nav>
+            <div class="header-right">
+                <div class="user-info" onclick="handleLogout()">
+                    <div class="avatar">U</div>
+                    <span id="userEmail">user@example.com</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 交易页面 -->
+        <div class="main-content active" id="tradingContent">
+            <div class="trading-layout">
+                <!-- 图表区域 -->
+                <div class="chart-panel">
+                    <div class="chart-header">
+                        <div class="symbol-select">
+                            <span class="symbol-name">BTC/USDT</span>
+                            <span>▼</span>
+                        </div>
+                        <span class="symbol-price text-up" id="currentPrice">42,856.32</span>
+                        <span class="symbol-change text-up">+2.35%</span>
+                        <div class="timeframe-tabs">
+                            <button class="timeframe-btn" onclick="changeTimeframe('1m')">1分</button>
+                            <button class="timeframe-btn" onclick="changeTimeframe('5m')">5分</button>
+                            <button class="timeframe-btn" onclick="changeTimeframe('15m')">15分</button>
+                            <button class="timeframe-btn active" onclick="changeTimeframe('1h')">1时</button>
+                            <button class="timeframe-btn" onclick="changeTimeframe('4h')">4时</button>
+                            <button class="timeframe-btn" onclick="changeTimeframe('1d')">日线</button>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="chartContainer"></div>
+                </div>
+
+                <!-- 下单面板 -->
+                <div class="order-panel">
+                    <div class="order-tabs">
+                        <div class="order-tab buy active" onclick="switchOrderSide('buy')">买入</div>
+                        <div class="order-tab sell" onclick="switchOrderSide('sell')">卖出</div>
+                    </div>
+                    <div class="order-form">
+                        <div class="order-type-select">
+                            <button class="order-type-btn active" onclick="switchOrderType('limit')">限价</button>
+                            <button class="order-type-btn" onclick="switchOrderType('market')">市价</button>
+                        </div>
+
+                        <div class="balance-info">
+                            <span>可用</span>
+                            <span id="availableBalance">10,000.00 USDT</span>
+                        </div>
+
+                        <div class="input-group" id="priceInputGroup">
+                            <label class="input-label">价格 (USDT)</label>
+                            <input type="number" class="input" id="orderPrice" placeholder="请输入价格" step="0.01">
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label">数量 (BTC)</label>
+                            <input type="number" class="input" id="orderAmount" placeholder="请输入数量" step="0.0001">
+                        </div>
+
+                        <div class="percent-btns">
+                            <button class="percent-btn" onclick="setOrderPercent(25)">25%</button>
+                            <button class="percent-btn" onclick="setOrderPercent(50)">50%</button>
+                            <button class="percent-btn" onclick="setOrderPercent(75)">75%</button>
+                            <button class="percent-btn" onclick="setOrderPercent(100)">100%</button>
+                        </div>
+
+                        <div class="order-summary">
+                            <div class="order-summary-row">
+                                <span>交易额</span>
+                                <span id="orderTotal">0.00 USDT</span>
+                            </div>
+                            <div class="order-summary-row">
+                                <span>手续费 (0.1%)</span>
+                                <span id="orderFee">0.00 USDT</span>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-buy btn-lg btn-block" id="submitOrderBtn" onclick="submitOrder()">买入 BTC</button>
+                    </div>
+                </div>
+
+                <!-- 订单列表 -->
+                <div class="orders-panel">
+                    <div class="orders-tabs">
+                        <div class="orders-tab active" onclick="switchOrdersTab('open')">当前委托</div>
+                        <div class="orders-tab" onclick="switchOrdersTab('history')">历史委托</div>
+                        <div class="orders-tab" onclick="switchOrdersTab('trades')">成交记录</div>
+                    </div>
+                    <div class="orders-content" id="ordersContent">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>交易对</th>
+                                    <th>类型</th>
+                                    <th>方向</th>
+                                    <th>价格</th>
+                                    <th>数量</th>
+                                    <th>已成交</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                                <tr>
+                                    <td colspan="9" class="empty-state">暂无委托订单</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 资产页面 -->
+        <div class="main-content" id="assetsContent">
+            <div class="assets-page">
+                <div class="assets-overview">
+                    <div class="asset-card">
+                        <div class="asset-card-label">总资产估值 (USDT)</div>
+                        <div class="asset-card-value">125,680.45</div>
+                        <div class="asset-card-sub text-up">+2,456.78 (24h)</div>
+                    </div>
+                    <div class="asset-card">
+                        <div class="asset-card-label">可用余额 (USDT)</div>
+                        <div class="asset-card-value">45,230.12</div>
+                    </div>
+                    <div class="asset-card">
+                        <div class="asset-card-label">冻结金额 (USDT)</div>
+                        <div class="asset-card-value">8,450.33</div>
+                    </div>
+                    <div class="asset-card">
+                        <div class="asset-card-label">今日盈亏</div>
+                        <div class="asset-card-value text-up">+3.25%</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">持仓明细</div>
+                        <div>
+                            <input type="text" class="input" placeholder="搜索币种..." style="width:200px;">
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>币种</th>
+                                    <th>可用</th>
+                                    <th>冻结</th>
+                                    <th>估值 (USDT)</th>
+                                    <th>24h涨跌</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>BTC</strong> Bitcoin</td>
+                                    <td>1.5432</td>
+                                    <td>0.1000</td>
+                                    <td>68,456.78</td>
+                                    <td class="text-up">+2.35%</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-text">交易</button>
+                                        <button class="btn btn-sm btn-text">划转</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ETH</strong> Ethereum</td>
+                                    <td>12.8765</td>
+                                    <td>0.5000</td>
+                                    <td>28,765.43</td>
+                                    <td class="text-down">-1.28%</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-text">交易</button>
+                                        <button class="btn btn-sm btn-text">划转</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>USDT</strong> Tether</td>
+                                    <td>28,458.24</td>
+                                    <td>1,200.00</td>
+                                    <td>29,658.24</td>
+                                    <td class="text-secondary">0.00%</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-text">交易</button>
+                                        <button class="btn btn-sm btn-text">划转</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交易所配置页面 -->
+        <div class="main-content" id="exchangeContent">
+            <div class="exchange-page">
+                <h2 style="margin-bottom: var(--spacing-lg);">交易所 API 配置</h2>
+                <div class="exchange-grid">
+                    <div class="exchange-card">
+                        <div class="exchange-header">
+                            <div class="exchange-logo">B</div>
+                            <div class="exchange-info">
+                                <h3>Binance</h3>
+                                <div class="exchange-status">
+                                    <span class="status-dot online"></span>
+                                    <span class="text-up">已连接</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="exchange-details">
+                            <div class="exchange-detail-row">
+                                <span>API Key</span>
+                                <span>****...abc123</span>
+                            </div>
+                            <div class="exchange-detail-row">
+                                <span>权限</span>
+                                <span><span class="tag tag-success">读取</span> <span class="tag tag-warning">交易</span></span>
+                            </div>
+                            <div class="exchange-detail-row">
+                                <span>上次同步</span>
+                                <span>2 分钟前</span>
+                            </div>
+                        </div>
+                        <div class="exchange-actions">
+                            <button class="btn btn-secondary btn-sm">测试连接</button>
+                            <button class="btn btn-secondary btn-sm">编辑</button>
+                            <button class="btn btn-danger btn-sm">删除</button>
+                        </div>
+                    </div>
+
+                    <div class="exchange-card">
+                        <div class="exchange-header">
+                            <div class="exchange-logo">O</div>
+                            <div class="exchange-info">
+                                <h3>OKX</h3>
+                                <div class="exchange-status">
+                                    <span class="status-dot offline"></span>
+                                    <span class="text-down">未连接</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="exchange-details">
+                            <div class="exchange-detail-row">
+                                <span>API Key</span>
+                                <span>****...xyz789</span>
+                            </div>
+                            <div class="exchange-detail-row">
+                                <span>权限</span>
+                                <span><span class="tag tag-success">读取</span></span>
+                            </div>
+                            <div class="exchange-detail-row">
+                                <span>错误信息</span>
+                                <span class="text-down">API Key 已过期</span>
+                            </div>
+                        </div>
+                        <div class="exchange-actions">
+                            <button class="btn btn-secondary btn-sm">测试连接</button>
+                            <button class="btn btn-secondary btn-sm">编辑</button>
+                            <button class="btn btn-danger btn-sm">删除</button>
+                        </div>
+                    </div>
+
+                    <div class="exchange-card add-exchange-card" onclick="openAddExchangeModal()">
+                        <div class="add-exchange-content">
+                            <div class="add-exchange-icon">+</div>
+                            <div>添加交易所</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 策略开发页面 -->
+        <div class="main-content" id="strategyContent">
+            <div class="strategy-page">
+                <div class="strategy-sidebar">
+                    <div class="strategy-list-header">
+                        <span>策略列表</span>
+                        <button class="btn btn-sm btn-primary" onclick="createNewStrategy()">+ 新建</button>
+                    </div>
+                    <div class="strategy-list">
+                        <div class="strategy-item active">
+                            <div class="strategy-item-name">双均线策略</div>
+                            <div class="strategy-item-meta">修改于 2小时前</div>
+                        </div>
+                        <div class="strategy-item">
+                            <div class="strategy-item-name">MACD 背离策略</div>
+                            <div class="strategy-item-meta">修改于 1天前</div>
+                        </div>
+                        <div class="strategy-item">
+                            <div class="strategy-item-name">网格交易策略</div>
+                            <div class="strategy-item-meta">修改于 3天前</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="strategy-main">
+                    <div class="strategy-toolbar">
+                        <input type="text" class="strategy-name-input" value="双均线策略" id="strategyNameInput">
+                        <button class="btn btn-secondary btn-sm">保存</button>
+                        <button class="btn btn-primary btn-sm" onclick="runBacktest()">运行回测</button>
+                        <button class="btn btn-success btn-sm">启动策略</button>
+                    </div>
+                    <div class="code-editor">
+                        <textarea id="strategyCode" spellcheck="false"># 双均线交叉策略
+# 当短期均线上穿长期均线时买入，下穿时卖出
+
+def initialize(context):
+    """策略初始化"""
+    context.symbol = 'BTC/USDT'
+    context.short_period = 5
+    context.long_period = 20
+    context.position_size = 0.1  # 每次交易10%仓位
+
+def handle_data(context, data):
+    """每个K线周期执行"""
+    prices = data.history(context.symbol, 'close', context.long_period + 1)
+    
+    short_ma = prices[-context.short_period:].mean()
+    long_ma = prices[-context.long_period:].mean()
+    
+    prev_prices = prices[:-1]
+    prev_short_ma = prev_prices[-context.short_period:].mean()
+    prev_long_ma = prev_prices[-context.long_period:].mean()
+    
+    # 金叉买入
+    if prev_short_ma <= prev_long_ma and short_ma > long_ma:
+        if context.portfolio.positions.get(context.symbol, 0) == 0:
+            order_target_percent(context.symbol, context.position_size)
+            log.info(f"金叉信号，买入 {context.symbol}")
+    
+    # 死叉卖出
+    elif prev_short_ma >= prev_long_ma and short_ma < long_ma:
+        if context.portfolio.positions.get(context.symbol, 0) > 0:
+            order_target_percent(context.symbol, 0)
+            log.info(f"死叉信号，卖出 {context.symbol}")
+</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 回测页面 -->
+        <div class="main-content" id="backtestContent">
+            <div class="backtest-page">
+                <h2 style="margin-bottom: var(--spacing-lg);">策略回测</h2>
+                
+                <div class="backtest-config">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">回测参数</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group">
+                                <label class="input-label">选择策略</label>
+                                <select class="input">
+                                    <option>双均线策略</option>
+                                    <option>MACD 背离策略</option>
+                                    <option>网格交易策略</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">交易对</label>
+                                <select class="input">
+                                    <option>BTC/USDT</option>
+                                    <option>ETH/USDT</option>
+                                    <option>SOL/USDT</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">时间周期</label>
+                                <select class="input">
+                                    <option>1小时</option>
+                                    <option>4小时</option>
+                                    <option>日线</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">回测范围</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group">
+                                <label class="input-label">开始日期</label>
+                                <input type="date" class="input" value="2024-01-01">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">结束日期</label>
+                                <input type="date" class="input" value="2024-12-31">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">初始资金 (USDT)</label>
+                                <input type="number" class="input" value="100000">
+                            </div>
+                            <button class="btn btn-primary btn-lg btn-block" onclick="startBacktest()">开始回测</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="backtest-results" id="backtestResults">
+                    <h3 style="margin-bottom: var(--spacing-md);">回测结果</h3>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value text-up">+45.6%</div>
+                            <div class="metric-label">总收益率</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">1.85</div>
+                            <div class="metric-label">夏普比率</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value text-down">-12.3%</div>
+                            <div class="metric-label">最大回撤</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">68.5%</div>
+                            <div class="metric-label">胜率</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">收益曲线</div>
+                        </div>
+                        <div class="card-body">
+                            <div id="equityChart" style="height: 300px; background: var(--bg-tertiary); border-radius: var(--radius-sm); display:flex; align-items:center; justify-content:center; color: var(--text-secondary);">
+                                收益曲线图表区域
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 添加交易所弹窗 ==================== -->
+    <div class="modal-overlay" id="addExchangeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">添加交易所</div>
+                <div class="modal-close" onclick="closeModal('addExchangeModal')">×</div>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label class="input-label">选择交易所</label>
+                    <select class="input" id="exchangeSelect">
+                        <option value="binance">Binance</option>
+                        <option value="okx">OKX</option>
+                        <option value="huobi">Huobi</option>
+                        <option value="bybit">Bybit</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">API Key</label>
+                    <input type="text" class="input" id="apiKeyInput" placeholder="请输入 API Key">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Secret Key</label>
+                    <input type="password" class="input" id="secretKeyInput" placeholder="请输入 Secret Key">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Passphrase (可选)</label>
+                    <input type="password" class="input" id="passphraseInput" placeholder="部分交易所需要">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addExchangeModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveExchange()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 确认弹窗 ==================== -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal" style="width:400px;">
+            <div class="modal-header">
+                <div class="modal-title" id="confirmTitle">确认操作</div>
+                <div class="modal-close" onclick="closeModal('confirmModal')">×</div>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">确定要执行此操作吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('confirmModal')">取消</button>
+                <button class="btn btn-primary" id="confirmBtn" onclick="confirmAction()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 下单确认弹窗 ==================== -->
+    <div class="modal-overlay" id="orderConfirmModal">
+        <div class="modal" style="width:400px;">
+            <div class="modal-header">
+                <div class="modal-title" id="orderConfirmTitle">确认买入</div>
+                <div class="modal-close" onclick="closeModal('orderConfirmModal')">×</div>
+            </div>
+            <div class="modal-body">
+                <div class="order-summary">
+                    <div class="order-summary-row">
+                        <span>交易对</span>
+                        <span id="confirmSymbol">BTC/USDT</span>
+                    </div>
+                    <div class="order-summary-row">
+                        <span>方向</span>
+                        <span id="confirmSide" class="text-up">买入</span>
+                    </div>
+                    <div class="order-summary-row">
+                        <span>类型</span>
+                        <span id="confirmType">限价单</span>
+                    </div>
+                    <div class="order-summary-row">
+                        <span>价格</span>
+                        <span id="confirmPrice">42,856.32 USDT</span>
+                    </div>
+                    <div class="order-summary-row">
+                        <span>数量</span>
+                        <span id="confirmAmount">0.1000 BTC</span>
+                    </div>
+                    <div class="order-summary-row" style="border-top:1px solid var(--border-color); padding-top:var(--spacing-sm); margin-top:var(--spacing-sm);">
+                        <span><strong>交易总额</strong></span>
+                        <span><strong id="confirmTotal">4,285.63 USDT</strong></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('orderConfirmModal')">取消</button>
+                <button class="btn btn-buy" id="confirmOrderBtn" onclick="confirmOrder()">确认买入</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 全局状态 ====================
+        const state = {
+            currentPage: 'loginPage',
+            currentMainTab: 'trading',
+            loginTab: 'password',
+            registerTab: 'email',
+            orderSide: 'buy',
+            orderType: 'limit',
+            ordersTab: 'open',
+            isLoggedIn: false,
+            user: null,
+            orders: [],
+            chart: null
+        };
+
+        // ==================== 页面切换 ====================
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            state.currentPage = pageId;
+        }
+
+        function switchMainTab(tab) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.main-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab + 'Content').classList.add('active');
+            state.currentMainTab = tab;
+        }
+
+        // ==================== 登录相关 ====================
+        function switchLoginTab(tab) {
+            state.loginTab = tab;
+            document.querySelectorAll('#loginPage .tab-item').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('passwordLoginFields').style.display = tab === 'password' ? 'block' : 'none';
+            document.getElementById('codeLoginFields').style.display = tab === 'code' ? 'block' : 'none';
+        }
+
+        function switchRegisterTab(tab) {
+            state.registerTab = tab;
+            document.querySelectorAll('#registerPage .tab-item').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('emailRegisterFields').style.display = tab === 'email' ? 'block' : 'none';
+            document.getElementById('phoneRegisterFields').style.display = tab === 'phone' ? 'block' : 'none';
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                state.isLoggedIn = true;
+                state.user = { email: document.getElementById('loginAccount').value || 'user@example.com' };
+                document.getElementById('userEmail').textContent = state.user.email;
+                showPage('mainApp');
+                initChart();
+                showToast('success', '登录成功', '欢迎回来！');
+            }, 1000);
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('registerConfirmPassword').value;
+            
+            if (password !== confirmPassword) {
+                showToast('error', '注册失败', '两次输入的密码不一致');
+                return;
+            }
+            
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                showToast('success', '注册成功', '请登录您的账户');
+                showPage('loginPage');
+            }, 1000);
+        }
+
+        function handleLogout() {
+            if (confirm('确定要退出登录吗？')) {
+                state.isLoggedIn = false;
+                state.user = null;
+                showPage('loginPage');
+                showToast('info', '已退出', '您已成功退出登录');
+            }
+        }
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function checkPasswordStrength() {
+            const password = document.getElementById('registerPassword').value;
+            const bar = document.getElementById('strengthBar');
+            
+            if (password.length < 6) {
+                bar.className = 'password-strength-bar strength-weak';
+            } else if (password.length < 10 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+                bar.className = 'password-strength-bar strength-medium';
+            } else {
+                bar.className = 'password-strength-bar strength-strong';
+            }
+        }
+
+        function sendVerifyCode(type) {
+            const btn = event.target;
+            let countdown = 60;
+            btn.disabled = true;
+            btn.textContent = `${countdown}s`;
+            
+            const timer = setInterval(() => {
+                countdown--;
+                btn.textContent = `${countdown}s`;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.textContent = '获取验证码';
+                }
+            }, 1000);
+            
+            showToast('success', '发送成功', '验证码已发送到您的邮箱/手机');
+        }
+
+        // ==================== 交易相关 ====================
+        function switchOrderSide(side) {
+            state.orderSide = side;
+            document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.order-tab.${side}`).classList.add('active');
+            
+            const btn = document.getElementById('submitOrderBtn');
+            if (side === 'buy') {
+                btn.className = 'btn btn-buy btn-lg btn-block';
+                btn.textContent = '买入 BTC';
+            } else {
+                btn.className = 'btn btn-sell btn-lg btn-block';
+                btn.textContent = '卖出 BTC';
+            }
+        }
+
+        function switchOrderType(type) {
+            state.orderType = type;
+            document.querySelectorAll('.order-type-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('priceInputGroup').style.display = type === 'limit' ? 'block' : 'none';
+        }
+
+        function setOrderPercent(percent) {
+            const balance = 10000;
+            const price = parseFloat(document.getElementById('orderPrice').value) || 42856.32;
+            const amount = (balance * percent / 100 / price).toFixed(4);
+            document.getElementById('orderAmount').value = amount;
+            updateOrderSummary();
+        }
+
+        function updateOrderSummary() {
+            const price = parseFloat(document.getElementById('orderPrice').value) || 0;
+            const amount = parseFloat(document.getElementById('orderAmount').value) || 0;
+            const total = price * amount;
+            const fee = total * 0.001;
+            
+            document.getElementById('orderTotal').textContent = total.toFixed(2) + ' USDT';
+            document.getElementById('orderFee').textContent = fee.toFixed(2) + ' USDT';
+        }
+
+        document.getElementById('orderPrice')?.addEventListener('input', updateOrderSummary);
+        document.getElementById('orderAmount')?.addEventListener('input', updateOrderSummary);
+
+        function submitOrder() {
+            const price = document.getElementById('orderPrice').value;
+            const amount = document.getElementById('orderAmount').value;
+            
+            if (state.orderType === 'limit' && !price) {
+                showToast('error', '参数错误', '请输入价格');
+                return;
+            }
+            if (!amount) {
+                showToast('error', '参数错误', '请输入数量');
+                return;
+            }
+            
+            // 显示确认弹窗
+            document.getElementById('confirmSide').textContent = state.orderSide === 'buy' ? '买入' : '卖出';
+            document.getElementById('confirmSide').className = state.orderSide === 'buy' ? 'text-up' : 'text-down';
+            document.getElementById('confirmType').textContent = state.orderType === 'limit' ? '限价单' : '市价单';
+            document.getElementById('confirmPrice').textContent = (price || '市价') + ' USDT';
+            document.getElementById('confirmAmount').textContent = amount + ' BTC';
+            document.getElementById('confirmTotal').textContent = (parseFloat(price || 42856.32) * parseFloat(amount)).toFixed(2) + ' USDT';
+            document.getElementById('orderConfirmTitle').textContent = state.orderSide === 'buy' ? '确认买入' : '确认卖出';
+            
+            const confirmBtn = document.getElementById('confirmOrderBtn');
+            confirmBtn.textContent = state.orderSide === 'buy' ? '确认买入' : '确认卖出';
+            confirmBtn.className = state.orderSide === 'buy' ? 'btn btn-buy' : 'btn btn-sell';
+            
+            openModal('orderConfirmModal');
+        }
+
+        function confirmOrder() {
+            closeModal('orderConfirmModal');
+            showLoading();
+            
+            setTimeout(() => {
+                hideLoading();
+                showToast('success', '下单成功', '您的订单已提交');
+                document.getElementById('orderPrice').value = '';
+                document.getElementById('orderAmount').value = '';
+                updateOrderSummary();
+            }, 800);
+        }
+
+        function switchOrdersTab(tab) {
+            state.ordersTab = tab;
+            document.querySelectorAll('.orders-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function changeTimeframe(tf) {
+            document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // ==================== 图表初始化 ====================
+        function initChart() {
+            const container = document.getElementById('chartContainer');
+            if (!container || state.chart) return;
+            
+            try {
+                state.chart = LightweightCharts.createChart(container, {
+                    layout: {
+                        background: { color: '#1e222d' },
+                        textColor: '#d1d4dc',
+                    },
+                    grid: {
+                        vertLines: { color: '#2a2e39' },
+                        horzLines: { color: '#2a2e39' },
+                    },
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                    },
+                    rightPriceScale: {
+                        borderColor: '#2a2e39',
+                    },
+                    timeScale: {
+                        borderColor: '#2a2e39',
+                        timeVisible: true,
+                    },
+                });
+
+                const candlestickSeries = state.chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderDownColor: '#ef5350',
+                    borderUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                });
+
+                // 生成模拟数据
+                const data = generateCandleData();
+                candlestickSeries.setData(data);
+                state.chart.timeScale().fitContent();
+                
+                // 响应式调整
+                new ResizeObserver(() => {
+                    state.chart.applyOptions({ 
+                        width: container.clientWidth,
+                        height: container.clientHeight 
+                    });
+                }).observe(container);
+            } catch (e) {
+                console.error('Chart init error:', e);
+            }
+        }
+
+        function generateCandleData() {
+            const data = [];
+            let basePrice = 42000;
+            const now = Math.floor(Date.now() / 1000);
+            
+            for (let i = 200; i >= 0; i--) {
+                const time = now - i * 3600;
+                const volatility = Math.random() * 500;
+                const open = basePrice + (Math.random() - 0.5) * volatility;
+                const close = open + (Math.random() - 0.5) * volatility;
+                const high = Math.max(open, close) + Math.random() * 200;
+                const low = Math.min(open, close) - Math.random() * 200;
+                
+                data.push({ time, open, high, low, close });
+                basePrice = close;
+            }
+            return data;
+        }
+
+        // ==================== 交易所配置 ====================
+        function openAddExchangeModal() {
+            openModal('addExchangeModal');
+        }
+
+        function saveExchange() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const secretKey = document.getElementById('secretKeyInput').value;
+            
+            if (!apiKey || !secretKey) {
+                showToast('error', '参数错误', '请填写必要的 API 信息');
+                return;
+            }
+            
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                closeModal('addExchangeModal');
+                showToast('success', '添加成功', '交易所已成功添加');
+                document.getElementById('apiKeyInput').value = '';
+                document.getElementById('secretKeyInput').value = '';
+            }, 1000);
+        }
+
+        // ==================== 策略开发 ====================
+        function createNewStrategy() {
+            document.getElementById('strategyNameInput').value = '新策略';
+            document.getElementById('strategyCode').value = `# 新策略模板
+def initialize(context):
+    """策略初始化"""
+    context.symbol = 'BTC/USDT'
+
+def handle_data(context, data):
+    """每个K线周期执行"""
+    pass
+`;
+            showToast('info', '提示', '已创建新策略模板');
+        }
+
+        function runBacktest() {
+            switchMainTab('backtest');
+            document.querySelector('.nav-item:nth-child(5)').classList.add('active');
+            document.querySelector('.nav-item:nth-child(4)').classList.remove('active');
+        }
+
+        // ==================== 回测 ====================
+        function startBacktest() {
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                document.getElementById('backtestResults').classList.add('active');
+                showToast('success', '回测完成', '策略回测已完成，请查看结果');
+            }, 2000);
+        }
+
+        // ==================== 弹窗控制 ====================
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // 点击遮罩关闭弹窗
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+
+        // ==================== Toast 提示 ====================
+        function showToast(type, title, message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠',
+                info: 'ℹ'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'toastIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==================== 加载状态 ====================
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // ==================== 键盘快捷键 ====================
+        document.addEventListener('keydown', (e) => {
+            // ESC 关闭弹窗
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+            }
+            
+            // Ctrl+S 保存策略
+            if (e.ctrlKey && e.key === 's' && state.currentMainTab === 'strategy') {
+                e.preventDefault();
+                showToast('success', '保存成功', '策略已保存');
+            }
+        });
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // 设置默认价格
+            document.getElementById('orderPrice').value = '42856.32';
+            updateOrderSummary();
+        });
+    </script>
+</body>
+</html>
