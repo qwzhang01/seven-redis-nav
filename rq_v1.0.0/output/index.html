@@ -829,11 +829,93 @@
     <div class="page" id="backtestPage">
         <header class="app-header"><div class="header-left"><div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div><nav class="nav-menu"><span class="nav-item" data-page="tradingPage">行情</span><span class="nav-item active" data-page="strategyPage">策略广场</span><span class="nav-item" data-page="myStrategyPage">我的策略</span><span class="nav-item" data-page="riskPage">风控中心</span></nav></div><div class="header-right"><div class="header-icon">🔔</div><div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div></div></header>
         <div class="config-page">
-            <h1 class="page-title">策略回测配置</h1>
-            <div class="config-section"><div class="section-title">基础参数</div><div class="config-grid"><div class="config-item"><label>开始日期</label><input type="date" class="config-input" value="2024-01-01"></div><div class="config-item"><label>结束日期</label><input type="date" class="config-input" value="2024-12-31"></div><div class="config-item"><label>交易对</label><select class="config-input"><option>BTC/USDT</option><option>ETH/USDT</option></select></div><div class="config-item"><label>初始资金</label><input type="number" class="config-input" value="10000"></div></div></div>
-            <div class="config-section"><div class="section-title">高级参数</div><div class="config-grid"><div class="config-item"><label>手续费率(%)</label><input type="number" class="config-input" value="0.1"></div><div class="config-item"><label>滑点(%)</label><input type="number" class="config-input" value="0.05"></div></div><div class="switch-row"><span>启用杠杆</span><div class="switch" onclick="this.classList.toggle('on')"></div></div></div>
-            <div class="progress-section" id="btProgress" style="display:none;"><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div><div class="progress-info"><span id="progressPct">0%</span><span>预计剩余: 计算中...</span></div></div>
-            <div class="btn-group"><button class="btn secondary" onclick="showPage('strategyDetailPage')">取消</button><button class="btn primary" onclick="startBacktest()">开始回测</button></div>
+            <h1 class="page-title">📊 策略回测配置</h1>
+            <div class="config-section">
+                <div class="section-title">📅 时间范围</div>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label>开始日期</label>
+                        <input type="date" class="config-input" id="btStartDate" value="2024-01-01">
+                    </div>
+                    <div class="config-item">
+                        <label>结束日期</label>
+                        <input type="date" class="config-input" id="btEndDate" value="2024-12-31">
+                    </div>
+                    <div class="config-item">
+                        <label>快速选择</label>
+                        <div class="quick-date-btns">
+                            <button class="quick-btn" onclick="setBacktestPeriod(30)">近30天</button>
+                            <button class="quick-btn" onclick="setBacktestPeriod(90)">近3月</button>
+                            <button class="quick-btn" onclick="setBacktestPeriod(180)">近半年</button>
+                            <button class="quick-btn active" onclick="setBacktestPeriod(365)">近1年</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="config-section">
+                <div class="section-title">💱 交易配置</div>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label>交易对</label>
+                        <select class="config-input" id="btPair">
+                            <option>BTC/USDT</option>
+                            <option>ETH/USDT</option>
+                            <option>BNB/USDT</option>
+                            <option>SOL/USDT</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label>K线周期</label>
+                        <select class="config-input" id="btTimeframe">
+                            <option value="1m">1分钟</option>
+                            <option value="5m">5分钟</option>
+                            <option value="15m">15分钟</option>
+                            <option value="1h" selected>1小时</option>
+                            <option value="4h">4小时</option>
+                            <option value="1d">日线</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label>初始资金 (USDT)</label>
+                        <input type="number" class="config-input" id="btCapital" value="10000">
+                    </div>
+                </div>
+            </div>
+            <div class="config-section">
+                <div class="section-title">⚙️ 高级参数</div>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label>手续费率 (%)</label>
+                        <input type="number" class="config-input" id="btCommission" value="0.1" step="0.01">
+                    </div>
+                    <div class="config-item">
+                        <label>滑点 (%)</label>
+                        <input type="number" class="config-input" id="btSlippage" value="0.05" step="0.01">
+                    </div>
+                </div>
+                <div class="switch-row">
+                    <span>启用杠杆</span>
+                    <div class="switch" id="btLeverage" onclick="this.classList.toggle('on')"></div>
+                </div>
+                <div class="switch-row">
+                    <span>允许做空</span>
+                    <div class="switch" onclick="this.classList.toggle('on')"></div>
+                </div>
+            </div>
+            <div class="progress-section" id="btProgress" style="display:none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressPct">0%</span>
+                    <span>预计剩余: 计算中...</span>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn secondary" onclick="showPage('strategyDetailPage')">取消</button>
+                <button class="btn secondary" onclick="showPage('strategyDevPage')">✏️ 编辑策略</button>
+                <button class="btn primary" onclick="startBacktest()">▶️ 开始回测</button>
+            </div>
         </div>
     </div>
     
@@ -922,6 +1004,10 @@
         <div class="page-content">
             <div class="my-strategy-header">
                 <h1 class="page-title">我的策略</h1>
+                <div class="strategy-header-actions">
+                    <button class="btn primary" onclick="showPage('strategyDevPage')">✨ 新建策略</button>
+                    <button class="btn secondary" onclick="showPage('strategyTemplatePage')">📦 策略模板</button>
+                </div>
                 <div class="strategy-mode-tabs">
                     <button class="mode-tab active" onclick="switchStrategyMode('live')">🔵 实盘策略</button>
                     <button class="mode-tab" onclick="switchStrategyMode('sim')">🟠 模拟策略</button>
@@ -957,6 +1043,280 @@
                         <div class="card-header"><div class="strategy-icon">🤖</div><div><div class="name">ETH突破策略</div><div class="type">突破策略 | 模拟</div></div></div>
                         <div class="card-stats"><div class="stat"><div class="value positive">+33.3%</div><div class="label">模拟收益</div></div><div class="stat"><div class="value">2天8小时</div><div class="label">运行时长</div></div></div>
                         <div class="card-footer"><span class="status-badge paused">🟡 已暂停</span><span>虚拟账户</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 策略开发页 (P-007) -->
+    <div class="page" id="strategyDevPage">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" onclick="showPage('tradingPage')">🚀 CryptoQuant</div>
+                <nav class="nav-menu">
+                    <span class="nav-item" data-page="tradingPage">行情</span>
+                    <span class="nav-item" data-page="strategyPage">策略广场</span>
+                    <span class="nav-item active" data-page="myStrategyPage">我的策略</span>
+                    <span class="nav-item" data-page="riskPage">风控中心</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="header-icon">🔔</div>
+                <div class="user-menu"><div class="user-avatar">张</div><span>张三</span></div>
+            </div>
+        </header>
+        <div class="breadcrumb">
+            <a onclick="showPage('myStrategyPage')">我的策略</a> > <span>策略开发</span>
+        </div>
+        <div class="strategy-dev-container">
+            <!-- 左侧编辑器区域 -->
+            <div class="dev-editor-section">
+                <div class="editor-toolbar">
+                    <div class="toolbar-left">
+                        <span class="toolbar-title">📝 策略开发</span>
+                        <select class="template-select" id="templateSelect" onchange="loadTemplate(this.value)">
+                            <option value="">选择模板...</option>
+                            <option value="ma_cross">双均线交叉策略</option>
+                            <option value="grid">网格交易策略</option>
+                            <option value="rsi">RSI超买超卖策略</option>
+                            <option value="boll">布林带突破策略</option>
+                            <option value="macd">MACD背离策略</option>
+                            <option value="turtle">海龟交易策略</option>
+                            <option value="dca">定投策略</option>
+                            <option value="empty">空白模板</option>
+                        </select>
+                        <select class="language-select" id="languageSelect" onchange="switchLanguage(this.value)">
+                            <option value="python" selected>Python</option>
+                            <option value="javascript">JavaScript</option>
+                        </select>
+                    </div>
+                    <div class="toolbar-right">
+                        <button class="toolbar-btn" onclick="formatCode()" title="格式化代码 (Ctrl+Shift+F)">
+                            <span>📄</span> 格式化
+                        </button>
+                        <button class="toolbar-btn" onclick="undoEdit()" id="undoBtn" title="撤销 (Ctrl+Z)">
+                            <span>↩</span> 撤销
+                        </button>
+                        <button class="toolbar-btn" onclick="redoEdit()" id="redoBtn" title="重做 (Ctrl+Y)">
+                            <span>↪</span> 重做
+                        </button>
+                        <div class="theme-toggle" onclick="toggleEditorTheme()" title="切换主题">
+                            <span id="themeIcon">🌙</span>
+                        </div>
+                        <button class="toolbar-btn primary" onclick="saveStrategy()" id="saveStrategyBtn">
+                            <span>💾</span> 保存
+                        </button>
+                    </div>
+                </div>
+                <div class="code-editor-container">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                    <textarea class="code-editor" id="codeEditor" spellcheck="false" placeholder="在此编写策略代码..."
+                        oninput="updateLineNumbers(); highlightSyntax();" onscroll="syncScroll();" onkeydown="handleEditorKeys(event)">from cryptoquant import Strategy, Context
+
+class MyStrategy(Strategy):
+    """自定义量化策略
+    
+    在这里编写您的交易逻辑
+    """
+    
+    def __init__(self):
+        # 策略参数
+        self.short_period = 5    # 短期均线周期
+        self.long_period = 20    # 长期均线周期
+        self.stop_loss = 0.05    # 止损比例 5%
+        self.take_profit = 0.10  # 止盈比例 10%
+    
+    def on_init(self, ctx: Context):
+        """策略初始化"""
+        ctx.log("策略初始化完成")
+    
+    def on_bar(self, ctx: Context):
+        """K线回调 - 每根K线触发一次"""
+        # 计算均线
+        ma_short = ctx.ta.SMA(ctx.close, self.short_period)
+        ma_long = ctx.ta.SMA(ctx.close, self.long_period)
+        
+        # 金叉买入信号
+        if ma_short[-2] < ma_long[-2] and ma_short[-1] > ma_long[-1]:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"金叉买入 @ {ctx.close[-1]}")
+        
+        # 死叉卖出信号
+        if ma_short[-2] > ma_long[-2] and ma_short[-1] < ma_long[-1]:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"死叉卖出 @ {ctx.close[-1]}")
+        
+        # 止损止盈检查
+        if ctx.position:
+            pnl_pct = ctx.position.unrealized_pnl_pct
+            if pnl_pct <= -self.stop_loss:
+                ctx.sell(percent=100)
+                ctx.log(f"止损平仓 @ {ctx.close[-1]}")
+            elif pnl_pct >= self.take_profit:
+                ctx.sell(percent=100)
+                ctx.log(f"止盈平仓 @ {ctx.close[-1]}")
+    
+    def on_order(self, ctx: Context, order):
+        """订单回调"""
+        ctx.log(f"订单状态: {order.status}")
+    
+    def on_stop(self, ctx: Context):
+        """策略停止回调"""
+        ctx.log("策略已停止")
+
+# 回测配置
+if __name__ == "__main__":
+    strategy = MyStrategy()
+    strategy.backtest(
+        symbol="BTC/USDT",
+        start="2024-01-01",
+        end="2024-12-31",
+        initial_capital=10000,
+        commission=0.001
+    )</textarea>
+                    <div class="syntax-highlight" id="syntaxHighlight"></div>
+                </div>
+                <div class="editor-status-bar">
+                    <span class="status-item">行 <span id="cursorLine">1</span>, 列 <span id="cursorCol">1</span></span>
+                    <span class="status-item">Python</span>
+                    <span class="status-item">UTF-8</span>
+                    <span class="status-item" id="codeStatus">● 未保存</span>
+                </div>
+            </div>
+            <!-- 右侧面板 -->
+            <div class="dev-side-panel">
+                <div class="panel-tabs">
+                    <button class="panel-tab active" onclick="switchDevPanel('params')">⚙️ 参数</button>
+                    <button class="panel-tab" onclick="switchDevPanel('console')">📟 控制台</button>
+                    <button class="panel-tab" onclick="switchDevPanel('docs')">📚 文档</button>
+                </div>
+                
+                <!-- 参数面板 -->
+                <div class="panel-content active" id="paramsPanel">
+                    <div class="panel-section">
+                        <h3>策略参数</h3>
+                        <div class="param-item">
+                            <label>策略名称</label>
+                            <input type="text" class="param-input" id="strategyName" value="我的均线策略" placeholder="输入策略名称">
+                        </div>
+                        <div class="param-item">
+                            <label>策略描述</label>
+                            <textarea class="param-textarea" id="strategyDesc" placeholder="描述策略逻辑...">基于双均线交叉的趋势跟踪策略，金叉买入，死叉卖出。</textarea>
+                        </div>
+                        <div class="param-item">
+                            <label>交易对</label>
+                            <select class="param-input" id="tradingPair">
+                                <option value="BTC/USDT">BTC/USDT</option>
+                                <option value="ETH/USDT">ETH/USDT</option>
+                                <option value="BNB/USDT">BNB/USDT</option>
+                                <option value="SOL/USDT">SOL/USDT</option>
+                            </select>
+                        </div>
+                        <div class="param-item">
+                            <label>K线周期</label>
+                            <select class="param-input" id="timeframe">
+                                <option value="1m">1分钟</option>
+                                <option value="5m">5分钟</option>
+                                <option value="15m">15分钟</option>
+                                <option value="1h" selected>1小时</option>
+                                <option value="4h">4小时</option>
+                                <option value="1d">日线</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="panel-section">
+                        <h3>快速操作</h3>
+                        <div class="quick-actions">
+                            <button class="action-btn secondary" onclick="validateCode()">
+                                <span>✅</span> 语法检查
+                            </button>
+                            <button class="action-btn secondary" onclick="showPage('backtestPage')">
+                                <span>📊</span> 回测策略
+                            </button>
+                            <button class="action-btn primary" onclick="deployStrategy()">
+                                <span>🚀</span> 部署实盘
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 控制台面板 -->
+                <div class="panel-content" id="consolePanel">
+                    <div class="console-toolbar">
+                        <button class="console-btn" onclick="clearConsole()">🗑️ 清空</button>
+                        <button class="console-btn" onclick="runCode()">▶️ 运行</button>
+                    </div>
+                    <div class="console-output" id="consoleOutput">
+                        <div class="console-line info">[INFO] 编辑器已就绪</div>
+                        <div class="console-line info">[INFO] 等待代码执行...</div>
+                    </div>
+                </div>
+                
+                <!-- 文档面板 -->
+                <div class="panel-content" id="docsPanel">
+                    <div class="docs-search">
+                        <input type="text" class="docs-search-input" placeholder="搜索API文档..." oninput="searchDocs(this.value)">
+                    </div>
+                    <div class="docs-list">
+                        <div class="docs-category">
+                            <h4>常用API</h4>
+                            <div class="docs-item" onclick="insertCode('ctx.buy(percent=100)')">
+                                <code>ctx.buy()</code>
+                                <span>买入操作</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.sell(percent=100)')">
+                                <code>ctx.sell()</code>
+                                <span>卖出操作</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.position')">
+                                <code>ctx.position</code>
+                                <span>当前持仓</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.close[-1]')">
+                                <code>ctx.close</code>
+                                <span>收盘价序列</span>
+                            </div>
+                        </div>
+                        <div class="docs-category">
+                            <h4>技术指标</h4>
+                            <div class="docs-item" onclick="insertCode('ctx.ta.SMA(ctx.close, period)')">
+                                <code>ctx.ta.SMA()</code>
+                                <span>简单移动平均</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.ta.EMA(ctx.close, period)')">
+                                <code>ctx.ta.EMA()</code>
+                                <span>指数移动平均</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.ta.RSI(ctx.close, period)')">
+                                <code>ctx.ta.RSI()</code>
+                                <span>相对强弱指数</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.ta.MACD(ctx.close, fast, slow, signal)')">
+                                <code>ctx.ta.MACD()</code>
+                                <span>MACD指标</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.ta.BOLL(ctx.close, period, std)')">
+                                <code>ctx.ta.BOLL()</code>
+                                <span>布林带</span>
+                            </div>
+                        </div>
+                        <div class="docs-category">
+                            <h4>风控函数</h4>
+                            <div class="docs-item" onclick="insertCode('ctx.set_stop_loss(price)')">
+                                <code>ctx.set_stop_loss()</code>
+                                <span>设置止损</span>
+                            </div>
+                            <div class="docs-item" onclick="insertCode('ctx.set_take_profit(price)')">
+                                <code>ctx.set_take_profit()</code>
+                                <span>设置止盈</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="docs-footer">
+                        <a onclick="showPage('sdkDocPage')">查看完整文档 →</a>
                     </div>
                 </div>
             </div>

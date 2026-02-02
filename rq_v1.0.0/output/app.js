@@ -552,19 +552,75 @@ function toggleSub(i) {
 }
 
 // 回测
+
+// 设置回测时间范围
+function setBacktestPeriod(days) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+    
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    
+    const startInput = document.getElementById('btStartDate');
+    const endInput = document.getElementById('btEndDate');
+    
+    if (startInput) startInput.value = formatDate(startDate);
+    if (endInput) endInput.value = formatDate(endDate);
+    
+    // 更新按钮激活状态
+    document.querySelectorAll('.quick-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    showToast(`已设置回测周期: 近${days}天`, 'info');
+}
+
 function startBacktest() {
     document.getElementById('btProgress').style.display = 'block';
     const fill = document.getElementById('progressFill');
     const pct = document.getElementById('progressPct');
+    const progressInfo = document.querySelector('.progress-info span:last-child');
     let p = 0;
+    let stage = 0;
+    const stages = [
+        '加载历史数据...',
+        '解析K线数据...',
+        '初始化策略...',
+        '执行回测计算...',
+        '生成统计报告...',
+        '完成！'
+    ];
+    
     const timer = setInterval(() => {
-        p += Math.random() * 10;
+        p += Math.random() * 8 + 2;
+        
+        // 更新阶段
+        const newStage = Math.floor(p / 20);
+        if (newStage !== stage && newStage < stages.length) {
+            stage = newStage;
+            if (progressInfo) {
+                progressInfo.textContent = stages[stage];
+            }
+        }
+        
+        // 计算剩余时间
+        const remaining = Math.max(0, Math.ceil((100 - p) / 10));
+        if (progressInfo && p < 100) {
+            progressInfo.textContent = `${stages[Math.min(stage, stages.length - 2)]} 预计剩余: ${remaining}秒`;
+        }
+        
         if (p >= 100) {
             p = 100;
             clearInterval(timer);
+            if (progressInfo) {
+                progressInfo.textContent = '回测完成！正在生成报告...';
+            }
             setTimeout(() => {
                 showToast('回测完成！', 'success');
                 showPage('backtestResultPage');
+                // 重置进度条
+                document.getElementById('btProgress').style.display = 'none';
+                fill.style.width = '0%';
+                pct.textContent = '0%';
             }, 500);
         }
         fill.style.width = p + '%';
@@ -1951,3 +2007,768 @@ document.addEventListener('click', function(e) {
         });
     }
 });
+
+// ===================== 策略开发页面 (P-007) =====================
+
+// 编辑器状态
+let editorHistory = [];
+let editorHistoryIndex = -1;
+let editorTheme = 'dark';
+let codeSaved = true;
+
+// 初始化策略开发页面
+function initStrategyDevPage() {
+    updateLineNumbers();
+    const editor = document.getElementById('codeEditor');
+    if (editor) {
+        saveToHistory(editor.value);
+        editor.addEventListener('input', function() {
+            codeSaved = false;
+            updateCodeStatus();
+            saveToHistory(this.value);
+        });
+    }
+}
+
+// 更新行号
+function updateLineNumbers() {
+    const editor = document.getElementById('codeEditor');
+    const lineNumbers = document.getElementById('lineNumbers');
+    if (!editor || !lineNumbers) return;
+    
+    const lines = editor.value.split('\n').length;
+    let html = '';
+    for (let i = 1; i <= lines; i++) {
+        html += `<span>${i}</span>`;
+    }
+    lineNumbers.innerHTML = html;
+}
+
+// 同步滚动
+function syncScroll() {
+    const editor = document.getElementById('codeEditor');
+    const lineNumbers = document.getElementById('lineNumbers');
+    if (editor && lineNumbers) {
+        lineNumbers.scrollTop = editor.scrollTop;
+    }
+}
+
+// 处理编辑器快捷键
+function handleEditorKeys(e) {
+    const editor = e.target;
+    
+    // Tab键插入4个空格
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 4;
+        updateLineNumbers();
+    }
+    
+    // Ctrl+S 保存
+    if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        saveStrategy();
+    }
+    
+    // Ctrl+Z 撤销
+    if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoEdit();
+    }
+    
+    // Ctrl+Y 或 Ctrl+Shift+Z 重做
+    if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+        e.preventDefault();
+        redoEdit();
+    }
+    
+    // Ctrl+Shift+F 格式化
+    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        formatCode();
+    }
+    
+    // 更新光标位置
+    updateCursorPosition(editor);
+}
+
+// 更新光标位置显示
+function updateCursorPosition(editor) {
+    if (!editor) return;
+    const text = editor.value.substring(0, editor.selectionStart);
+    const lines = text.split('\n');
+    const line = lines.length;
+    const col = lines[lines.length - 1].length + 1;
+    
+    const lineEl = document.getElementById('cursorLine');
+    const colEl = document.getElementById('cursorCol');
+    if (lineEl) lineEl.textContent = line;
+    if (colEl) colEl.textContent = col;
+}
+
+// 保存到历史记录
+function saveToHistory(code) {
+    // 如果不是最新位置，删除后面的历史
+    if (editorHistoryIndex < editorHistory.length - 1) {
+        editorHistory = editorHistory.slice(0, editorHistoryIndex + 1);
+    }
+    editorHistory.push(code);
+    editorHistoryIndex = editorHistory.length - 1;
+    
+    // 限制历史记录长度
+    if (editorHistory.length > 50) {
+        editorHistory.shift();
+        editorHistoryIndex--;
+    }
+    
+    updateUndoRedoButtons();
+}
+
+// 更新撤销/重做按钮状态
+function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undoBtn');
+    const redoBtn = document.getElementById('redoBtn');
+    
+    if (undoBtn) {
+        undoBtn.disabled = editorHistoryIndex <= 0;
+    }
+    if (redoBtn) {
+        redoBtn.disabled = editorHistoryIndex >= editorHistory.length - 1;
+    }
+}
+
+// 撤销
+function undoEdit() {
+    if (editorHistoryIndex > 0) {
+        editorHistoryIndex--;
+        const editor = document.getElementById('codeEditor');
+        if (editor) {
+            editor.value = editorHistory[editorHistoryIndex];
+            updateLineNumbers();
+            updateUndoRedoButtons();
+            codeSaved = false;
+            updateCodeStatus();
+        }
+    }
+}
+
+// 重做
+function redoEdit() {
+    if (editorHistoryIndex < editorHistory.length - 1) {
+        editorHistoryIndex++;
+        const editor = document.getElementById('codeEditor');
+        if (editor) {
+            editor.value = editorHistory[editorHistoryIndex];
+            updateLineNumbers();
+            updateUndoRedoButtons();
+            codeSaved = false;
+            updateCodeStatus();
+        }
+    }
+}
+
+// 格式化代码
+function formatCode() {
+    const editor = document.getElementById('codeEditor');
+    if (!editor) return;
+    
+    showToast('正在格式化代码...', 'info');
+    
+    // 简单的Python代码格式化
+    let code = editor.value;
+    
+    // 移除行尾空格
+    code = code.split('\n').map(line => line.trimEnd()).join('\n');
+    
+    // 确保import语句后有空行
+    code = code.replace(/(^import.*$\n)((?!import|from))/gm, '$1\n$2');
+    code = code.replace(/(^from.*$\n)((?!import|from))/gm, '$1\n$2');
+    
+    // 类定义前后添加空行
+    code = code.replace(/([^\n])\n(class\s)/g, '$1\n\n$2');
+    
+    // 函数定义前添加空行
+    code = code.replace(/([^\n])\n(\s+def\s)/g, '$1\n\n$2');
+    
+    editor.value = code;
+    updateLineNumbers();
+    saveToHistory(code);
+    
+    setTimeout(() => {
+        showToast('代码格式化完成', 'success');
+    }, 300);
+}
+
+// 保存策略
+function saveStrategy() {
+    const btn = document.getElementById('saveStrategyBtn');
+    const strategyName = document.getElementById('strategyName')?.value || '未命名策略';
+    
+    if (btn) {
+        btn.innerHTML = '<span>⏳</span> 保存中...';
+        btn.disabled = true;
+    }
+    
+    setTimeout(() => {
+        codeSaved = true;
+        updateCodeStatus();
+        
+        if (btn) {
+            btn.innerHTML = '<span>✅</span> 已保存';
+            btn.disabled = false;
+        }
+        
+        showToast(`策略 "${strategyName}" 保存成功！`, 'success');
+        
+        setTimeout(() => {
+            if (btn) {
+                btn.innerHTML = '<span>💾</span> 保存';
+            }
+        }, 2000);
+    }, 500);
+}
+
+// 更新代码状态
+function updateCodeStatus() {
+    const status = document.getElementById('codeStatus');
+    if (status) {
+        if (codeSaved) {
+            status.textContent = '✓ 已保存';
+            status.classList.add('saved');
+        } else {
+            status.textContent = '● 未保存';
+            status.classList.remove('saved');
+        }
+    }
+}
+
+// 切换编辑器主题
+function toggleEditorTheme() {
+    const container = document.querySelector('.code-editor-container');
+    const themeIcon = document.getElementById('themeIcon');
+    
+    if (editorTheme === 'dark') {
+        editorTheme = 'light';
+        if (container) {
+            container.style.background = '#ffffff';
+            container.querySelector('.code-editor').style.color = '#24292e';
+        }
+        if (themeIcon) themeIcon.textContent = '☀️';
+        showToast('已切换到亮色主题', 'info');
+    } else {
+        editorTheme = 'dark';
+        if (container) {
+            container.style.background = '#0d1117';
+            container.querySelector('.code-editor').style.color = '#c9d1d9';
+        }
+        if (themeIcon) themeIcon.textContent = '🌙';
+        showToast('已切换到暗色主题', 'info');
+    }
+}
+
+// 加载模板
+function loadTemplate(templateId) {
+    if (!templateId) return;
+    
+    const templates = {
+        ma_cross: `from cryptoquant import Strategy, Context
+
+class MACrossStrategy(Strategy):
+    """双均线交叉策略
+    
+    当短期均线上穿长期均线时买入，下穿时卖出
+    """
+    
+    def __init__(self):
+        self.short_period = 5
+        self.long_period = 20
+    
+    def on_bar(self, ctx: Context):
+        ma_short = ctx.ta.SMA(ctx.close, self.short_period)
+        ma_long = ctx.ta.SMA(ctx.close, self.long_period)
+        
+        # 金叉买入
+        if ma_short[-2] < ma_long[-2] and ma_short[-1] > ma_long[-1]:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"金叉买入 @ {ctx.close[-1]}")
+        
+        # 死叉卖出
+        if ma_short[-2] > ma_long[-2] and ma_short[-1] < ma_long[-1]:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"死叉卖出 @ {ctx.close[-1]}")`,
+        
+        grid: `from cryptoquant import Strategy, Context
+
+class GridStrategy(Strategy):
+    """网格交易策略
+    
+    在设定价格区间内自动挂单，低买高卖赚取差价
+    """
+    
+    def __init__(self):
+        self.grid_upper = 50000   # 网格上限
+        self.grid_lower = 40000   # 网格下限
+        self.grid_num = 10        # 网格数量
+        self.per_grid = 100       # 每格金额(USDT)
+    
+    def on_init(self, ctx: Context):
+        self.grid_size = (self.grid_upper - self.grid_lower) / self.grid_num
+        self.grids = []
+        for i in range(self.grid_num + 1):
+            price = self.grid_lower + i * self.grid_size
+            self.grids.append({'price': price, 'filled': False})
+        ctx.log(f"网格初始化完成，共{self.grid_num}格")
+    
+    def on_bar(self, ctx: Context):
+        current_price = ctx.close[-1]
+        
+        for grid in self.grids:
+            if not grid['filled'] and current_price <= grid['price']:
+                ctx.buy(amount=self.per_grid / current_price)
+                grid['filled'] = True
+                ctx.log(f"网格买入 @ {current_price}")
+            
+            if grid['filled'] and current_price >= grid['price'] + self.grid_size:
+                ctx.sell(amount=self.per_grid / current_price)
+                grid['filled'] = False
+                ctx.log(f"网格卖出 @ {current_price}")`,
+        
+        rsi: `from cryptoquant import Strategy, Context
+
+class RSIStrategy(Strategy):
+    """RSI超买超卖策略
+    
+    RSI进入超卖区买入，进入超买区卖出
+    """
+    
+    def __init__(self):
+        self.rsi_period = 14
+        self.oversold = 30
+        self.overbought = 70
+    
+    def on_bar(self, ctx: Context):
+        rsi = ctx.ta.RSI(ctx.close, self.rsi_period)
+        
+        # 超卖买入
+        if rsi[-1] < self.oversold:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"RSI超卖买入 @ {ctx.close[-1]}, RSI={rsi[-1]:.2f}")
+        
+        # 超买卖出
+        if rsi[-1] > self.overbought:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"RSI超买卖出 @ {ctx.close[-1]}, RSI={rsi[-1]:.2f}")`,
+        
+        boll: `from cryptoquant import Strategy, Context
+
+class BollStrategy(Strategy):
+    """布林带突破策略
+    
+    价格突破布林带上轨做多，突破下轨做空
+    """
+    
+    def __init__(self):
+        self.period = 20
+        self.std_dev = 2
+    
+    def on_bar(self, ctx: Context):
+        upper, middle, lower = ctx.ta.BOLL(ctx.close, self.period, self.std_dev)
+        price = ctx.close[-1]
+        
+        # 突破上轨
+        if price > upper[-1]:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"突破上轨买入 @ {price}")
+        
+        # 跌破下轨
+        if price < lower[-1]:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"跌破下轨卖出 @ {price}")`,
+        
+        macd: `from cryptoquant import Strategy, Context
+
+class MACDStrategy(Strategy):
+    """MACD背离策略
+    
+    根据MACD指标背离信号进行交易
+    """
+    
+    def __init__(self):
+        self.fast = 12
+        self.slow = 26
+        self.signal = 9
+    
+    def on_bar(self, ctx: Context):
+        dif, dea, macd = ctx.ta.MACD(ctx.close, self.fast, self.slow, self.signal)
+        
+        # MACD金叉
+        if dif[-2] < dea[-2] and dif[-1] > dea[-1]:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"MACD金叉买入 @ {ctx.close[-1]}")
+        
+        # MACD死叉
+        if dif[-2] > dea[-2] and dif[-1] < dea[-1]:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"MACD死叉卖出 @ {ctx.close[-1]}")`,
+        
+        turtle: `from cryptoquant import Strategy, Context
+
+class TurtleStrategy(Strategy):
+    """海龟交易策略
+    
+    经典趋势跟踪策略，使用唐奇安通道突破
+    """
+    
+    def __init__(self):
+        self.entry_period = 20    # 入场周期
+        self.exit_period = 10     # 出场周期
+        self.atr_period = 20
+        self.risk_ratio = 0.01    # 风险系数
+    
+    def on_bar(self, ctx: Context):
+        # 计算唐奇安通道
+        entry_high = max(ctx.high[-self.entry_period:])
+        entry_low = min(ctx.low[-self.entry_period:])
+        exit_high = max(ctx.high[-self.exit_period:])
+        exit_low = min(ctx.low[-self.exit_period:])
+        
+        price = ctx.close[-1]
+        
+        # 突破入场高点做多
+        if price > entry_high:
+            if not ctx.position:
+                ctx.buy(percent=100)
+                ctx.log(f"突破{self.entry_period}日高点买入 @ {price}")
+        
+        # 跌破出场低点平仓
+        if price < exit_low:
+            if ctx.position:
+                ctx.sell(percent=100)
+                ctx.log(f"跌破{self.exit_period}日低点卖出 @ {price}")`,
+        
+        dca: `from cryptoquant import Strategy, Context
+
+class DCAStrategy(Strategy):
+    """定投策略
+    
+    按设定周期和金额自动买入，分散投资风险
+    """
+    
+    def __init__(self):
+        self.dca_amount = 100     # 每次定投金额(USDT)
+        self.dca_interval = 7     # 定投间隔(天)
+        self.last_buy_day = 0
+    
+    def on_bar(self, ctx: Context):
+        current_day = ctx.bar_index
+        
+        # 检查是否到达定投日
+        if current_day - self.last_buy_day >= self.dca_interval:
+            ctx.buy(amount=self.dca_amount / ctx.close[-1])
+            self.last_buy_day = current_day
+            ctx.log(f"定投买入 {self.dca_amount} USDT @ {ctx.close[-1]}")`,
+        
+        empty: `from cryptoquant import Strategy, Context
+
+class MyStrategy(Strategy):
+    """自定义策略
+    
+    在这里编写您的交易逻辑
+    """
+    
+    def __init__(self):
+        # 定义策略参数
+        pass
+    
+    def on_init(self, ctx: Context):
+        """策略初始化"""
+        ctx.log("策略初始化完成")
+    
+    def on_bar(self, ctx: Context):
+        """K线回调 - 每根K线触发一次"""
+        pass
+    
+    def on_order(self, ctx: Context, order):
+        """订单回调"""
+        pass
+    
+    def on_stop(self, ctx: Context):
+        """策略停止回调"""
+        pass`
+    };
+    
+    const editor = document.getElementById('codeEditor');
+    if (editor && templates[templateId]) {
+        editor.value = templates[templateId];
+        updateLineNumbers();
+        saveToHistory(templates[templateId]);
+        codeSaved = false;
+        updateCodeStatus();
+        showToast('模板已加载', 'success');
+    }
+}
+
+// 切换编程语言
+function switchLanguage(lang) {
+    showToast(`已切换到 ${lang === 'python' ? 'Python' : 'JavaScript'}`, 'info');
+    // 这里可以添加不同语言的语法高亮逻辑
+}
+
+// 切换开发面板
+function switchDevPanel(panel) {
+    document.querySelectorAll('.panel-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.panel-content').forEach(content => content.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    document.getElementById(panel + 'Panel')?.classList.add('active');
+}
+
+// 验证代码
+function validateCode() {
+    const editor = document.getElementById('codeEditor');
+    if (!editor) return;
+    
+    const code = editor.value;
+    const console = document.getElementById('consoleOutput');
+    
+    if (console) {
+        console.innerHTML = '<div class="console-line info">[INFO] 正在检查语法...</div>';
+    }
+    
+    setTimeout(() => {
+        // 简单的语法检查
+        let errors = [];
+        
+        // 检查基本结构
+        if (!code.includes('class') || !code.includes('Strategy')) {
+            errors.push('缺少策略类定义');
+        }
+        if (!code.includes('def on_bar')) {
+            errors.push('缺少 on_bar 方法');
+        }
+        
+        // 检查常见错误
+        const lines = code.split('\n');
+        lines.forEach((line, i) => {
+            if (line.includes('def ') && !line.trim().endsWith(':')) {
+                errors.push(`第${i+1}行: 函数定义缺少冒号`);
+            }
+            if (line.includes('if ') && !line.includes(':') && !line.includes('==')) {
+                errors.push(`第${i+1}行: if语句可能缺少冒号`);
+            }
+        });
+        
+        if (console) {
+            if (errors.length === 0) {
+                console.innerHTML = '<div class="console-line success">[SUCCESS] 语法检查通过！代码结构正确。</div>';
+                showToast('语法检查通过！', 'success');
+            } else {
+                let html = '<div class="console-line error">[ERROR] 发现以下问题:</div>';
+                errors.forEach(err => {
+                    html += `<div class="console-line error">  - ${err}</div>`;
+                });
+                console.innerHTML = html;
+                showToast(`发现 ${errors.length} 个问题`, 'error');
+            }
+        }
+    }, 500);
+}
+
+// 运行代码
+function runCode() {
+    const console = document.getElementById('consoleOutput');
+    if (console) {
+        console.innerHTML = '<div class="console-line info">[INFO] 开始执行策略...</div>';
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line info">[INFO] 加载历史数据...</div>';
+        }, 300);
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line info">[INFO] 初始化策略参数...</div>';
+        }, 600);
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line success">[SUCCESS] 策略初始化完成</div>';
+            console.innerHTML += '<div class="console-line info">[INFO] 开始回放K线数据...</div>';
+        }, 900);
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line info">[TRADE] 金叉买入 @ 45000</div>';
+        }, 1200);
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line info">[TRADE] 死叉卖出 @ 46500 (+3.33%)</div>';
+        }, 1500);
+        
+        setTimeout(() => {
+            console.innerHTML += '<div class="console-line success">[SUCCESS] 回测完成！总收益: +15.6%</div>';
+            showToast('代码执行完成', 'success');
+        }, 1800);
+    }
+}
+
+// 清空控制台
+function clearConsole() {
+    const console = document.getElementById('consoleOutput');
+    if (console) {
+        console.innerHTML = '<div class="console-line info">[INFO] 控制台已清空</div>';
+    }
+}
+
+// 插入代码片段
+function insertCode(code) {
+    const editor = document.getElementById('codeEditor');
+    if (!editor) return;
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, start) + code + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = start + code.length;
+    editor.focus();
+    updateLineNumbers();
+    saveToHistory(editor.value);
+    codeSaved = false;
+    updateCodeStatus();
+    showToast('代码已插入', 'info');
+}
+
+// 搜索文档
+function searchDocs(query) {
+    if (!query) return;
+    // 这里可以实现文档搜索过滤功能
+}
+
+// 部署策略
+function deployStrategy() {
+    const strategyName = document.getElementById('strategyName')?.value || '未命名策略';
+    showModal('部署确认', `确定要将策略 "${strategyName}" 部署到实盘吗？请确保已完成充分的回测验证。`);
+}
+
+// ===================== 价格闪动和WebSocket状态 =====================
+
+// 模拟价格更新
+let lastPrice = 45230.50;
+let priceElement = null;
+
+function initPriceFlash() {
+    priceElement = document.querySelector('.pair-price');
+    if (priceElement) {
+        // 模拟实时价格更新
+        setInterval(updatePrice, 3000);
+    }
+}
+
+function updatePrice() {
+    if (!priceElement) return;
+    
+    // 生成新价格
+    const change = (Math.random() - 0.5) * 200;
+    const newPrice = lastPrice + change;
+    
+    // 更新显示
+    priceElement.textContent = '$' + newPrice.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    
+    // 添加闪动动画
+    if (newPrice > lastPrice) {
+        priceElement.classList.remove('price-flash-down', 'down');
+        priceElement.classList.add('up', 'price-flash-up');
+    } else {
+        priceElement.classList.remove('price-flash-up', 'up');
+        priceElement.classList.add('down', 'price-flash-down');
+    }
+    
+    // 移除动画类
+    setTimeout(() => {
+        priceElement.classList.remove('price-flash-up', 'price-flash-down');
+    }, 500);
+    
+    lastPrice = newPrice;
+    
+    // 更新涨跌幅
+    const changeEl = document.querySelector('.pair-change');
+    if (changeEl) {
+        const changePct = ((newPrice - 45000) / 45000 * 100);
+        changeEl.textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+        changeEl.className = 'pair-change ' + (changePct >= 0 ? 'up' : 'down');
+    }
+}
+
+// WebSocket状态管理
+let wsConnected = true;
+let wsReconnectAttempts = 0;
+
+function initWebSocketStatus() {
+    // 模拟WebSocket连接状态变化
+    setInterval(checkWebSocketStatus, 5000);
+}
+
+function checkWebSocketStatus() {
+    const statusDot = document.querySelector('.connection-status .status-dot');
+    const statusText = document.querySelector('.connection-status span:last-child');
+    
+    if (!statusDot || !statusText) return;
+    
+    // 模拟偶发断开
+    if (Math.random() < 0.05 && wsConnected) {
+        wsConnected = false;
+        statusDot.className = 'status-dot disconnected';
+        statusText.textContent = '连接断开，正在重连...';
+        
+        // 模拟重连
+        setTimeout(() => {
+            wsReconnectAttempts++;
+            statusDot.className = 'status-dot connecting';
+            statusText.textContent = `重连中... (${wsReconnectAttempts}/3)`;
+            
+            setTimeout(() => {
+                wsConnected = true;
+                wsReconnectAttempts = 0;
+                statusDot.className = 'status-dot connected';
+                statusText.textContent = '实时数据已连接';
+                showToast('WebSocket 已重新连接', 'success');
+            }, 2000);
+        }, 1000);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化价格闪动
+    initPriceFlash();
+    
+    // 初始化WebSocket状态
+    initWebSocketStatus();
+    
+    // 如果在策略开发页，初始化编辑器
+    if (document.getElementById('strategyDevPage')) {
+        initStrategyDevPage();
+    }
+});
+
+// 更新 showPage 函数以支持策略开发页
+const originalShowPage = showPage;
+showPage = function(pageId) {
+    originalShowPage(pageId);
+    
+    // 策略开发页初始化
+    if (pageId === 'strategyDevPage') {
+        setTimeout(() => {
+            initStrategyDevPage();
+        }, 100);
+    }
+};
