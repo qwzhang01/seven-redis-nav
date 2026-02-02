@@ -1802,7 +1802,8 @@ showPage = function(pageId) {
         'strategyTemplatePage',
         'sdkDocPage',
         'notificationPage',
-        'communityPage'
+        'communityPage',
+        'strategyDevPage'
     ];
     
     if (newPages.includes(pageId)) {
@@ -1817,6 +1818,12 @@ showPage = function(pageId) {
                     item.classList.add('active');
                 }
             });
+        }
+        // 策略开发页初始化
+        if (pageId === 'strategyDevPage') {
+            setTimeout(() => {
+                initStrategyDevPage();
+            }, 100);
         }
         return;
     }
@@ -2760,15 +2767,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// 更新 showPage 函数以支持策略开发页
-const originalShowPage = showPage;
-showPage = function(pageId) {
-    originalShowPage(pageId);
-    
-    // 策略开发页初始化
-    if (pageId === 'strategyDevPage') {
-        setTimeout(() => {
-            initStrategyDevPage();
-        }, 100);
-    }
-};
+// 策略开发页初始化已在 showPage 扩展中处理
