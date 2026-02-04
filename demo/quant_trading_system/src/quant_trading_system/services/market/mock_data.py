@@ -56,9 +56,43 @@ def generate_mock_klines(
     # 生成时间序列
     timestamps = []
     current_dt = start_dt
-    while current_dt <= end_dt:
-        timestamps.append(int(current_dt.timestamp() * 1000))
-        current_dt += timedelta(seconds=interval_seconds)
+    
+    # 对于日线及以上周期，按天生成
+    if timeframe in [TimeFrame.D1, TimeFrame.W1]:
+        while current_dt <= end_dt:
+            timestamps.append(int(current_dt.timestamp() * 1000))
+            if timeframe == TimeFrame.D1:
+                current_dt += timedelta(days=1)
+            else:  # W1
+                current_dt += timedelta(weeks=1)
+    else:
+        # 对于日内周期，生成完整的天数数据
+        total_days = (end_dt - start_dt).days + 1
+        
+        # 计算每个周期在一天内的K线数量
+        if timeframe == TimeFrame.M1:
+            bars_per_day = 1440
+        elif timeframe == TimeFrame.M5:
+            bars_per_day = 288
+        elif timeframe == TimeFrame.M15:
+            bars_per_day = 96
+        elif timeframe == TimeFrame.M30:
+            bars_per_day = 48
+        elif timeframe == TimeFrame.H1:
+            bars_per_day = 24
+        elif timeframe == TimeFrame.H4:
+            bars_per_day = 6
+        else:
+            bars_per_day = 24  # 默认
+        
+        n = total_days * bars_per_day
+        
+        # 生成时间戳序列
+        for day in range(total_days):
+            day_start = start_dt + timedelta(days=day)
+            for bar_index in range(bars_per_day):
+                bar_time = day_start + timedelta(seconds=bar_index * interval_seconds)
+                timestamps.append(int(bar_time.timestamp() * 1000))
 
     n = len(timestamps)
 
