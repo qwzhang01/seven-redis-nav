@@ -295,16 +295,30 @@ class BacktestEngine:
 
         # 遍历K线
         for i in range(warmup_period, len(main_bars)):
-            # 更新当前时间
-            self._current_time = main_bars.timestamp[i].timestamp()
+            # 更新当前时间（将numpy.datetime64转换为毫秒时间戳）
+            ts = main_bars.timestamp[i]
+            if isinstance(ts, np.datetime64):
+                self._current_time = float(ts.astype('datetime64[ms]').astype(np.int64))
+            else:
+                self._current_time = ts.timestamp() * 1000 if hasattr(ts, 'timestamp') else float(ts)
+
             strategy.context.current_time = self._current_time
 
             # 创建当前Bar
+            ts = main_bars.timestamp[i]
+            if isinstance(ts, np.datetime64):
+                from datetime import datetime
+                bar_timestamp = datetime.fromtimestamp(
+                    float(ts.astype('datetime64[ms]').astype(np.int64)) / 1000
+                )
+            else:
+                bar_timestamp = ts
+
             bar = Bar(
                 symbol=main_symbol,
                 exchange=main_bars.exchange,
                 timeframe=main_bars.timeframe,
-                timestamp=main_bars.timestamp[i],
+                timestamp=bar_timestamp,
                 open=float(main_bars.open[i]),
                 high=float(main_bars.high[i]),
                 low=float(main_bars.low[i]),
