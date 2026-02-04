@@ -295,6 +295,23 @@ class BacktestEngine:
 
         # 遍历K线
         for i in range(warmup_period, len(main_bars)):
+            # 更新context.bars，只包含截止到当前索引的数据（避免未来函数）
+            for symbol, bar_array in bars.items():
+                # 创建截止到当前索引的BarArray切片
+                sliced_bars = BarArray(
+                    symbol=bar_array.symbol,
+                    exchange=bar_array.exchange,
+                    timeframe=bar_array.timeframe,
+                    timestamp=bar_array.timestamp[:i+1],
+                    open=bar_array.open[:i+1],
+                    high=bar_array.high[:i+1],
+                    low=bar_array.low[:i+1],
+                    close=bar_array.close[:i+1],
+                    volume=bar_array.volume[:i+1],
+                    turnover=bar_array.turnover[:i+1] if bar_array.turnover is not None else None,
+                )
+                self._bar_data[symbol][bar_array.timeframe] = sliced_bars
+
             # 更新当前时间（将numpy.datetime64转换为毫秒时间戳）
             ts = main_bars.timestamp[i]
             if isinstance(ts, np.datetime64):
