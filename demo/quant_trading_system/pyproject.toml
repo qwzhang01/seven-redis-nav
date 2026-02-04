@@ -26,50 +26,40 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "websockets>=12.0",
     "python-multipart>=0.0.6",
-    
     # 异步支持
     "aiohttp>=3.9.0",
     "aiokafka>=0.10.0",
     "aioredis>=2.0.1",
     "asyncpg>=0.29.0",
-    
     # 数据处理
     "numpy>=1.26.0",
     "pandas>=2.1.0",
     "polars>=0.20.0",
     "numba>=0.58.0",
-    
     # 数据库
     "sqlalchemy>=2.0.0",
     "psycopg2-binary>=2.9.9",
     "redis>=5.0.0",
-    
     # 消息队列
     "kafka-python>=2.0.2",
-    
     # 数据存储
     "pyarrow>=15.0.0",
     "deltalake>=0.15.0",
     "boto3>=1.34.0",
-    
     # 技术分析
     "ta-lib>=0.4.28",
-    
     # 配置和验证
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
-    
     # 日志和监控
     "structlog>=24.1.0",
     "prometheus-client>=0.19.0",
-    
     # 安全
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "cryptography>=41.0.0",
-    
     # 工具
     "httpx>=0.26.0",
     "orjson>=3.9.0",
@@ -77,6 +67,7 @@ dependencies = [
     "cachetools>=5.3.0",
     "tenacity>=8.2.0",
     "click>=8.1.0",
+    "pandas-stubs==2.3.3.260113",
 ]
 
 [project.optional-dependencies]
