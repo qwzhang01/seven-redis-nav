@@ -507,60 +507,54 @@ class BacktestEngine:
         if self._account is None:
             return
 
-        cost = trade.quantity * trade.price + trade.commission  # 修复amount引用
+        cost = trade.quantity * trade.price + trade.commission
 
         if trade.side == OrderSide.BUY:
-            self._account.deduct_balance("USDT", cost)
+            # 买入：扣除USDT余额
+            if "USDT" in self._account.balances:
+                usdt_balance = self._account.balances["USDT"]
+                usdt_balance.free -= cost
+                usdt_balance.total = usdt_balance.free + usdt_balance.locked
+                self._account.total_balance -= cost
+                self._account.available_balance = usdt_balance.free
         else:
-            self._account.add_balance("USDT", trade.quantity * trade.price - trade.commission)  # 修复amount引用
+            # 卖出：增加USDT余额
+            if "USDT" in self._account.balances:
+                usdt_balance = self._account.balances["USDT"]
+                usdt_balance.free += trade.quantity * trade.price - trade.commission
+                usdt_balance.total = usdt_balance.free + usdt_balance.locked
+                self._account.total_balance += trade.quantity * trade.price - trade.commission
+                self._account.available_balance = usdt_balance.free
 
-    def _update_position_from_trade(self, trade: Trade) -> None:
-        """根据成交更新持仓"""
-        symbol = trade.symbol
-        
-        if symbol not in self._positions:
-            # 创建新持仓，提供所有必需字段
-            self._positions[symbol] = Position(
-                symbol=symbol,
-                quantity=0.0,
-                avg_price=0.0,
-                unrealized_pnl=0.0,
-                realized_pnl=0.0,
-                last_price=trade.price
-            )
-        
-        position = self._positions[symbol]
-        
-        if trade.side == OrderSide.BUY:
-            # 买入逻辑
-            if position.quantity == 0:
-                position.quantity = trade.quantity
-                position.avg_price = trade.price
-            else:
-                # 加仓逻辑
-                total_cost = position.quantity * position.avg_price + trade.quantity * trade.price
-                position.quantity += trade.quantity
-                position.avg_price = total_cost / position.quantity
-        else:
-            # 卖出逻辑
+        # 更新账户时间
+        from datetime import datetime
+        self._account.updated_at = datetime.now()
+
+    def _update_positions(self, current_price: float) -> None:
+        """更新所有持仓的市值"""
+        for position in self._positions.values():
+            # 直接更新last_price字段
+            position.last_price = current_price
+            
+            # 更新未实现盈亏
             if position.quantity > 0:
-                # 计算盈亏
-                profit = (trade.price - position.avg_price) * trade.quantity
-                position.realized_pnl += profit
-                position.quantity -= trade.quantity
-                
-                # 如果完全平仓，重置平均价格
-                if position.quantity == 0:
-                    position.avg_price = 0.0
-        
-        # 更新最新价格
-        position.last_price = trade.price
-        
-        # 更新未实现盈亏
-        if position.quantity > 0:
-            position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity
-        else:
-            position.unrealized_pnl = 0.0
+                position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity
+            else:
+                position.unrealized_pnl = 0.0
+
+    def _calculate_equity(self, current_price: float) -> float:
+        """计算当前权益"""
+        if self._account is None:
+            return 0.0
+
+        # 现金
+        equity = self._account.total_balance
+
+        # 持仓市值
+        for position in self._positions.values():
+            equity += position.quantity * current_price
+
+        return equity
 
     def _calculate_result(self, strategy: Strategy) -> BacktestResult:
         """计算回测结果"""
