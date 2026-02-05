@@ -104,9 +104,18 @@ def backtest(
         if mock:
             click.echo(f"Generating mock data...")
             from quant_trading_system.services.market.mock_data import generate_mock_klines
+            
+            # 转换symbol格式：从BTCUSDT转换为BTC/USDT
+            symbol_formatted = symbol
+            if "/" not in symbol and len(symbol) >= 6:
+                # 假设格式为"BTCUSDT"，转换为"BTC/USDT"
+                base_symbol = symbol[:-4]
+                quote_symbol = symbol[-4:]
+                symbol_formatted = f"{base_symbol}/{quote_symbol}"
+                click.echo(f"Converted symbol format: {symbol} -> {symbol_formatted}")
 
             bars = generate_mock_klines(
-                symbol=symbol,
+                symbol=symbol_formatted,
                 timeframe=tf,
                 start_time=start,
                 end_time=end,

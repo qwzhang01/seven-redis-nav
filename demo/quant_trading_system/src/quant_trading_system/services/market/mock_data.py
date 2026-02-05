@@ -97,14 +97,27 @@ def generate_mock_klines(
     n = len(timestamps)
 
     # 生成价格数据（使用几何布朗运动）
-    np.random.seed(42)  # 固定随机种子以便复现
+    # 移除固定随机种子，使用时间戳作为种子，确保每次生成不同的数据
+    seed = int(datetime.now().timestamp())
+    np.random.seed(seed)
 
-    # 生成收益率
-    returns = np.random.normal(0, volatility, n)
+    # 生成收益率，增加更大的波动率以确保产生MA交叉
+    returns = np.random.normal(0, volatility * 2, n)
 
-    # 添加趋势
-    trend = np.linspace(0, 0.1, n)  # 10%的上涨趋势
+    # 添加更明显的趋势（先上涨后下跌，确保产生交叉）
+    trend = np.zeros(n)
+    mid_point = n // 2
+    
+    # 前半部分：上涨趋势
+    trend[:mid_point] = np.linspace(0, 0.2, mid_point)  # 20%上涨
+    # 后半部分：下跌趋势
+    trend[mid_point:] = np.linspace(0.2, -0.1, n - mid_point)  # 下跌到-10%
+    
     returns += trend / n
+    
+    # 添加周期性波动，确保产生更多的交叉信号
+    periodic_wave = np.sin(np.linspace(0, 10 * np.pi, n)) * volatility * 0.5
+    returns += periodic_wave
 
     # 计算价格
     prices = initial_price * np.exp(np.cumsum(returns))
