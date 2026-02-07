@@ -45,6 +45,12 @@ class TradingEngine:
         # 订单管理器
         self._order_manager = OrderManager(event_engine)
         
+        # 持仓管理器（暂时使用字典存储）
+        self._position_manager = None  # 暂时设为None
+        
+        # 风险管理器（暂时使用字典存储）
+        self._risk_manager = None  # 暂时设为None
+        
         # 账户
         self._account: Account | None = None
         
@@ -187,7 +193,7 @@ class TradingEngine:
             
             await self._order_manager.update_order_status(
                 order.order_id, 
-                OrderStatus.SUBMITTED
+                OrderStatus.PENDING
             )
             
             # 模拟成交
