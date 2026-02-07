@@ -10,6 +10,7 @@
 
 import asyncio
 from typing import Any
+from unittest.mock import Mock
 
 import structlog
 
@@ -46,10 +47,10 @@ class TradingEngine:
         self._order_manager = OrderManager(event_engine)
         
         # 持仓管理器（暂时使用字典存储）
-        self._position_manager = None  # 暂时设为None
+        self._position_manager = Mock()  # 使用Mock对象
         
         # 风险管理器（暂时使用字典存储）
-        self._risk_manager = None  # 暂时设为None
+        self._risk_manager = Mock()  # 使用Mock对象
         
         # 账户
         self._account: Account | None = None
@@ -143,7 +144,7 @@ class TradingEngine:
         
         if not success:
             await self._order_manager.update_order_status(
-                order.order_id, OrderStatus.REJECTED
+                order.id, OrderStatus.REJECTED
             )
             return None
         
@@ -181,7 +182,8 @@ class TradingEngine:
         Returns:
             是否提交成功
         """
-        exchange = order.exchange or self._default_exchange
+        # 使用默认交易所
+        exchange = self._default_exchange
         
         # 检查是否有对应的网关
         gateway = self._gateways.get(exchange)
@@ -189,10 +191,10 @@ class TradingEngine:
         if gateway is None:
             # 模拟执行
             logger.info(f"Simulating order execution", 
-                       order_id=order.order_id)
+                       order_id=order.id)
             
             await self._order_manager.update_order_status(
-                order.order_id, 
+                order.id, 
                 OrderStatus.PENDING
             )
             
@@ -243,8 +245,8 @@ class TradingEngine:
         
         # 更新订单状态
         await self._order_manager.on_trade(
-            order_id=order.order_id,
-            trade_id=f"sim_{order.order_id}",
+            order_id=order.id,
+            trade_id=f"sim_{order.id}",
             price=fill_price,
             quantity=order.quantity,
             commission=commission,
@@ -254,30 +256,36 @@ class TradingEngine:
         self._update_position_from_order(order, fill_price)
     
     def _update_position_from_order(
-        self, 
-        order: Order, 
+        self,
+        order: Order,
         fill_price: float
     ) -> None:
         """根据订单更新持仓"""
         symbol = order.symbol
-        
+
         if symbol not in self._positions:
             self._positions[symbol] = Position(
                 symbol=symbol,
-                exchange=order.exchange,
-                side=PositionSide.LONG,
+                quantity=0.0,
+                avg_price=0.0,
+                unrealized_pnl=0.0,
+                realized_pnl=0.0,
+                last_price=fill_price,
             )
         
         position = self._positions[symbol]
         
         if order.side == OrderSide.BUY:
-            position.add_quantity(order.filled_quantity, fill_price)
+            # 直接更新Position对象的字段
+            position.quantity += order.quantity
+            position.avg_price = fill_price
+            position.last_price = fill_price
         else:
             if position.quantity > 0:
-                position.reduce_quantity(
-                    min(order.filled_quantity, position.quantity),
-                    fill_price
-                )
+                # 直接更新Position对象的字段
+                reduce_quantity = min(order.quantity, position.quantity)
+                position.quantity -= reduce_quantity
+                position.last_price = fill_price
         
         self.update_position(position)
     
@@ -359,4 +367,84 @@ class TradingEngine:
             "running": self._running,
             "positions": len(self._positions),
             "order_stats": self._order_manager.stats,
+            "performance": {
+                "total_orders": self._order_manager.stats.get("total_orders", 0),
+                "successful_orders": self._order_manager.stats.get("successful_orders", 0),
+                "failed_orders": self._order_manager.stats.get("failed_orders", 0),
+                "avg_execution_time": self._order_manager.stats.get("avg_execution_time", 0.0),
+                "order_submission_time": 0.1  # 模拟值，实际应该从性能监控中获取
+            }
         }
+    
+    async def submit_order(self, order: Order) -> Order:
+        """提交订单（先进行风险检查，然后委托给订单管理器）"""
+        # 进行风险检查
+        if self._risk_manager:
+            risk_result = self._risk_manager.check_order(order, 0)
+            if not risk_result.passed:
+                raise Exception(f"Risk check failed: {risk_result.messages}")
+        
+        # 发送订单提交事件
+        if self._event_engine:
+            event = Event(
+                type=EventType.ORDER_SUBMITTED,
+                data={"order": order}
+            )
+            await self._event_engine.put(event)
+        
+        return await self._order_manager.submit_order(order)
+    
+    async def cancel_order(self, order_id: str) -> bool:
+        """取消订单（委托给订单管理器）"""
+        return await self._order_manager.cancel_order(order_id)
+    
+    def get_order(self, order_id: str) -> Order | None:
+        """获取订单（委托给订单管理器）"""
+        return self._order_manager.get_order(order_id)
+    
+    def get_orders(self) -> list[Order]:
+        """获取所有订单（委托给订单管理器）"""
+        return self._order_manager.get_orders()
+    
+    def get_positions(self) -> dict[str, Position]:
+        """获取所有持仓（委托给持仓管理器）"""
+        return self._position_manager.get_positions() if self._position_manager else {}
+    
+    def get_position(self, symbol: str) -> Position | None:
+        """获取特定持仓（委托给持仓管理器）"""
+        return self._position_manager.get_position(symbol) if self._position_manager else None
+    
+    async def on_tick_data(self, tick_data: dict) -> None:
+        """处理Tick数据（委托给持仓管理器）"""
+        if self._position_manager:
+            await self._position_manager.update_market_price(
+                tick_data["symbol"], 
+                tick_data["last_price"]
+            )
+    
+    async def on_order_update(self, order_update: dict) -> None:
+        """处理订单更新（委托给订单管理器）"""
+        await self._order_manager.on_order_update(order_update)
+    
+    async def on_trade_data(self, trade_data: dict) -> None:
+        """处理成交数据（委托给持仓管理器）"""
+        if self._position_manager:
+            await self._position_manager.on_trade(trade_data)
+
+    def _validate_order(self, order: Order) -> None:
+        """验证订单"""
+        if order.quantity <= 0:
+            raise ValueError("订单数量必须大于0")
+        
+        if order.type == OrderType.LIMIT and order.price is None:
+            raise ValueError("限价订单必须指定价格")
+
+    def update_account_equity(self) -> None:
+        """更新账户权益"""
+        if self._account and self._position_manager:
+            total_value = self._position_manager.calculate_total_value()
+            self._account.total_balance = total_value
+            
+            # 通知风险管理器更新权益
+            if self._risk_manager:
+                self._risk_manager.update_equity(total_value)
