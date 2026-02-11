@@ -200,6 +200,12 @@ def backtest(
 
         # 6. 运行回测
         click.echo("Running backtest...")
+        click.echo()
+
+        # 初始化日志系统，确保回测进度日志可见
+        from quant_trading_system.core.logging import setup_logging
+        setup_logging(level="INFO", log_format="console")
+
         engine = BacktestEngine(config=config)
         result = engine.run(strategy_instance, bars)
 

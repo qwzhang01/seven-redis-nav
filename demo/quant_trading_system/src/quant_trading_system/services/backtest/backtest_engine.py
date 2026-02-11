@@ -332,8 +332,50 @@ class BacktestEngine:
         # 预热期（确保有足够的数据计算指标）
         warmup_period = 100
 
+        # --- 回测进度跟踪 ---
+        total_bars = len(main_bars) - warmup_period
+        backtest_start_time = time.time()
+        last_progress_pct = -1  # 上次打印的进度百分比
+        progress_interval = 10  # 每 10% 打印一次进度
+        trade_count_at_last_log = 0
+
+        logger.info(
+            "Backtest loop started",
+            strategy=strategy.name,
+            symbol=main_symbol,
+            timeframe=main_tf.value,
+            total_bars=total_bars,
+            warmup_period=warmup_period,
+            total_data_bars=len(main_bars),
+        )
+
         # 遍历主周期K线
         for i in range(warmup_period, len(main_bars)):
+            # --- 进度日志 ---
+            processed = i - warmup_period + 1
+            progress_pct = int(processed * 100 / total_bars) if total_bars > 0 else 100
+
+            if progress_pct // progress_interval > last_progress_pct // progress_interval or processed == total_bars:
+                elapsed = time.time() - backtest_start_time
+                bars_per_sec = processed / elapsed if elapsed > 0 else 0
+                eta = (total_bars - processed) / bars_per_sec if bars_per_sec > 0 else 0
+                new_trades = len(self._trades) - trade_count_at_last_log
+
+                logger.info(
+                    "Backtest progress",
+                    strategy=strategy.name,
+                    progress=f"{progress_pct}%",
+                    processed_bars=processed,
+                    total_bars=total_bars,
+                    elapsed=f"{elapsed:.1f}s",
+                    speed=f"{bars_per_sec:.0f} bars/s",
+                    eta=f"{eta:.1f}s",
+                    trades_so_far=len(self._trades),
+                    new_trades=new_trades,
+                    current_equity=f"{self._equity_curve[-1][1]:,.2f}" if self._equity_curve else "N/A",
+                )
+                last_progress_pct = progress_pct
+                trade_count_at_last_log = len(self._trades)
             # 当前主周期时间戳
             ts = main_bars.timestamp[i]
             if isinstance(ts, np.datetime64):
@@ -443,6 +485,22 @@ class BacktestEngine:
             equity = self._calculate_equity(bar.close)
             self._equity_curve.append((self._current_time, equity))
 
+        # --- 回测循环结束汇总 ---
+        total_elapsed = time.time() - backtest_start_time
+        final_equity = self._equity_curve[-1][1] if self._equity_curve else self.config.initial_capital
+        total_return = (final_equity - self.config.initial_capital) / self.config.initial_capital
+        logger.info(
+            "Backtest loop finished",
+            strategy=strategy.name,
+            total_bars_processed=total_bars,
+            total_trades=len(self._trades),
+            total_elapsed=f"{total_elapsed:.2f}s",
+            avg_speed=f"{total_bars / total_elapsed:.0f} bars/s" if total_elapsed > 0 else "N/A",
+            final_equity=f"{final_equity:,.2f}",
+            total_return=f"{total_return:.2%}",
+            total_commission=f"{self._total_commission:,.2f}",
+        )
+
         # 停止策略
         strategy.state = StrategyState.STOPPED
         strategy.on_stop()
@@ -506,6 +564,18 @@ class BacktestEngine:
             strategy_id=signal.strategy_id,
         )
         self._trades.append(trade)
+
+        logger.debug(
+            "Backtest trade executed",
+            trade_no=len(self._trades),
+            side=order.side.value,
+            symbol=symbol,
+            price=f"{exec_price:.4f}",
+            quantity=f"{quantity:.6f}",
+            amount=f"{quantity * exec_price:,.2f}",
+            commission=f"{commission:.4f}",
+            signal_type=signal.signal_type.value if hasattr(signal, 'signal_type') else "N/A",
+        )
 
         # 更新持仓
         self._update_position_from_trade(trade)
