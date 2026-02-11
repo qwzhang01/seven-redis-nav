@@ -12,6 +12,19 @@ import numpy as np
 from quant_trading_system.models.market import BarArray, TimeFrame
 
 
+# TimeFrame到秒数的映射
+TIMEFRAME_SECONDS = {
+    TimeFrame.M1: 60,
+    TimeFrame.M5: 300,
+    TimeFrame.M15: 900,
+    TimeFrame.M30: 1800,
+    TimeFrame.H1: 3600,
+    TimeFrame.H4: 14400,
+    TimeFrame.D1: 86400,
+    TimeFrame.W1: 604800,
+}
+
+
 def generate_mock_klines(
     symbol: str,
     timeframe: TimeFrame,
@@ -38,20 +51,8 @@ def generate_mock_klines(
     start_dt = datetime.strptime(start_time, "%Y-%m-%d")
     end_dt = datetime.strptime(end_time, "%Y-%m-%d")
 
-    # TimeFrame到秒数的映射
-    timeframe_seconds = {
-        TimeFrame.M1: 60,
-        TimeFrame.M5: 300,
-        TimeFrame.M15: 900,
-        TimeFrame.M30: 1800,
-        TimeFrame.H1: 3600,
-        TimeFrame.H4: 14400,
-        TimeFrame.D1: 86400,
-        TimeFrame.W1: 604800,
-    }
-
     # 计算时间间隔（秒）
-    interval_seconds = timeframe_seconds.get(timeframe, 3600)
+    interval_seconds = TIMEFRAME_SECONDS.get(timeframe, 3600)
 
     # 生成时间序列
     timestamps = []
@@ -149,4 +150,119 @@ def generate_mock_klines(
         close=closes,
         volume=volumes,
         turnover=turnovers,
+    )
+
+
+def generate_multi_timeframe_klines(
+    symbol: str,
+    timeframes: list[TimeFrame],
+    start_time: str,
+    end_time: str,
+    initial_price: float = 40000.0,
+    volatility: float = 0.02,
+) -> dict[TimeFrame, BarArray]:
+    """
+    生成多周期模拟K线数据（各周期数据保持价格一致性）
+
+    先生成最小周期的原始分钟级数据，再聚合为各目标周期。
+
+    Args:
+        symbol: 交易对
+        timeframes: 需要生成的周期列表，如 [TimeFrame.M15, TimeFrame.H1]
+        start_time: 开始时间 "YYYY-MM-DD"
+        end_time: 结束时间 "YYYY-MM-DD"
+        initial_price: 初始价格
+        volatility: 波动率
+
+    Returns:
+        {timeframe: BarArray}
+    """
+    # 按秒数排序，找到最小周期
+    sorted_tfs = sorted(timeframes, key=lambda t: TIMEFRAME_SECONDS.get(t, 0))
+    smallest_tf = sorted_tfs[0]
+
+    # 生成最小周期的完整数据
+    base_bars = generate_mock_klines(
+        symbol=symbol,
+        timeframe=smallest_tf,
+        start_time=start_time,
+        end_time=end_time,
+        initial_price=initial_price,
+        volatility=volatility,
+    )
+
+    result: dict[TimeFrame, BarArray] = {smallest_tf: base_bars}
+
+    # 对更大的周期进行聚合
+    base_seconds = TIMEFRAME_SECONDS[smallest_tf]
+    for tf in sorted_tfs[1:]:
+        tf_seconds = TIMEFRAME_SECONDS[tf]
+        ratio = tf_seconds // base_seconds  # 聚合比例（如 H1/M15 = 4）
+
+        if ratio <= 1:
+            result[tf] = base_bars
+            continue
+
+        result[tf] = _resample_bars(base_bars, tf, ratio)
+
+    return result
+
+
+def _resample_bars(
+    base: BarArray,
+    target_tf: TimeFrame,
+    ratio: int,
+) -> BarArray:
+    """
+    将低周期 BarArray 聚合为高周期
+
+    Args:
+        base: 原始低周期 BarArray
+        target_tf: 目标高周期
+        ratio: 聚合比例
+
+    Returns:
+        聚合后的 BarArray
+    """
+    n = len(base)
+    # 完整的组数
+    n_groups = n // ratio
+
+    if n_groups == 0:
+        return BarArray(
+            symbol=base.symbol,
+            exchange=base.exchange,
+            timeframe=target_tf,
+        )
+
+    # 只取能整除的部分
+    trim = n_groups * ratio
+
+    ts = base.timestamp[:trim].reshape(n_groups, ratio)
+    op = base.open[:trim].reshape(n_groups, ratio)
+    hi = base.high[:trim].reshape(n_groups, ratio)
+    lo = base.low[:trim].reshape(n_groups, ratio)
+    cl = base.close[:trim].reshape(n_groups, ratio)
+    vo = base.volume[:trim].reshape(n_groups, ratio)
+    to = base.turnover[:trim].reshape(n_groups, ratio) if base.turnover is not None and len(base.turnover) >= trim else None
+
+    agg_timestamp = ts[:, 0]            # 每组第一个时间戳
+    agg_open = op[:, 0]                 # 第一根开盘价
+    agg_high = np.max(hi, axis=1)       # 最高价
+    agg_low = np.min(lo, axis=1)        # 最低价
+    agg_close = cl[:, -1]              # 最后一根收盘价
+    agg_volume = np.sum(vo, axis=1)    # 成交量求和
+    agg_turnover = np.sum(to, axis=1) if to is not None else agg_volume * agg_close
+
+    return BarArray(
+        symbol=base.symbol,
+        exchange=base.exchange,
+        timeframe=target_tf,
+        timestamp=agg_timestamp,
+        open=agg_open,
+        high=agg_high,
+        low=agg_low,
+        close=agg_close,
+        volume=agg_volume,
+        turnover=agg_turnover,
     )

@@ -185,14 +185,17 @@ class BacktestEngine:
     def run(
         self,
         strategy: Strategy,
-        bars: dict[str, BarArray] | BarArray,
+        bars: dict[str, BarArray] | BarArray | dict[str, dict[TimeFrame, BarArray]],
     ) -> BacktestResult:
         """
         运行回测
 
         Args:
             strategy: 策略实例
-            bars: K线数据 {symbol: BarArray} 或单个 BarArray
+            bars: K线数据，支持以下格式:
+                - BarArray: 单品种单周期
+                - {symbol: BarArray}: 多品种单周期
+                - {symbol: {timeframe: BarArray}}: 多品种多周期
 
         Returns:
             回测结果
@@ -200,15 +203,14 @@ class BacktestEngine:
         logger.info(f"Starting backtest", strategy=strategy.name)
         start_time = time.time()
 
-        # 标准化数据
-        if isinstance(bars, BarArray):
-            bars = {bars.symbol: bars}
+        # 标准化为 {symbol: {timeframe: BarArray}} 格式
+        multi_tf_bars = self._normalize_bars(bars)
 
         # 初始化
-        self._initialize(strategy, bars)
+        self._initialize(strategy, multi_tf_bars)
 
         # 运行回测
-        self._run_backtest(strategy, bars)
+        self._run_backtest(strategy, multi_tf_bars)
 
         # 计算结果
         result = self._calculate_result(strategy)
@@ -222,10 +224,29 @@ class BacktestEngine:
 
         return result
 
+    @staticmethod
+    def _normalize_bars(
+        bars: dict[str, BarArray] | BarArray | dict[str, dict[TimeFrame, BarArray]],
+    ) -> dict[str, dict[TimeFrame, BarArray]]:
+        """将各种输入格式统一为 {symbol: {timeframe: BarArray}}"""
+        if isinstance(bars, BarArray):
+            return {bars.symbol: {bars.timeframe: bars}}
+
+        # 检查第一个 value 的类型来判断嵌套层级
+        first_val = next(iter(bars.values()))
+        if isinstance(first_val, BarArray):
+            # {symbol: BarArray} 格式
+            return {sym: {ba.timeframe: ba} for sym, ba in bars.items()}
+        elif isinstance(first_val, dict):
+            # 已经是 {symbol: {timeframe: BarArray}} 格式
+            return bars  # type: ignore
+
+        raise ValueError(f"Unsupported bars format: {type(first_val)}")
+
     def _initialize(
         self,
         strategy: Strategy,
-        bars: dict[str, BarArray]
+        bars: dict[str, dict[TimeFrame, BarArray]]
     ) -> None:
         """初始化回测环境"""
         # 创建账户
@@ -259,15 +280,21 @@ class BacktestEngine:
         self._total_commission = 0.0
         self._total_slippage = 0.0
 
-        # 存储K线数据
-        for symbol, bar_array in bars.items():
-            self._bar_data[symbol] = {bar_array.timeframe: bar_array}
+        # 存储K线数据（多周期）
+        self._bar_data.clear()
+        all_timeframes: list[TimeFrame] = []
+        for symbol, tf_bars in bars.items():
+            self._bar_data[symbol] = {}
+            for tf, bar_array in tf_bars.items():
+                self._bar_data[symbol][tf] = bar_array
+                if tf not in all_timeframes:
+                    all_timeframes.append(tf)
 
         # 创建策略上下文
         context = StrategyContext(
             strategy_id=strategy.strategy_id,
             symbols=list(bars.keys()),
-            timeframes=[list(bars.values())[0].timeframe],
+            timeframes=all_timeframes,
             indicator_engine=self._indicator_engine,
             account=self._account,
             positions=self._positions,
@@ -285,58 +312,106 @@ class BacktestEngine:
     def _run_backtest(
         self,
         strategy: Strategy,
-        bars: dict[str, BarArray]
+        bars: dict[str, dict[TimeFrame, BarArray]]
     ) -> None:
-        """执行回测"""
-        # 获取主要品种的K线
+        """执行回测（支持多周期）"""
+        # 确定主时间轴：取最小周期作为驱动周期
         main_symbol = list(bars.keys())[0]
-        main_bars = bars[main_symbol]
+        tf_bars = bars[main_symbol]
+
+        # 按周期秒数排序，最小的作为主驱动
+        tf_seconds = {
+            TimeFrame.M1: 60, TimeFrame.M5: 300, TimeFrame.M15: 900,
+            TimeFrame.M30: 1800, TimeFrame.H1: 3600, TimeFrame.H4: 14400,
+            TimeFrame.D1: 86400, TimeFrame.W1: 604800,
+        }
+        sorted_tfs = sorted(tf_bars.keys(), key=lambda t: tf_seconds.get(t, 0))
+        main_tf = sorted_tfs[0]
+        main_bars = tf_bars[main_tf]
 
         # 预热期（确保有足够的数据计算指标）
         warmup_period = 100
 
-        # 遍历K线
+        # 遍历主周期K线
         for i in range(warmup_period, len(main_bars)):
-            # 更新context.bars，只包含截止到当前索引的数据（避免未来函数）
-            for symbol, bar_array in bars.items():
-                # 创建截止到当前索引的BarArray切片
-                sliced_bars = BarArray(
-                    symbol=bar_array.symbol,
-                    exchange=bar_array.exchange,
-                    timeframe=bar_array.timeframe,
-                    timestamp=bar_array.timestamp[:i+1],
-                    open=bar_array.open[:i+1],
-                    high=bar_array.high[:i+1],
-                    low=bar_array.low[:i+1],
-                    close=bar_array.close[:i+1],
-                    volume=bar_array.volume[:i+1],
-                    turnover=bar_array.turnover[:i+1] if bar_array.turnover is not None else None,
-                )
-                self._bar_data[symbol][bar_array.timeframe] = sliced_bars
-
-            # 更新当前时间（将numpy.datetime64转换为毫秒时间戳）
+            # 当前主周期时间戳
             ts = main_bars.timestamp[i]
             if isinstance(ts, np.datetime64):
-                self._current_time = float(ts.astype('datetime64[ms]').astype(np.int64))
+                current_ts_ms = float(ts.astype('datetime64[ms]').astype(np.int64))
             else:
-                self._current_time = ts.timestamp() * 1000 if hasattr(ts, 'timestamp') else float(ts)
+                current_ts_ms = ts.timestamp() * 1000 if hasattr(ts, 'timestamp') else float(ts)
 
+            # 更新所有周期的 context.bars 切片（避免未来函数）
+            for symbol, symbol_tf_bars in bars.items():
+                for tf, bar_array in symbol_tf_bars.items():
+                    if tf == main_tf:
+                        # 主周期：按索引切片
+                        sliced = BarArray(
+                            symbol=bar_array.symbol,
+                            exchange=bar_array.exchange,
+                            timeframe=bar_array.timeframe,
+                            timestamp=bar_array.timestamp[:i+1],
+                            open=bar_array.open[:i+1],
+                            high=bar_array.high[:i+1],
+                            low=bar_array.low[:i+1],
+                            close=bar_array.close[:i+1],
+                            volume=bar_array.volume[:i+1],
+                            turnover=bar_array.turnover[:i+1] if bar_array.turnover is not None else None,
+                        )
+                    else:
+                        # 高周期：按时间戳切片，只保留 <= 当前时间的K线
+                        higher_ts = bar_array.timestamp
+                        if len(higher_ts) > 0:
+                            # 将时间戳转换为毫秒进行比较
+                            if isinstance(higher_ts[0], np.datetime64):
+                                higher_ts_ms = higher_ts.astype('datetime64[ms]').astype(np.int64).astype(float)
+                            else:
+                                higher_ts_ms = np.array([
+                                    t.timestamp() * 1000 if hasattr(t, 'timestamp') else float(t)
+                                    for t in higher_ts
+                                ])
+                            mask = higher_ts_ms <= current_ts_ms
+                            end_idx = int(np.sum(mask))
+                        else:
+                            end_idx = 0
+
+                        if end_idx > 0:
+                            sliced = BarArray(
+                                symbol=bar_array.symbol,
+                                exchange=bar_array.exchange,
+                                timeframe=bar_array.timeframe,
+                                timestamp=bar_array.timestamp[:end_idx],
+                                open=bar_array.open[:end_idx],
+                                high=bar_array.high[:end_idx],
+                                low=bar_array.low[:end_idx],
+                                close=bar_array.close[:end_idx],
+                                volume=bar_array.volume[:end_idx],
+                                turnover=bar_array.turnover[:end_idx] if bar_array.turnover is not None else None,
+                            )
+                        else:
+                            sliced = BarArray(
+                                symbol=bar_array.symbol,
+                                exchange=bar_array.exchange,
+                                timeframe=bar_array.timeframe,
+                            )
+
+                    self._bar_data[symbol][tf] = sliced
+
+            # 更新当前时间
+            self._current_time = current_ts_ms
             strategy.context.current_time = self._current_time
 
-            # 创建当前Bar
-            ts = main_bars.timestamp[i]
+            # 创建当前Bar（主周期）
             if isinstance(ts, np.datetime64):
                 from datetime import datetime
-                bar_timestamp = datetime.fromtimestamp(
-                    float(ts.astype('datetime64[ms]').astype(np.int64)) / 1000
-                )
+                bar_timestamp = datetime.fromtimestamp(current_ts_ms / 1000)
             else:
                 bar_timestamp = ts
 
             bar = Bar(
                 symbol=main_symbol,
                 exchange=main_bars.exchange,
-                timeframe=main_bars.timeframe,
+                timeframe=main_tf,
                 timestamp=bar_timestamp,
                 open=float(main_bars.open[i]),
                 high=float(main_bars.high[i]),

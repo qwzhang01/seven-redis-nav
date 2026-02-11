@@ -103,7 +103,10 @@ def backtest(
         # 3. 获取历史数据
         if mock:
             click.echo(f"Generating mock data...")
-            from quant_trading_system.services.market.mock_data import generate_mock_klines
+            from quant_trading_system.services.market.mock_data import (
+                generate_mock_klines,
+                generate_multi_timeframe_klines,
+            )
             
             # 转换symbol格式：从BTCUSDT转换为BTC/USDT
             symbol_formatted = symbol
@@ -114,29 +117,75 @@ def backtest(
                 symbol_formatted = f"{base_symbol}/{quote_symbol}"
                 click.echo(f"Converted symbol format: {symbol} -> {symbol_formatted}")
 
-            bars = generate_mock_klines(
-                symbol=symbol_formatted,
-                timeframe=tf,
-                start_time=start,
-                end_time=end,
-            )
-        else:
-            click.echo(f"Fetching historical data from Binance...")
-            from quant_trading_system.services.market.binance_api import BinanceAPI
-
-            with BinanceAPI(market_type="spot") as api:
-                bars = api.fetch_klines(
-                    symbol=symbol,
+            # 检查策略是否需要多周期数据
+            strategy_tfs = list(strategy_class.timeframes) if strategy_class.timeframes else [tf]
+            if len(strategy_tfs) > 1:
+                click.echo(f"Multi-timeframe strategy detected: {[t.value for t in strategy_tfs]}")
+                tf_bars = generate_multi_timeframe_klines(
+                    symbol=symbol_formatted,
+                    timeframes=strategy_tfs,
+                    start_time=start,
+                    end_time=end,
+                )
+                bars = {symbol_formatted: tf_bars}
+                total_bars = sum(len(ba) for ba in tf_bars.values())
+                click.echo(f"Generated {total_bars} bars across {len(strategy_tfs)} timeframes")
+            else:
+                bars = generate_mock_klines(
+                    symbol=symbol_formatted,
                     timeframe=tf,
                     start_time=start,
                     end_time=end,
                 )
+        else:
+            click.echo(f"Fetching historical data from Binance...")
+            from quant_trading_system.services.market.binance_api import BinanceAPI
 
-        if len(bars) == 0:
-            click.echo("Error: No data fetched", err=True)
-            return
+            strategy_tfs = list(strategy_class.timeframes) if strategy_class.timeframes else [tf]
+            if len(strategy_tfs) > 1:
+                click.echo(f"Multi-timeframe strategy: {[t.value for t in strategy_tfs]}")
+                tf_bars = {}
+                with BinanceAPI(market_type="spot") as api:
+                    for stf in strategy_tfs:
+                        click.echo(f"  Fetching {stf.value} data...")
+                        tf_bars[stf] = api.fetch_klines(
+                            symbol=symbol,
+                            timeframe=stf,
+                            start_time=start,
+                            end_time=end,
+                        )
+                # 转换 symbol 格式
+                symbol_formatted = symbol
+                if "/" not in symbol and len(symbol) >= 6:
+                    base_symbol = symbol[:-4]
+                    quote_symbol = symbol[-4:]
+                    symbol_formatted = f"{base_symbol}/{quote_symbol}"
+                bars = {symbol_formatted: tf_bars}
+            else:
+                with BinanceAPI(market_type="spot") as api:
+                    bars = api.fetch_klines(
+                        symbol=symbol,
+                        timeframe=tf,
+                        start_time=start,
+                        end_time=end,
+                    )
 
-        click.echo(f"Fetched {len(bars)} bars")
+        if isinstance(bars, dict):
+            # 多周期格式 {symbol: {tf: BarArray}} — 检查最小周期数据量
+            first_sym = next(iter(bars.values()))
+            if isinstance(first_sym, dict):
+                min_len = min(len(ba) for ba in first_sym.values())
+            else:
+                min_len = len(bars)
+            if min_len == 0:
+                click.echo("Error: No data fetched", err=True)
+                return
+            click.echo(f"Data ready (primary timeframe: {min_len} bars)")
+        else:
+            if len(bars) == 0:
+                click.echo("Error: No data fetched", err=True)
+                return
+            click.echo(f"Fetched {len(bars)} bars")
         click.echo()
 
         # 4. 创建策略实例
