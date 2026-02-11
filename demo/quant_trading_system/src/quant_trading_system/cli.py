@@ -254,6 +254,115 @@ def backtest(
 
 
 @main.command()
+@click.option("--strategy", required=True, help="策略名称")
+@click.option("--symbol", required=True, multiple=True, help="交易对（可多次指定）")
+@click.option("--exchange", default="binance", help="交易所")
+@click.option("--market-type", default="spot", help="市场类型 (spot/futures)")
+@click.option("--capital", default=100000.0, help="初始资金（paper 模式）")
+@click.option("--api-key", default="", envvar="EXCHANGE_API_KEY", help="交易所 API Key")
+@click.option("--api-secret", default="", envvar="EXCHANGE_API_SECRET", help="交易所 API Secret")
+@click.option("--mode", default="paper", type=click.Choice(["paper", "live"]), help="运行模式")
+def trade(
+    strategy: str,
+    symbol: tuple[str, ...],
+    exchange: str,
+    market_type: str,
+    capital: float,
+    api_key: str,
+    api_secret: str,
+    mode: str,
+) -> None:
+    """启动实盘/模拟交易"""
+    import asyncio
+
+    # 导入策略模块以触发注册
+    import quant_trading_system.strategies  # noqa: F401
+
+    from quant_trading_system.services.strategy.base import get_strategy_class
+    from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
+
+    click.echo(f"{'=' * 60}")
+    click.echo(f"  Quant Trading System — {'LIVE' if mode == 'live' else 'PAPER'} Trading")
+    click.echo(f"{'=' * 60}")
+    click.echo()
+
+    # 加载策略
+    click.echo(f"Loading strategy: {strategy}")
+    strategy_class = get_strategy_class(strategy)
+    if not strategy_class:
+        click.echo(f"Error: Strategy '{strategy}' not found", err=True)
+        from quant_trading_system.services.strategy.base import list_strategies
+        click.echo("Available strategies:")
+        for name in list_strategies():
+            click.echo(f"  - {name}")
+        return
+
+    symbols = list(symbol)
+    click.echo(f"Symbols: {symbols}")
+    click.echo(f"Exchange: {exchange} ({market_type})")
+    click.echo(f"Mode: {mode}")
+    click.echo(f"Capital: {capital:,.2f}")
+    if strategy_class.timeframes:
+        click.echo(f"Timeframes: {[tf.value for tf in strategy_class.timeframes]}")
+    click.echo()
+
+    if mode == "live" and (not api_key or not api_secret):
+        click.echo(
+            "Warning: Live mode without API keys — orders will be simulated",
+            err=True,
+        )
+        click.echo()
+
+    async def _run() -> None:
+        orchestrator = TradingOrchestrator(
+            mode=mode,
+            exchange=exchange,
+            market_type=market_type,
+            api_key=api_key,
+            api_secret=api_secret,
+            initial_capital=capital,
+        )
+
+        try:
+            await orchestrator.start()
+
+            orchestrator.add_strategy(strategy_class, symbols=symbols)
+            await orchestrator.start_all_strategies()
+            await orchestrator.subscribe_market()
+
+            click.echo("Trading system is running. Press Ctrl+C to stop.")
+            click.echo()
+
+            # 定时输出状态
+            while orchestrator.is_running:
+                await asyncio.sleep(30)
+                stats = orchestrator.stats
+                se = stats.get("strategy_engine", {})
+                te = stats.get("trading_engine", {})
+                click.echo(
+                    f"[{mode.upper()}] bars={se.get('bar_count', 0)} "
+                    f"signals={se.get('signal_count', 0)} "
+                    f"orders={te.get('order_stats', {}).get('total_orders', 0)}"
+                )
+
+        except KeyboardInterrupt:
+            click.echo()
+            click.echo("Shutting down...")
+        except Exception as e:
+            click.echo(f"Error: {e}", err=True)
+            import traceback
+            traceback.print_exc()
+        finally:
+            await orchestrator.stop()
+            click.echo("Trading system stopped.")
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        click.echo("\nStopped.")
+
+
+@main.command()
 @click.option("--config", default=".env", help="配置文件路径")
 def check_config(config: str) -> None:
     """检查配置"""

@@ -23,27 +23,49 @@ from quant_trading_system.api.routers import (
 )
 
 
+# ------------------------------------------------------------------
+# 全局引擎实例（在 lifespan 中初始化）
+# ------------------------------------------------------------------
+_orchestrator = None
+
+
+def get_orchestrator():
+    """获取编排器实例（供路由使用）"""
+    return _orchestrator
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """应用生命周期管理"""
-    # 启动时
+    global _orchestrator
+
     setup_logging(
         level=settings.monitor.log_level,
         log_format=settings.monitor.log_format,
     )
-    
-    # 初始化服务
-    # 这里可以初始化数据库连接、消息队列等
-    
+
+    # ---- 启动：初始化交易系统各组件 ----
+    from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
+
+    _orchestrator = TradingOrchestrator(
+        mode="paper",
+        exchange="binance",
+        market_type="spot",
+        initial_capital=settings.strategy.backtest_start_capital,
+    )
+    await _orchestrator.start()
+
     yield
-    
-    # 关闭时
-    # 清理资源
+
+    # ---- 关闭：清理资源 ----
+    if _orchestrator:
+        await _orchestrator.stop()
+        _orchestrator = None
 
 
 def create_app() -> FastAPI:
     """创建FastAPI应用"""
-    
+
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
@@ -52,7 +74,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
-    
+
     # 添加CORS中间件
     app.add_middleware(
         CORSMiddleware,
@@ -61,18 +83,18 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # 注册路由
     app.include_router(system_router, prefix="/api/v1/system", tags=["系统"])
     app.include_router(market_router, prefix="/api/v1/market", tags=["行情"])
     app.include_router(strategy_router, prefix="/api/v1/strategy", tags=["策略"])
     app.include_router(trading_router, prefix="/api/v1/trading", tags=["交易"])
     app.include_router(backtest_router, prefix="/api/v1/backtest", tags=["回测"])
-    
+
     # 全局异常处理
     @app.exception_handler(Exception)
     async def global_exception_handler(
-        request: Request, 
+        request: Request,
         exc: Exception
     ) -> JSONResponse:
         return JSONResponse(
@@ -83,15 +105,17 @@ def create_app() -> FastAPI:
                 "error_type": type(exc).__name__,
             }
         )
-    
+
     # 健康检查
     @app.get("/health")
     async def health_check() -> dict[str, Any]:
+        orch = get_orchestrator()
         return {
-            "status": "healthy",
+            "status": "healthy" if (orch and orch.is_running) else "degraded",
             "version": settings.app_version,
+            "trading_mode": orch.mode if orch else None,
         }
-    
+
     return app
 
 

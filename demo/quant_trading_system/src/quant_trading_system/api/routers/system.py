@@ -14,14 +14,22 @@ from quant_trading_system.core.config import settings
 router = APIRouter()
 
 
+def _get_orchestrator():
+    from quant_trading_system.api.main import get_orchestrator
+    return get_orchestrator()
+
+
 @router.get("/info")
 async def get_system_info() -> dict[str, Any]:
     """获取系统信息"""
+    orch = _get_orchestrator()
     return {
         "name": settings.app_name,
         "version": settings.app_version,
         "env": settings.env,
         "debug": settings.debug,
+        "trading_mode": orch.mode if orch else None,
+        "trading_running": orch.is_running if orch else False,
     }
 
 
@@ -44,23 +52,29 @@ async def get_config() -> dict[str, Any]:
 @router.get("/health")
 async def health_check() -> dict[str, Any]:
     """健康检查"""
+    orch = _get_orchestrator()
     return {
-        "status": "healthy",
+        "status": "healthy" if (orch and orch.is_running) else "degraded",
         "checks": {
             "api": True,
-            "database": True,  # 实际应检查数据库连接
-            "redis": True,     # 实际应检查Redis连接
-        }
+            "event_engine": orch.event_engine.is_running if orch else False,
+            "market_service": orch.market_service.is_running if orch else False,
+            "strategy_engine": orch.strategy_engine.is_running if orch else False,
+            "trading_engine": orch.trading_engine.is_running if orch else False,
+        },
     }
 
 
 @router.get("/metrics")
 async def get_metrics() -> dict[str, Any]:
     """获取系统指标"""
-    return {
-        "requests_total": 0,
-        "requests_per_second": 0,
-        "active_connections": 0,
-        "memory_usage_mb": 0,
-        "cpu_usage_percent": 0,
-    }
+    orch = _get_orchestrator()
+    if not orch:
+        return {
+            "event_engine": {},
+            "market_service": {},
+            "strategy_engine": {},
+            "trading_engine": {},
+            "risk_manager": {},
+        }
+    return orch.stats
