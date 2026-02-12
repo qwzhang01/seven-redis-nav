@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '交易盘面' },
       },
       {
+        path: 'running-strategies',
+        name: 'RunningStrategies',
+        component: () => import('@/views/trading/RunningStrategiesPage.vue'),
+        meta: { title: '策略实盘监控' },
+      },
+      {
         path: 'strategies',
         name: 'StrategyList',
         component: () => import('@/views/strategy/StrategyList.vue'),
@@ -47,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         name: 'StrategyDetail',
         component: () => import('@/views/strategy/StrategyDetail.vue'),
         meta: { title: '策略详情' },
+      },
+      {
+        path: 'running-strategies/:id',
+        name: 'RunningStrategyDetail',
+        component: () => import('@/views/strategy/RunningStrategyDetail.vue'),
+        meta: { title: '策略运行详情', requiresAuth: true },
       },
       {
         path: 'signals',
@@ -146,6 +158,14 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/leaderboard',
     redirect: '/system/leaderboard'
+  },
+  {
+    path: '/running-strategies',
+    redirect: '/system/running-strategies'
+  },
+  {
+    path: '/running-strategies/:id',
+    redirect: '/system/running-strategies/:id'
   },
   {
     path: '/user',

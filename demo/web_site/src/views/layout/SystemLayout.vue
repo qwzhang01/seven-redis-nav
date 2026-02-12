@@ -35,10 +35,38 @@
       <div class="flex items-center gap-4">
         <!-- 个人中心跳转 -->
         <template v-if="authStore.isLoggedIn">
-          <router-link to="/system/user" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
-            <User :size="16" />
-            <span>{{ authStore.user?.username || '我的' }}</span>
-          </router-link>
+          <div class="relative group">
+            <button class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
+              <User :size="16" />
+              <span>{{ authStore.user?.username || '我的' }}</span>
+              <ChevronDown :size="14" class="transition-transform group-hover:rotate-180" />
+            </button>
+            
+            <!-- 下拉菜单 -->
+            <div class="absolute top-full right-0 mt-2 w-48 bg-dark-800 border border-white/[0.06] rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div class="py-2">
+                <router-link 
+                  to="/system/user" 
+                  class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors"
+                >
+                  <User :size="14" />
+                  个人中心
+                </router-link>
+                <router-link 
+                  to="/system/running-strategies" 
+                  class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors"
+                >
+                  <Activity :size="14" />
+                  策略实盘
+                </router-link>
+                <div class="h-px bg-white/[0.06] my-1"></div>
+                <button class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors w-full text-left">
+                  <LogOut :size="14" />
+                  退出登录
+                </button>
+              </div>
+            </div>
+          </div>
         </template>
         <template v-else>
           <router-link to="/login" class="px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
@@ -73,7 +101,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User } from 'lucide-vue-next'
+import { User, ChevronDown, Activity, LogOut } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

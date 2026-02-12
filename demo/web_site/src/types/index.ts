@@ -12,15 +12,45 @@ export interface Strategy {
   params?: StrategyParam[]
   logic?: string
   riskTip?: string
+  // 新增详细参数
+  exchange: string
+  tradingPair: string
+  timeframe: '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w'
+  capitalAllocation: {
+    initialCapital: number
+    maxPositionSize: number
+    riskPerTrade: number
+    rebalancingFrequency: 'daily' | 'weekly' | 'monthly'
+  }
+  riskManagement: {
+    stopLoss: number
+    takeProfit: number
+    trailingStop: boolean
+    maxConcurrentTrades: number
+    dailyLossLimit: number
+    weeklyLossLimit: number
+  }
+  advancedSettings: {
+    slippageTolerance: number
+    commissionRate: number
+    useMarketOrders: boolean
+    allowShortSelling: boolean
+    enableHedging: boolean
+    backtestPeriod: number
+  }
 }
 
 export interface StrategyParam {
   name: string
   label: string
-  type: 'number' | 'select' | 'text'
-  default: string | number
+  type: 'number' | 'select' | 'text' | 'boolean' | 'range'
+  default: string | number | boolean
   options?: string[]
   description?: string
+  min?: number
+  max?: number
+  step?: number
+  required?: boolean
 }
 
 export interface Signal {
@@ -36,6 +66,32 @@ export interface Signal {
   returnCurve?: number[]
   positions?: Position[]
   description?: string
+  // 新增详细参数
+  exchange: string
+  tradingPair: string
+  timeframe: '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w'
+  signalFrequency: 'high' | 'medium' | 'low'
+  riskParameters: {
+    maxPositionSize: number
+    stopLossPercentage: number
+    takeProfitPercentage: number
+    riskRewardRatio: number
+    volatilityFilter: boolean
+  }
+  notificationSettings: {
+    emailAlerts: boolean
+    pushNotifications: boolean
+    telegramBot: boolean
+    discordWebhook: boolean
+    alertThreshold: number
+  }
+  performanceMetrics: {
+    sharpeRatio: number
+    winRate: number
+    profitFactor: number
+    averageHoldingPeriod: number
+    maxConsecutiveLosses: number
+  }
 }
 
 export interface Position {

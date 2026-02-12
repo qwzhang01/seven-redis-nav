@@ -36,6 +36,130 @@
               </div>
             </div>
             <p class="text-dark-100 leading-relaxed text-sm">{{ signal.description }}</p>
+            
+            <!-- 新增交易所和交易对信息 -->
+            <div class="mt-6 pt-6 border-t border-dark-700">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <Building :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">交易所</div>
+                    <div class="text-sm text-white">{{ signal.exchange }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <TrendingUp :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">交易对</div>
+                    <div class="text-sm text-white">{{ signal.tradingPair }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <Clock :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">时间周期</div>
+                    <div class="text-sm text-white">{{ signal.timeframe }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <Activity :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">信号频率</div>
+                    <div class="text-sm text-white">{{ signal.signalFrequency === 'high' ? '高频' : signal.signalFrequency === 'medium' ? '中频' : '低频' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Risk Parameters -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Shield :size="18" class="text-amber-400" />
+              风险参数
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">最大仓位</div>
+                <div class="text-white font-medium">{{ signal.riskParameters.maxPositionSize }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">止损比例</div>
+                <div class="text-white font-medium">{{ signal.riskParameters.stopLossPercentage }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">止盈比例</div>
+                <div class="text-white font-medium">{{ signal.riskParameters.takeProfitPercentage }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">风险收益比</div>
+                <div class="text-white font-medium">{{ signal.riskParameters.riskRewardRatio }}:1</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">波动率过滤</div>
+                <div class="text-white font-medium">{{ signal.riskParameters.volatilityFilter ? '启用' : '禁用' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Performance Metrics -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <BarChart3 :size="18" class="text-primary-400" />
+              绩效指标
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">夏普比率</div>
+                <div class="text-white font-medium">{{ signal.performanceMetrics.sharpeRatio.toFixed(2) }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">胜率</div>
+                <div class="text-white font-medium">{{ signal.performanceMetrics.winRate.toFixed(1) }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">盈亏比</div>
+                <div class="text-white font-medium">{{ signal.performanceMetrics.profitFactor.toFixed(2) }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">平均持仓</div>
+                <div class="text-white font-medium">{{ signal.performanceMetrics.averageHoldingPeriod.toFixed(1) }}天</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">最大连亏</div>
+                <div class="text-white font-medium">{{ signal.performanceMetrics.maxConsecutiveLosses }}次</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notification Settings -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Bell :size="18" class="text-blue-400" />
+              通知设置
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">邮件提醒</div>
+                <div class="text-white font-medium">{{ signal.notificationSettings.emailAlerts ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">推送通知</div>
+                <div class="text-white font-medium">{{ signal.notificationSettings.pushNotifications ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">Telegram机器人</div>
+                <div class="text-white font-medium">{{ signal.notificationSettings.telegramBot ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">Discord Webhook</div>
+                <div class="text-white font-medium">{{ signal.notificationSettings.discordWebhook ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">提醒阈值</div>
+                <div class="text-white font-medium">{{ signal.notificationSettings.alertThreshold }}%</div>
+              </div>
+            </div>
           </div>
 
           <!-- Performance -->
@@ -177,7 +301,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Radio, ChevronRight, TrendingUp, Layers, Copy } from 'lucide-vue-next'
+import { Radio, ChevronRight, TrendingUp, Layers, Copy, Building, Clock, Activity, Shield, BarChart3, Bell } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import { signals } from '@/utils/mockData'

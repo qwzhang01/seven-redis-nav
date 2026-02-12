@@ -54,9 +54,10 @@
           </button>
         </div>
         <div
-          v-for="item in filteredUserStrategies"
+          v-for="item in filteredUserStrategies" 
           :key="item.id"
-          class="glass-card-hover p-6 flex items-center gap-6"
+          class="glass-card-hover p-6 flex items-center gap-6 cursor-pointer"
+          @click="$router.push(`/system/running-strategies/${item.id}`)"
         >
           <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center shrink-0">
             <Zap :size="18" class="text-primary-400" />

@@ -46,6 +46,39 @@
                 <div class="text-xs text-dark-100 mt-1">运行天数</div>
               </div>
             </div>
+            <!-- 新增交易所和交易对信息 -->
+            <div class="mt-6 pt-6 border-t border-dark-700">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <Building :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">交易所</div>
+                    <div class="text-sm text-white">{{ strategy.exchange }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <TrendingUp :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">交易对</div>
+                    <div class="text-sm text-white">{{ strategy.tradingPair }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <Clock :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">时间周期</div>
+                    <div class="text-sm text-white">{{ strategy.timeframe }}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <DollarSign :size="16" class="text-dark-200" />
+                  <div>
+                    <div class="text-xs text-dark-200">初始资金</div>
+                    <div class="text-sm text-white">{{ strategy.capitalAllocation.initialCapital }} USDT</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Strategy Description -->
@@ -79,6 +112,74 @@
                   <span class="text-xs text-dark-100">默认值: {{ param.default }}</span>
                 </div>
                 <p class="text-xs text-dark-100">{{ param.description }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Risk Management -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Shield :size="18" class="text-amber-400" />
+              风险管理
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">止损比例</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.stopLoss }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">止盈比例</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.takeProfit }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">移动止损</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.trailingStop ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">最大并发交易</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.maxConcurrentTrades }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">日亏损限制</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.dailyLossLimit }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">周亏损限制</div>
+                <div class="text-white font-medium">{{ strategy.riskManagement.weeklyLossLimit }}%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Settings -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Cog :size="18" class="text-primary-400" />
+              高级设置
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">滑点容忍度</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.slippageTolerance }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">手续费率</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.commissionRate }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">市价单</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.useMarketOrders ? '是' : '否' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">允许做空</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.allowShortSelling ? '是' : '否' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">对冲功能</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.enableHedging ? '启用' : '禁用' }}</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">回测周期</div>
+                <div class="text-white font-medium">{{ strategy.advancedSettings.backtestPeriod }}天</div>
               </div>
             </div>
           </div>
@@ -140,7 +241,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Zap, ChevronRight, BookOpen, Brain, Settings, AlertTriangle, Play } from 'lucide-vue-next'
+import { Zap, ChevronRight, BookOpen, Brain, Settings, AlertTriangle, Play, Building, TrendingUp, Clock, DollarSign, Shield, Cog } from 'lucide-vue-next'
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
 import StatusDot from '@/components/common/StatusDot.vue'

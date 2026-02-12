@@ -21,6 +21,25 @@
         <t-option label="中风险" value="medium" />
         <t-option label="高风险" value="high" />
       </t-select>
+      <t-select v-model="filterExchange" placeholder="交易所" clearable size="medium" style="width: 160px">
+        <t-option label="Binance" value="Binance" />
+        <t-option label="OKX" value="OKX" />
+        <t-option label="Bybit" value="Bybit" />
+        <t-option label="Bitget" value="Bitget" />
+        <t-option label="Gate.io" value="Gate.io" />
+        <t-option label="Huobi" value="Huobi" />
+        <t-option label="Kraken" value="Kraken" />
+        <t-option label="Coinbase" value="Coinbase" />
+      </t-select>
+      <t-select v-model="filterTimeframe" placeholder="时间周期" clearable size="medium" style="width: 140px">
+        <t-option label="1分钟" value="1m" />
+        <t-option label="5分钟" value="5m" />
+        <t-option label="15分钟" value="15m" />
+        <t-option label="1小时" value="1h" />
+        <t-option label="4小时" value="4h" />
+        <t-option label="日线" value="1d" />
+        <t-option label="周线" value="1w" />
+      </t-select>
     </div>
 
     <!-- Table -->
@@ -30,10 +49,13 @@
           <thead>
             <tr class="border-b border-white/[0.06]">
               <th class="text-left py-3.5 px-5 text-dark-100 font-medium">策略名称</th>
-              <th class="text-left py-3.5 px-5 text-dark-100 font-medium">市场</th>
+              <th class="text-left py-3.5 px-5 text-dark-100 font-medium">交易所</th>
+              <th class="text-left py-3.5 px-5 text-dark-100 font-medium">交易对</th>
+              <th class="text-left py-3.5 px-5 text-dark-100 font-medium">时间周期</th>
               <th class="text-left py-3.5 px-5 text-dark-100 font-medium">类型</th>
               <th class="text-left py-3.5 px-5 text-dark-100 font-medium">风险</th>
               <th class="text-right py-3.5 px-5 text-dark-100 font-medium">收益率</th>
+              <th class="text-right py-3.5 px-5 text-dark-100 font-medium">最大回撤</th>
               <th class="text-center py-3.5 px-5 text-dark-100 font-medium">状态</th>
               <th class="text-center py-3.5 px-5 text-dark-100 font-medium">操作</th>
             </tr>
@@ -41,12 +63,15 @@
           <tbody>
             <tr v-for="s in filteredList" :key="s.id" class="border-b border-white/[0.04] hover:bg-white/[0.02]">
               <td class="py-3.5 px-5 text-white font-medium">{{ s.name }}</td>
-              <td class="py-3.5 px-5 text-dark-100">{{ s.market }}</td>
+              <td class="py-3.5 px-5 text-dark-100">{{ s.exchange }}</td>
+              <td class="py-3.5 px-5 text-dark-100">{{ s.tradingPair }}</td>
+              <td class="py-3.5 px-5 text-dark-100">{{ s.timeframe }}</td>
               <td class="py-3.5 px-5 text-dark-100">{{ s.type }}</td>
               <td class="py-3.5 px-5"><RiskBadge :level="s.riskLevel" /></td>
               <td class="py-3.5 px-5 text-right font-medium" :class="s.returnRate >= 0 ? 'text-emerald-400' : 'text-red-400'">
                 {{ s.returnRate >= 0 ? '+' : '' }}{{ s.returnRate }}%
               </td>
+              <td class="py-3.5 px-5 text-right text-amber-400">{{ s.maxDrawdown }}%</td>
               <td class="py-3.5 px-5 text-center"><StatusDot :status="s.status" /></td>
               <td class="py-3.5 px-5 text-center">
                 <div class="flex items-center justify-center gap-1">
@@ -72,12 +97,16 @@ import { strategies } from '@/utils/mockData'
 const search = ref('')
 const filterStatus = ref('')
 const filterRisk = ref('')
+const filterExchange = ref('')
+const filterTimeframe = ref('')
 
 const filteredList = computed(() => {
   return strategies.filter((s) => {
     if (search.value && !s.name.toLowerCase().includes(search.value.toLowerCase())) return false
     if (filterStatus.value && s.status !== filterStatus.value) return false
     if (filterRisk.value && s.riskLevel !== filterRisk.value) return false
+    if (filterExchange.value && s.exchange !== filterExchange.value) return false
+    if (filterTimeframe.value && s.timeframe !== filterTimeframe.value) return false
     return true
   })
 })
