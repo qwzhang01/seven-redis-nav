@@ -178,7 +178,6 @@ data/
 !examples/*.json
 
 # 模型文件
-models/
 *.pkl
 *.pickle
 *.joblib
