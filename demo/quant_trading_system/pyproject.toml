@@ -20,78 +20,88 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
+# 核心依赖（轻量级，优先安装）
 dependencies = [
     # Web框架
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "websockets>=12.0",
-    "python-multipart>=0.0.6",
+    "fastapi>=0.109.0,<1.0.0",
+    "uvicorn[standard]>=0.27.0,<1.0.0",
+    "websockets>=12.0,<14.0",
+    "python-multipart>=0.0.6,<1.0.0",
+    
     # 异步支持
-    "aiohttp>=3.9.0",
-    "aiokafka>=0.10.0",
-    "aioredis>=2.0.1",
-    "asyncpg>=0.29.0",
-    # 数据处理
-    "numpy>=1.26.0",
-    "pandas>=2.1.0",
-    "polars>=0.20.0",
-    "numba>=0.58.0",
+    "aiohttp>=3.9.0,<4.0.0",
+    "aiokafka>=0.10.0,<1.0.0",
+    "aioredis>=2.0.1,<3.0.0",
+    "asyncpg>=0.29.0,<1.0.0",
+    
+    # 数据处理（基础）
+    "numpy>=1.26.0,<2.0.0",
+    "pandas>=2.1.0,<3.0.0",
+    
     # 数据库
-    "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.9",
-    "redis>=5.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+    "psycopg2-binary>=2.9.9,<3.0.0",
+    "redis>=5.0.0,<6.0.0",
+    
     # 消息队列
-    "kafka-python>=2.0.2",
-    # 数据存储
-    "pyarrow>=15.0.0",
-    "deltalake>=0.15.0",
-    "boto3>=1.34.0",
-    # 技术分析
-    "ta-lib>=0.4.28",
+    "kafka-python>=2.0.2,<3.0.0",
+    
     # 配置和验证
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "python-dotenv>=1.0.0",
-    "pyyaml>=6.0.1",
+    "pydantic>=2.5.0,<3.0.0",
+    "pydantic-settings>=2.1.0,<3.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "pyyaml>=6.0.1,<7.0.0",
+    
     # 日志和监控
-    "structlog>=24.1.0",
-    "prometheus-client>=0.19.0",
+    "structlog>=24.1.0,<25.0.0",
+    "prometheus-client>=0.19.0,<1.0.0",
+    
     # 安全
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "cryptography>=41.0.0",
+    "python-jose[cryptography]>=3.3.0,<4.0.0",
+    "passlib[bcrypt]>=1.7.4,<2.0.0",
+    "cryptography>=41.0.0,<43.0.0",
+    
     # 工具
-    "httpx>=0.26.0",
-    "orjson>=3.9.0",
-    "msgpack>=1.0.7",
-    "cachetools>=5.3.0",
-    "tenacity>=8.2.0",
-    "click>=8.1.0",
-    "pandas-stubs==2.3.3.260113",
+    "httpx>=0.26.0,<1.0.0",
+    "orjson>=3.9.0,<4.0.0",
+    "msgpack>=1.0.7,<2.0.0",
+    "cachetools>=5.3.0,<6.0.0",
+    "tenacity>=8.2.0,<9.0.0",
+    "click>=8.1.0,<9.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "black>=24.1.0",
-    "ruff>=0.1.0",
-    "mypy>=1.8.0",
-    "pre-commit>=3.6.0",
+    "pytest>=7.4.0,<8.0.0",
+    "pytest-asyncio>=0.23.0,<1.0.0",
+    "pytest-cov>=4.1.0,<5.0.0",
+    "black>=24.1.0,<25.0.0",
+    "ruff>=0.1.0,<1.0.0",
+    "mypy>=1.8.0,<2.0.0",
+    "pre-commit>=3.6.0,<4.0.0",
 ]
-gpu = [
-    "cupy-cuda12x>=12.3.0",
+
+# 大数据处理（可选，可能较慢）
+bigdata = [
+    "polars>=0.20.0,<1.0.0",
+    "numba>=0.58.0,<1.0.0",
+    "pyarrow>=15.0.0,<16.0.0",
+    "deltalake>=0.15.0,<1.0.0",
+    "boto3>=1.34.0,<2.0.0",
 ]
+
+# 技术分析（可选，可能需要系统依赖）
+ta = [
+    "ta-lib>=0.4.28,<1.0.0",
+]
+
+# AI和机器学习（可选，较大）
 ai = [
-    # 强化学习
-    "gymnasium>=0.29.0",
-    "torch>=2.1.0",
-    # 机器学习
-    "scikit-learn>=1.4.0",
-    # 可视化
-    "matplotlib>=3.8.0",
-    "seaborn>=0.13.0",
+    "gymnasium>=0.29.0,<1.0.0",
+    "torch>=2.1.0,<3.0.0",
+    "scikit-learn>=1.4.0,<2.0.0",
+    "matplotlib>=3.8.0,<4.0.0",
+    "seaborn>=0.13.0,<1.0.0",
 ]
 
 [project.scripts]

@@ -6,12 +6,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_TIMEOUT=300 \
+    PIP_RETRIES=3
 
-# 安装系统依赖
+# 安装系统依赖（包括ta-lib所需的依赖）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    wget \
+    git \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建非root用户
@@ -23,21 +28,25 @@ WORKDIR /app
 # 构建阶段
 FROM base as builder
 
-# 安装依赖
+# 复制依赖文件
 COPY pyproject.toml ./
+
+# 分批次安装依赖，避免超时
 RUN pip install --upgrade pip \
-    && pip wheel --no-deps --wheel-dir /app/wheels -e .
+    && pip install --timeout=300 --retries=3 fastapi uvicorn websockets python-multipart \
+    && pip install --timeout=300 --retries=3 numpy pandas sqlalchemy redis \
+    && pip install --timeout=300 --retries=3 kafka-python pyarrow boto3 \
+    && pip install --timeout=300 --retries=3 -e .
 
 # 运行阶段
 FROM base as runner
 
-# 复制wheels并安装
-COPY --from=builder /app/wheels /wheels
-RUN pip install --no-index --find-links=/wheels /wheels/*.whl \
-    && rm -rf /wheels
-
 # 复制源码
 COPY --chown=quant:quant src/ ./src/
+
+# 复制已安装的依赖
+COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # 切换到非root用户
 USER quant
