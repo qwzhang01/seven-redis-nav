@@ -13,6 +13,10 @@ from quant_trading_system.models.market import BarArray, TimeFrame
 class TestGenerateMockKlines:
     """测试mock K线数据生成"""
 
+    def test(self):
+        print("HW")
+
+
     def test_basic_generation(self):
         """测试基本数据生成"""
         bars = generate_mock_klines(
@@ -208,14 +212,14 @@ class TestGenerateMockKlines:
             start_time="2024-01-01",
             end_time="2024-01-02",
         )
-    
+
         # 计算时间间隔（毫秒）
         timestamps = bars.timestamp.astype('int64')  # 已经是毫秒
         intervals = np.diff(timestamps)
-    
+
         # 1小时 = 3600000毫秒
         expected_interval = 3600000
-    
+
         # 所有间隔应该等于预期间隔
         assert all(intervals == expected_interval)
 
