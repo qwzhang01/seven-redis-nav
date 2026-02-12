@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     git \
     libpq-dev \
+    # ta-lib依赖
+    libta-lib-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建非root用户
@@ -31,12 +33,28 @@ FROM base as builder
 # 复制依赖文件
 COPY pyproject.toml ./
 
-# 分批次安装依赖，避免超时
-RUN pip install --upgrade pip \
-    && pip install --timeout=300 --retries=3 fastapi uvicorn websockets python-multipart \
-    && pip install --timeout=300 --retries=3 numpy pandas sqlalchemy redis \
-    && pip install --timeout=300 --retries=3 kafka-python pyarrow boto3 \
-    && pip install --timeout=300 --retries=3 -e .
+# 分批次安装依赖，避免超时和冲突
+RUN pip install --upgrade pip
+
+# 先安装基础依赖
+RUN pip install --timeout=300 --retries=3 fastapi uvicorn websockets python-multipart numpy pandas
+
+# 安装数据库和消息队列依赖
+RUN pip install --timeout=300 --retries=3 sqlalchemy redis kafka-python asyncpg aioredis
+
+# 安装配置和安全依赖
+RUN pip install --timeout=300 --retries=3 pydantic pydantic-settings python-dotenv pyyaml \
+    python-jose[cryptography] passlib[bcrypt] cryptography
+
+# 安装工具和监控依赖
+RUN pip install --timeout=300 --retries=3 httpx orjson msgpack cachetools tenacity click \
+    structlog prometheus-client
+
+# 最后安装可选依赖（可能较慢或需要编译）
+RUN pip install --timeout=600 --retries=5 pyarrow boto3
+
+# 安装项目本身（可编辑模式），不安装可选依赖
+RUN pip install --timeout=300 --retries=3 -e . --no-deps
 
 # 运行阶段
 FROM base as runner
