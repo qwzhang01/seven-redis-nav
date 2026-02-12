@@ -33,6 +33,19 @@
 
       <!-- 右侧：操作提示和状态信息 -->
       <div class="flex items-center gap-4">
+        <!-- 个人中心跳转 -->
+        <template v-if="authStore.isLoggedIn">
+          <router-link to="/system/user" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
+            <User :size="16" />
+            <span>{{ authStore.user?.username || '我的' }}</span>
+          </router-link>
+        </template>
+        <template v-else>
+          <router-link to="/login" class="px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
+            登录
+          </router-link>
+        </template>
+        
         <!-- 操作提示 -->
         <!-- 状态信息 -->
         <div class="flex items-center gap-4">
@@ -60,9 +73,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { User } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const currentTime = ref('')
 const isFullscreen = ref(false)
