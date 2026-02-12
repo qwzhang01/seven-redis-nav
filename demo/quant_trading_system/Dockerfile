@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_TIMEOUT=300 \
-    PIP_RETRIES=3
+    PIP_RETRIES=3 \
+    PYTHONPATH=/app
 
 # 安装系统依赖（包括ta-lib所需的依赖）
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     # ta-lib依赖
     libta-lib-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 创建非root用户
 RUN groupadd --gid 1000 quant \
@@ -33,31 +36,21 @@ FROM base as builder
 # 复制依赖文件
 COPY pyproject.toml ./
 
-# 分批次安装依赖，避免超时和冲突
-RUN pip install --upgrade pip
+# 升级pip并安装构建工具
+RUN pip install --upgrade pip \
+    && pip install build setuptools wheel
 
-# 先安装基础依赖
-RUN pip install --timeout=300 --retries=3 fastapi uvicorn websockets python-multipart numpy pandas
-
-# 安装数据库和消息队列依赖
-RUN pip install --timeout=300 --retries=3 sqlalchemy redis kafka-python asyncpg aioredis
-
-# 安装配置和安全依赖
-RUN pip install --timeout=300 --retries=3 pydantic pydantic-settings python-dotenv pyyaml \
-    python-jose[cryptography] passlib[bcrypt] cryptography
-
-# 安装工具和监控依赖
-RUN pip install --timeout=300 --retries=3 httpx orjson msgpack cachetools tenacity click \
-    structlog prometheus-client
-
-# 最后安装可选依赖（可能较慢或需要编译）
-RUN pip install --timeout=600 --retries=5 pyarrow boto3
-
-# 安装项目本身（可编辑模式），不安装可选依赖
-RUN pip install --timeout=300 --retries=3 -e . --no-deps
+# 构建并安装项目依赖（使用pyproject.toml中的依赖）
+RUN pip install --timeout=300 --retries=3 .
 
 # 运行阶段
 FROM base as runner
+
+# 安装运行时的健康检查工具
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 复制源码
 COPY --chown=quant:quant src/ ./src/
@@ -66,15 +59,19 @@ COPY --chown=quant:quant src/ ./src/
 COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
+# 创建必要的目录
+RUN mkdir -p /app/logs /app/data /app/cache \
+    && chown -R quant:quant /app
+
 # 切换到非root用户
 USER quant
 
 # 暴露端口
 EXPOSE 8000
 
-# 健康检查
+# 健康检查（使用Python内置HTTP客户端）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # 启动命令
-CMD ["uvicorn", "quant_trading_system.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "quant_trading_system.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
