@@ -268,17 +268,40 @@
                 <div v-if="activeTab === 'strategy'" class="space-y-4">
                   <div class="grid grid-cols-2 gap-4">
                     <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓平台</label>
+                      <t-select v-model="configValues.platform" size="medium">
+                        <t-option v-for="platform in ['WEEX', 'Binance', 'OKX', 'Bybit', 'Gate.io']" :key="platform" :label="platform" :value="platform" />
+                      </t-select>
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓币种</label>
+                      <t-select v-model="configValues.currencyPair" size="medium">
+                        <t-option v-for="pair in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']" :key="pair" :label="pair" :value="pair" />
+                      </t-select>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
                       <label class="text-sm text-dark-100 mb-1.5 block">开仓K线周期</label>
                       <t-select v-model="configValues.timeframe" size="medium">
                         <t-option v-for="tf in ['1分钟', '5分钟', '15分钟', '1小时', '4小时', '1天']" :key="tf" :label="tf" :value="tf" />
                       </t-select>
                     </div>
                     <div>
-                      <label class="text-sm text-dark-100 mb-1.5 block">开仓模式</label>
-                      <t-select v-model="configValues.tradeMode" size="medium">
-                        <t-option v-for="mode in ['多空双开', '只做多', '只做空']" :key="mode" :label="mode" :value="mode" />
-                      </t-select>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓杠杆</label>
+                      <t-input
+                        v-model="configValues.leverage"
+                        type="number"
+                        size="medium"
+                        placeholder="125"
+                      />
                     </div>
+                  </div>
+                  <div>
+                    <label class="text-sm text-dark-100 mb-1.5 block">开仓模式</label>
+                    <t-select v-model="configValues.tradeMode" size="medium">
+                      <t-option v-for="mode in ['多空双开', '只做多', '只做空']" :key="mode" :label="mode" :value="mode" />
+                    </t-select>
                   </div>
                 </div>
                 
