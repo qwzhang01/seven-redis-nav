@@ -27,7 +27,7 @@
           :key="item.id"
           class="glass-card p-6 relative overflow-hidden cursor-pointer group"
           :class="index === 0 ? 'ring-1 ring-amber-500/30 md:order-2' : index === 1 ? 'md:order-1' : 'md:order-3'"
-          @click="$router.push(`/signals/${item.id}`)"
+          @click="$router.push(`/system/signals/${item.id}`)"
         >
           <!-- Rank Badge -->
           <div class="absolute top-0 right-0 w-16 h-16">
@@ -96,7 +96,7 @@
                 v-for="(item, index) in tableItems"
                 :key="item.id"
                 class="border-b border-white/[0.04] hover:bg-white/[0.02] cursor-pointer transition-colors"
-                @click="$router.push(`/signals/${item.id}`)"
+                @click="$router.push(`/system/signals/${item.id}`)"
               >
                 <td class="py-4 px-6">
                   <span class="text-dark-100 font-mono">{{ index + 4 }}</span>

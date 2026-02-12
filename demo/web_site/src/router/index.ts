@@ -24,6 +24,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/home/HomePage.vue'),
         meta: { title: '首页' },
       },
+    ],
+  },
+  {
+    path: '/system',
+    component: () => import('@/views/layout/SystemLayout.vue'),
+    children: [
+      {
+        path: 'trading',
+        name: 'Trading',
+        component: () => import('@/views/trading/TradingPage.vue'),
+        meta: { title: '交易盘面' },
+      },
       {
         path: 'strategies',
         name: 'StrategyList',
@@ -97,6 +109,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminLogs.vue'),
         meta: { title: '风控与日志', requiresAuth: true, requiresAdmin: true },
       },
+      {
+        path: 'api-keys',
+        name: 'AdminApiKeys',
+        component: () => import('@/views/admin/AdminApiKeys.vue'),
+        meta: { title: 'API密钥审核', requiresAuth: true, requiresAdmin: true },
+      },
     ],
   },
   {
@@ -104,6 +122,34 @@ const routes: RouteRecordRaw[] = [
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue'),
     meta: { title: '404' },
+  },
+  {
+    path: '/trading',
+    redirect: '/system/trading'
+  },
+  {
+    path: '/strategies',
+    redirect: '/system/strategies'
+  },
+  {
+    path: '/strategies/:id',
+    redirect: '/system/strategies/:id'
+  },
+  {
+    path: '/signals',
+    redirect: '/system/signals'
+  },
+  {
+    path: '/signals/:id',
+    redirect: '/system/signals/:id'
+  },
+  {
+    path: '/leaderboard',
+    redirect: '/system/leaderboard'
+  },
+  {
+    path: '/user',
+    redirect: '/system/user'
   },
 ]
 

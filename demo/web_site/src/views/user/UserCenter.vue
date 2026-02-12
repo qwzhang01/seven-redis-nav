@@ -158,6 +158,46 @@
             <Plus :size="14" /> 添加密钥
           </button>
         </div>
+        
+        <!-- Add API Key Form -->
+        <div class="glass-card p-6 mb-6">
+          <h4 class="text-white font-semibold mb-4">添加API密钥</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm text-dark-100 mb-2">交易所</label>
+              <select class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm focus:border-primary-500 focus:outline-none">
+                <option value="">选择交易所</option>
+                <option value="binance">Binance</option>
+                <option value="okx">OKX</option>
+                <option value="huobi">Huobi</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-dark-100 mb-2">标签</label>
+              <input type="text" placeholder="请输入密钥标签" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm text-dark-100 mb-2">API Key</label>
+              <input type="text" placeholder="请输入API Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm text-dark-100 mb-2">Secret Key</label>
+              <input type="password" placeholder="请输入Secret Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+            </div>
+          </div>
+          <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4">
+            <div class="flex items-start gap-3">
+              <AlertTriangle :size="16" class="text-amber-400 mt-0.5 shrink-0" />
+              <div class="text-sm">
+                <p class="text-amber-400 font-medium mb-1">安全提示</p>
+                <p class="text-amber-300">API密钥需要经过后台审核才能用于交易。请确保密钥权限设置正确，仅开启必要的交易权限。</p>
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary w-full">提交审核</button>
+        </div>
+
+        <!-- API Keys List -->
         <div
           v-for="key in apiKeys"
           :key="key.id"
@@ -170,8 +210,17 @@
             <div class="flex items-center gap-2 mb-1">
               <h4 class="text-white font-semibold text-sm">{{ key.label }}</h4>
               <span class="text-xs px-2 py-0.5 rounded bg-dark-600 text-dark-100">{{ key.exchange }}</span>
+              <span
+                class="text-xs px-2 py-0.5 rounded font-medium"
+                :class="getReviewStatusClass(key.reviewStatus)"
+              >
+                {{ getReviewStatusText(key.reviewStatus) }}
+              </span>
             </div>
-            <div class="text-xs text-dark-200 font-mono">{{ key.apiKey }}</div>
+            <div class="text-xs text-dark-200 font-mono">{{ maskApiKey(key.apiKey) }}</div>
+            <div v-if="key.reviewStatus !== 'pending' && key.reviewReason" class="text-xs text-dark-100 mt-1">
+              审核原因: {{ key.reviewReason }}
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <StatusDot :status="key.status" />
@@ -190,7 +239,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound } from 'lucide-vue-next'
+import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound, AlertTriangle } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 
@@ -227,8 +276,9 @@ const userSignals = [
 ]
 
 const apiKeys = [
-  { id: '1', label: 'Binance 主账户', exchange: 'Binance', apiKey: 'aBc***...***xYz', status: 'active' },
-  { id: '2', label: 'OKX 跟单账户', exchange: 'OKX', apiKey: 'dEf***...***uVw', status: 'active' },
+  { id: '1', label: 'Binance 主账户', exchange: 'Binance', apiKey: 'aBc***...***xYz', status: 'active', reviewStatus: 'pending' },
+  { id: '2', label: 'OKX 跟单账户', exchange: 'OKX', apiKey: 'dEf***...***uVw', status: 'active', reviewStatus: 'approved' },
+  { id: '3', label: 'Huobi 测试账户', exchange: 'Huobi', apiKey: 'gHi***...***jKl', status: 'disabled', reviewStatus: 'rejected', reviewReason: '密钥权限过大，存在安全风险' },
 ]
 
 const profitCurve = Array.from({ length: 60 }, (_, i) => {
@@ -244,4 +294,27 @@ const filteredUserSignals = computed(() => {
   if (signalFilter.value === 'all') return userSignals
   return userSignals.filter((s) => s.status === signalFilter.value)
 })
+
+const getReviewStatusClass = (status: string) => {
+  switch (status) {
+    case 'pending': return 'bg-amber-500/20 text-amber-400'
+    case 'approved': return 'bg-emerald-500/20 text-emerald-400'
+    case 'rejected': return 'bg-red-500/20 text-red-400'
+    default: return 'bg-dark-600 text-dark-100'
+  }
+}
+
+const getReviewStatusText = (status: string) => {
+  switch (status) {
+    case 'pending': return '审核中'
+    case 'approved': return '已通过'
+    case 'rejected': return '已拒绝'
+    default: return status
+  }
+}
+
+const maskApiKey = (key: string) => {
+  if (key.length <= 8) return key
+  return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
+}
 </script>

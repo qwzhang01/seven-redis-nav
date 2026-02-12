@@ -8,6 +8,10 @@ export interface UserInfo {
   avatar?: string
   role: 'user' | 'admin'
   createdAt: string
+  totalAssets?: number
+  runningStrategies?: number
+  followingSignals?: number
+  totalReturn?: number
 }
 
 export const useAuthStore = defineStore('auth', () => {

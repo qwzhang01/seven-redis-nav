@@ -57,9 +57,9 @@ const footerLinks = [
   {
     title: '产品',
     links: [
-      { label: '系统策略', to: '/strategies' },
-      { label: '信号广场', to: '/signals' },
-      { label: '收益排行榜', to: '/leaderboard' },
+      { label: '系统策略', to: '/system/strategies' },
+      { label: '信号广场', to: '/system/signals' },
+      { label: '收益排行榜', to: '/system/leaderboard' },
       { label: 'API 文档', to: '#' },
     ],
   },

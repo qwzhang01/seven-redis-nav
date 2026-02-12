@@ -27,12 +27,12 @@
           </p>
 
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up" style="animation-delay: 0.3s">
-            <router-link to="/strategies" class="btn-primary text-base px-8 py-3.5 rounded-xl">
+            <a href="/system/strategies" target="_blank" class="btn-primary text-base px-8 py-3.5 rounded-xl">
               探索策略
-            </router-link>
-            <router-link to="/signals" class="btn-outline text-base px-8 py-3.5 rounded-xl">
+            </a>
+            <a href="/system/signals" target="_blank" class="btn-outline text-base px-8 py-3.5 rounded-xl">
               浏览信号
-            </router-link>
+            </a>
           </div>
 
           <!-- Stats -->
@@ -54,10 +54,11 @@
           <p class="section-subtitle">从策略选择到信号跟单，一站式量化交易解决方案</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <router-link
+          <a
             v-for="module in coreModules"
             :key="module.title"
-            :to="module.to"
+            :href="module.to"
+            target="_blank"
             class="glass-card-hover p-8 group"
           >
             <div class="flex items-start gap-5">
@@ -76,7 +77,7 @@
                 </div>
               </div>
             </div>
-          </router-link>
+          </a>
         </div>
       </div>
     </section>
@@ -90,16 +91,17 @@
             <h2 class="section-title text-left">热门信号</h2>
             <p class="text-dark-100 text-lg">实时追踪高收益交易信号</p>
           </div>
-          <router-link to="/signals" class="btn-outline !py-2 !px-5 text-sm hidden md:inline-flex items-center gap-2">
+          <a href="/system/signals" target="_blank" class="btn-outline !py-2 !px-5 text-sm hidden md:inline-flex items-center gap-2">
             查看全部 <ArrowRight :size="14" />
-          </router-link>
+          </a>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div
+          <a
             v-for="signal in hotSignals"
             :key="signal.id"
+            :href="`/system/signals/${signal.id}`"
+            target="_blank"
             class="glass-card-hover p-6 group cursor-pointer"
-            @click="$router.push(`/signals/${signal.id}`)"
           >
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-3">
@@ -138,11 +140,11 @@
               <span class="text-xs text-dark-100">{{ signal.followers }} 人跟随</span>
               <span class="text-xs text-dark-100">运行 {{ signal.runDays }} 天</span>
             </div>
-          </div>
+          </a>
         </div>
-        <router-link to="/signals" class="btn-outline w-full mt-8 text-sm !py-3 md:hidden flex items-center justify-center gap-2">
+        <a href="/system/signals" target="_blank" class="btn-outline w-full mt-8 text-sm !py-3 md:hidden flex items-center justify-center gap-2">
           查看全部信号 <ArrowRight :size="14" />
-        </router-link>
+        </a>
       </div>
     </section>
 
@@ -209,7 +211,7 @@ const coreModules = [
     icon: Zap,
     iconBg: 'bg-primary-500/10',
     iconColor: 'text-primary-400',
-    to: '/strategies',
+    to: '/system/strategies',
   },
   {
     title: '信号广场',
@@ -217,7 +219,7 @@ const coreModules = [
     icon: Radio,
     iconBg: 'bg-accent-blue/10',
     iconColor: 'text-blue-400',
-    to: '/signals',
+    to: '/system/signals',
   },
   {
     title: '收益排行榜',
@@ -225,7 +227,7 @@ const coreModules = [
     icon: Trophy,
     iconBg: 'bg-amber-500/10',
     iconColor: 'text-amber-400',
-    to: '/leaderboard',
+    to: '/system/leaderboard',
   },
   {
     title: '个人中心',
@@ -233,7 +235,7 @@ const coreModules = [
     icon: User,
     iconBg: 'bg-accent-purple/10',
     iconColor: 'text-purple-400',
-    to: '/user',
+    to: '/system/user',
   },
 ]
 

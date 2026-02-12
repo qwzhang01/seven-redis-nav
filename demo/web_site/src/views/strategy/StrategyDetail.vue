@@ -3,7 +3,7 @@
     <div class="page-container" v-if="strategy">
       <!-- Breadcrumb -->
       <div class="flex items-center gap-2 text-sm text-dark-100 mb-8">
-        <router-link to="/strategies" class="hover:text-primary-500 transition-colors">系统策略</router-link>
+        <router-link to="/system/strategies" class="hover:text-primary-500 transition-colors">系统策略</router-link>
         <ChevronRight :size="14" />
         <span class="text-white">{{ strategy.name }}</span>
       </div>
@@ -132,7 +132,7 @@
     <!-- Not Found -->
     <div v-else class="page-container pt-24 text-center py-20">
       <p class="text-dark-100 text-lg">策略不存在</p>
-      <router-link to="/strategies" class="btn-outline mt-4 inline-block">返回策略列表</router-link>
+      <router-link to="/system/strategies" class="btn-outline mt-4 inline-block">返回策略列表</router-link>
     </div>
   </div>
 </template>

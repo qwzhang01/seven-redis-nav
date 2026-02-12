@@ -81,4 +81,10 @@ export interface ApiKey {
   apiKey: string
   createdAt: string
   status: 'active' | 'disabled'
+  reviewStatus: 'pending' | 'approved' | 'rejected'
+  reviewReason?: string
+  reviewedBy?: string
+  reviewedAt?: string
+  userId: string
+  userName: string
 }

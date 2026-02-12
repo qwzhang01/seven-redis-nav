@@ -60,7 +60,7 @@
           v-for="signal in paginatedSignals"
           :key="signal.id"
           class="glass-card-hover p-6 cursor-pointer group"
-          @click="$router.push(`/signals/${signal.id}`)"
+          @click="$router.push(`/system/signals/${signal.id}`)"
         >
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-3">

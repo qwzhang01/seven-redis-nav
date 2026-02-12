@@ -32,7 +32,7 @@
         <!-- Actions -->
         <div class="flex items-center gap-3">
           <template v-if="authStore.isLoggedIn">
-            <router-link to="/user" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04] transition-all">
+            <router-link to="/system/user" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04] transition-all">
               <User :size="16" />
               <span>{{ authStore.user?.username || '我的' }}</span>
             </router-link>
@@ -77,7 +77,7 @@
             {{ item.label }}
           </router-link>
           <template v-if="authStore.isLoggedIn">
-            <router-link to="/user" class="block px-4 py-3 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
+            <router-link to="/system/user" class="block px-4 py-3 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
               我的账户
             </router-link>
             <router-link v-if="authStore.isAdmin" to="/admin" class="block px-4 py-3 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
@@ -113,9 +113,10 @@ const scrolled = ref(false)
 const mobileMenuOpen = ref(false)
 
 const navItems = [
-  { path: '/strategies', label: '系统策略' },
-  { path: '/signals', label: '信号广场' },
-  { path: '/leaderboard', label: '收益排行榜' },
+  { path: '/system/trading', label: '交易' },
+  { path: '/system/strategies', label: '系统策略' },
+  { path: '/system/signals', label: '信号广场' },
+  { path: '/system/leaderboard', label: '收益排行榜' },
 ]
 
 function isActive(path: string): boolean {

@@ -62,7 +62,7 @@
           :key="strategy.id"
           class="glass-card-hover p-6 cursor-pointer"
           :class="viewMode === 'list' ? 'flex items-center gap-6' : ''"
-          @click="$router.push(`/strategies/${strategy.id}`)"
+          @click="$router.push(`/system/strategies/${strategy.id}`)"
         >
           <!-- Grid View -->
           <template v-if="viewMode === 'grid'">
