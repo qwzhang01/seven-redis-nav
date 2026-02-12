@@ -412,9 +412,10 @@
           <div
             class="glass-card strategy-card rounded-2xl border border-white/10 overflow-hidden transition-all duration-500 ease-in-out"
             :key="currentStrategyIndex">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 p-8"> <!-- Left: Strategy Info -->
-              <!-- Left: Strategy Info -->
-              <div class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr_1fr] gap-6 p-8">
+              <!-- Left Column: Strategy Text and Statistics -->
+              <div class="space-y-4">
+                <!-- Strategy Badge -->
                 <div
                   class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full color-transition badge-glow strategy-fade-in"
                   :class="strategies[currentStrategyIndex].colorClass">
@@ -426,78 +427,84 @@
                   </span>
                 </div>
 
-                <h3 class="text-2xl font-bold text-white color-transition strategy-fade-in">{{
-                  strategies[currentStrategyIndex].title }}</h3>
+                <!-- Strategy Title -->
+                <h3 class="text-xl font-bold text-white color-transition strategy-fade-in">{{ strategies[currentStrategyIndex].title }}</h3>
 
-                <p class="text-dark-100 text-lg leading-relaxed color-transition strategy-fade-in">
+                <!-- Strategy Description -->
+                <p class="text-dark-100 text-base leading-relaxed color-transition strategy-fade-in">
                   {{ strategies[currentStrategyIndex].description }}
                 </p>
 
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Statistics -->
+                <div class="grid grid-cols-2 gap-3">
                   <div v-for="(stat, index) in strategies[currentStrategyIndex].stats" :key="index"
                     class="float-animation strategy-fade-in" :style="{ animationDelay: `${index * 0.2}s` }">
-                    <div class="text-lg font-bold text-white color-transition">{{ stat.value }}</div>
+                    <div class="text-base font-bold text-white color-transition">{{ stat.value }}</div>
                     <div class="text-xs text-dark-100">{{ stat.label }}</div>
                   </div>
                 </div>
+              </div>
 
-                <button
-                  class="btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base color-transition hover:scale-105 float-animation strategy-fade-in">
-                  <span>立即跟随</span>
-                </button>
-
-                <!-- Center: Performance Chart -->
-                <div class="relative flex items-center justify-center strategy-fade-in">
-                  <div
-                    class="bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-6 h-64 w-full">
-                    <!-- Animated Chart -->
+              <!-- Middle Column: Strategy Chart (Larger) -->
+              <div class="relative flex items-center justify-center strategy-fade-in">
+                <div
+                  class="bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-8 h-80 w-full">
+                  <!-- Animated Chart -->
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-full h-40" viewBox="0 0 400 200">
+                      <path :d="strategies[currentStrategyIndex].chartPath" fill="none"
+                        :stroke="strategies[currentStrategyIndex].chartColor" stroke-width="3"
+                        class="animate-draw-line color-transition" style="animation-delay: 0.2s" />
+                    </svg>
+                  </div>
+                  
+                  <!-- Performance Ring -->
+                  <div class="absolute top-6 right-6 w-20 h-20 float-animation">
+                    <svg class="w-full h-full" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none" />
+                      <circle cx="50" cy="50" r="40" :stroke="strategies[currentStrategyIndex].chartColor"
+                        stroke-width="8" fill="none" stroke-dasharray="251.2"
+                        :stroke-dashoffset="251.2 - (strategies[currentStrategyIndex].performance * 251.2 / 100)"
+                        class="performance-ring color-transition" />
+                    </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                      <svg class="w-full h-32" viewBox="0 0 400 160">
-                        <path :d="strategies[currentStrategyIndex].chartPath" fill="none"
-                          :stroke="strategies[currentStrategyIndex].chartColor" stroke-width="3"
-                          class="animate-draw-line color-transition" style="animation-delay: 0.2s" />
-                      </svg>
-                    </div>
-
-                    <!-- Performance Ring -->
-                    <div class="absolute top-4 right-4 w-16 h-16 float-animation">
-                      <svg class="w-full h-full" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none" />
-                        <circle cx="50" cy="50" r="40" :stroke="strategies[currentStrategyIndex].chartColor"
-                          stroke-width="8" fill="none" stroke-dasharray="251.2"
-                          :stroke-dashoffset="251.2 - (strategies[currentStrategyIndex].performance * 251.2 / 100)"
-                          class="performance-ring color-transition" />
-                      </svg>
-                      <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-xs font-bold text-white">{{ strategies[currentStrategyIndex].performance
-                          }}%</span>
-                      </div>
+                      <span class="text-sm font-bold text-white">{{ strategies[currentStrategyIndex].performance }}%</span>
                     </div>
                   </div>
                 </div>
-                <!-- Right: Strategy Features -->
-                <div class="space-y-6 strategy-fade-in">
-                  <h4 class="text-lg font-semibold text-white color-transition">策略特性</h4>
-                  <div class="space-y-3">
+              </div>
+
+              <!-- Right Column: Strategy Features + Follow Button (Compact) -->
+              <div class="space-y-4">
+                <!-- Strategy Features -->
+                <div class="space-y-4 strategy-fade-in">
+                  <h4 class="text-base font-semibold text-white color-transition">策略特性</h4>
+                  <div class="space-y-2">
                     <div v-for="(feature, index) in strategies[currentStrategyIndex].features" :key="index"
-                      class="flex items-center gap-3 p-3 rounded-lg bg-white/5 color-transition hover:bg-white/10 float-animation strategy-fade-in"
+                      class="flex items-center gap-2 p-2 rounded-lg bg-white/5 color-transition hover:bg-white/10 float-animation strategy-fade-in"
                       :style="{ animationDelay: `${index * 0.1}s` }">
-                      <div class="w-2 h-2 rounded-full badge-glow" :class="strategies[currentStrategyIndex].dotColor">
+                      <div class="w-1.5 h-1.5 rounded-full badge-glow" :class="strategies[currentStrategyIndex].dotColor">
                       </div>
-                      <span class="text-dark-100 text-sm">{{ feature }}</span>
+                      <span class="text-dark-100 text-xs">{{ feature }}</span>
                     </div>
                   </div>
 
                   <!-- Strategy Tags -->
-                  <div class="flex flex-wrap gap-2 pt-4">
+                  <div class="flex flex-wrap gap-1 pt-2">
                     <span v-for="(tag, index) in strategies[currentStrategyIndex].tags" :key="index"
-                      class="px-3 py-1 rounded-full text-xs border color-transition float-animation strategy-fade-in"
+                      class="px-2 py-0.5 rounded-full text-xs border color-transition float-animation strategy-fade-in"
                       :class="strategies[currentStrategyIndex].tagClass"
                       :style="{ animationDelay: `${index * 0.15}s` }">
                       {{ tag }}
                     </span>
                   </div>
                 </div>
+
+                <!-- Follow Button -->
+                <button
+                  class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm color-transition hover:scale-105 float-animation strategy-fade-in">
+                  <span>立即跟随</span>
+                </button>
               </div>
             </div>
 
