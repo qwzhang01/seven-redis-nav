@@ -1,14 +1,14 @@
 <template>
-  <div class="pt-24 pb-16">
-    <div class="page-container" v-if="strategy">
+  <div class="min-h-screen bg-dark-900">
+    <div class="page-container max-w-none" v-if="strategy">
       <!-- Breadcrumb -->
-      <div class="flex items-center gap-2 text-sm text-dark-100 mb-8">
+      <div class="flex items-center gap-2 text-sm text-dark-100 mb-8 px-8 pt-8">
         <router-link to="/system/strategies" class="hover:text-primary-500 transition-colors">系统策略</router-link>
         <ChevronRight :size="14" />
         <span class="text-white">{{ strategy.name }}</span>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 px-8 pb-8">
         <!-- Main Content -->
         <div class="lg:col-span-2 space-y-6">
           <!-- Strategy Header -->
@@ -197,25 +197,252 @@
         <!-- Sidebar: Config Panel -->
         <div class="space-y-6">
           <div class="glass-card p-6 sticky top-24">
-            <h3 class="text-lg font-bold text-white mb-6">启动策略</h3>
-            <div class="space-y-5">
-              <div v-for="param in strategy.params" :key="param.name">
-                <label class="text-sm text-dark-100 mb-1.5 block">{{ param.label }}</label>
-                <t-select
-                  v-if="param.type === 'select'"
-                  v-model="configValues[param.name]"
-                  size="medium"
-                >
-                  <t-option v-for="opt in param.options" :key="opt" :label="opt" :value="opt" />
-                </t-select>
-                <t-input
-                  v-else
-                  v-model="configValues[param.name]"
-                  :type="param.type === 'number' ? 'number' : 'text'"
-                  size="medium"
-                />
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-bold text-white">启动策略</h3>
+              <button 
+                @click="isSimpleMode = !isSimpleMode"
+                class="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+              >
+                {{ isSimpleMode ? '切换为专业版' : '切换为简易版' }}
+              </button>
+            </div>
+            
+            <!-- Simple Mode -->
+            <div v-if="isSimpleMode" class="space-y-5">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-sm text-dark-100 mb-1.5 block">开仓平台</label>
+                  <t-select v-model="configValues.platform" size="medium">
+                    <t-option v-for="platform in ['WEEX', 'Binance', 'OKX', 'Bybit', 'Gate.io']" :key="platform" :label="platform" :value="platform" />
+                  </t-select>
+                </div>
+                <div>
+                  <label class="text-sm text-dark-100 mb-1.5 block">开仓币种</label>
+                  <t-select v-model="configValues.currencyPair" size="medium">
+                    <t-option v-for="pair in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']" :key="pair" :label="pair" :value="pair" />
+                  </t-select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-sm text-dark-100 mb-1.5 block">开仓杠杆</label>
+                  <t-input
+                    v-model="configValues.leverage"
+                    type="number"
+                    size="medium"
+                    placeholder="125"
+                  />
+                </div>
+                <div>
+                  <label class="text-sm text-dark-100 mb-1.5 block">初始金额(USDT)</label>
+                  <t-input
+                    v-model="configValues.investment"
+                    type="number"
+                    size="medium"
+                    placeholder="100"
+                  />
+                </div>
               </div>
             </div>
+            
+            <!-- Professional Mode -->
+            <div v-else class="space-y-6">
+              <!-- Tabs Navigation -->
+              <div class="flex border-b border-dark-700">
+                <button 
+                  v-for="tab in tabs" 
+                  :key="tab.id"
+                  @click="activeTab = tab.id"
+                  class="px-4 py-2 text-sm font-medium transition-colors relative"
+                  :class="activeTab === tab.id 
+                    ? 'text-primary-400 border-b-2 border-primary-400' 
+                    : 'text-dark-100 hover:text-white'"
+                >
+                  {{ tab.label }}
+                </button>
+              </div>
+              
+              <!-- Tab Content -->
+              <div class="space-y-5">
+                <!-- Strategy Configuration -->
+                <div v-if="activeTab === 'strategy'" class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓K线周期</label>
+                      <t-select v-model="configValues.timeframe" size="medium">
+                        <t-option v-for="tf in ['1分钟', '5分钟', '15分钟', '1小时', '4小时', '1天']" :key="tf" :label="tf" :value="tf" />
+                      </t-select>
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓模式</label>
+                      <t-select v-model="configValues.tradeMode" size="medium">
+                        <t-option v-for="mode in ['多空双开', '只做多', '只做空']" :key="mode" :label="mode" :value="mode" />
+                      </t-select>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Position Control -->
+                <div v-if="activeTab === 'position'" class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">开仓数量</label>
+                      <t-input
+                        v-model="configValues.positionSize"
+                        type="number"
+                        size="medium"
+                        placeholder="1"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">止盈(%)</label>
+                      <t-input
+                        v-model="configValues.takeProfit"
+                        type="number"
+                        size="medium"
+                        placeholder="100"
+                      />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">止损(%)</label>
+                      <t-input
+                        v-model="configValues.stopLoss"
+                        type="number"
+                        size="medium"
+                        placeholder="300"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">止盈止损模式</label>
+                      <t-select v-model="configValues.stopMode" size="medium">
+                        <t-option v-for="mode in ['两者都可触发', '仅止盈', '仅止损']" :key="mode" :label="mode" :value="mode" />
+                      </t-select>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">最大持仓张数</label>
+                      <t-input
+                        v-model="configValues.maxPositions"
+                        type="number"
+                        size="medium"
+                        placeholder="100"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">最大订单限制</label>
+                      <t-input
+                        v-model="configValues.maxOrders"
+                        type="number"
+                        size="medium"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Advanced Settings -->
+                <div v-if="activeTab === 'advanced'" class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">最大连续亏损次数</label>
+                      <t-input
+                        v-model="configValues.maxLossStreak"
+                        type="number"
+                        size="medium"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">是否自动撤销订单</label>
+                      <t-select v-model="configValues.autoCancel" size="medium">
+                        <t-option v-for="opt in ['是', '否']" :key="opt" :label="opt" :value="opt" />
+                      </t-select>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">是否自动平反向仓</label>
+                      <t-select v-model="configValues.autoCloseReverse" size="medium">
+                        <t-option v-for="opt in ['是', '否']" :key="opt" :label="opt" :value="opt" />
+                      </t-select>
+                    </div>
+                    <div>
+                      <label class="text-sm text-dark-100 mb-1.5 block">是否反向开仓</label>
+                      <t-select v-model="configValues.reverseOpen" size="medium">
+                        <t-option v-for="opt in ['是', '否']" :key="opt" :label="opt" :value="opt" />
+                      </t-select>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Running Time -->
+                <div v-if="activeTab === 'runtime'" class="space-y-4">
+                  <div>
+                    <label class="text-sm text-dark-100 mb-2 block">运行星期</label>
+                    <div class="grid grid-cols-7 gap-2">
+                      <div v-for="day in ['周一', '周二', '周三', '周四', '周五', '周六', '周日']" :key="day" class="flex items-center">
+                        <input 
+                          type="checkbox" 
+                          :id="day" 
+                          v-model="configValues.runDays" 
+                          :value="day"
+                          class="mr-2"
+                        />
+                        <label :for="day" class="text-xs text-dark-100">{{ day }}</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="text-sm text-dark-100 mb-1.5 block">每日运行时间段</label>
+                    <div class="flex items-center gap-2">
+                      <t-input
+                        v-model="configValues.startTime"
+                        type="time"
+                        size="medium"
+                        placeholder="00:00"
+                      />
+                      <span class="text-dark-100">至</span>
+                      <t-input
+                        v-model="configValues.endTime"
+                        type="time"
+                        size="medium"
+                        placeholder="23:59"
+                      />
+                    </div>
+                  </div>
+                  <p class="text-xs text-dark-200">策略仅在选定的星期和时间段内运行，默认全天候运行</p>
+                </div>
+                
+                <!-- Filters -->
+                <div v-if="activeTab === 'filters'" class="space-y-4">
+                  <div>
+                    <label class="text-sm text-dark-100 mb-2 block">已选择的筛选器</label>
+                    <div class="space-y-2">
+                      <div v-for="filter in selectedFilters" :key="filter.id" class="p-3 rounded-lg bg-dark-800/50 flex items-center justify-between">
+                        <div>
+                          <div class="text-sm text-white">{{ filter.name }}</div>
+                          <div class="text-xs text-dark-100">{{ filter.type }}</div>
+                        </div>
+                        <button 
+                          @click="removeFilter(filter.id)"
+                          class="text-red-400 hover:text-red-300 text-sm"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex gap-2">
+                    <button class="btn-outline text-sm flex-1">+ 添加筛选器</button>
+                    <button class="btn-outline text-sm flex-1">编辑筛选器</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <button
               class="btn-primary w-full mt-6 !py-3 text-base rounded-xl flex items-center justify-center gap-2"
               :disabled="launching"
@@ -231,9 +458,11 @@
     </div>
 
     <!-- Not Found -->
-    <div v-else class="page-container pt-24 text-center py-20">
-      <p class="text-dark-100 text-lg">策略不存在</p>
-      <router-link to="/system/strategies" class="btn-outline mt-4 inline-block">返回策略列表</router-link>
+    <div v-else class="min-h-screen flex items-center justify-center bg-dark-900">
+      <div class="text-center py-20">
+        <p class="text-dark-100 text-lg">策略不存在</p>
+        <router-link to="/system/strategies" class="btn-outline mt-4 inline-block">返回策略列表</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -253,16 +482,64 @@ const router = useRouter()
 const authStore = useAuthStore()
 const launching = ref(false)
 
-const strategy = computed(() => strategies.find((s) => s.id === route.params.id))
+// 添加strategy变量定义
+const strategy = computed(() => {
+  const strategyId = route.params.id
+  return strategies.find(s => s.id === strategyId)
+})
 
-const configValues = ref<Record<string, string | number>>({})
+// 新增响应式数据
+const isSimpleMode = ref(true)
+const activeTab = ref('strategy')
+const selectedFilters = ref([
+  { id: 1, name: '超级趋势_14_3', type: 'WEEX | BTC/USDT | 5m' },
+  { id: 2, name: '超级趋势_14_3', type: 'WEEX | BTC/USDT | 1m' },
+  { id: 3, name: '超级趋势TV版_14_3', type: 'WEEX | BTC/USDT | 15m' }
+])
+
+const tabs = [
+  { id: 'strategy', label: '策略配置' },
+  { id: 'position', label: '仓位控制' },
+  { id: 'advanced', label: '高级设置' },
+  { id: 'runtime', label: '运行时间' },
+  { id: 'filters', label: '筛选器' }
+]
+
+const configValues = ref({
+  // 简易版配置
+  platform: 'WEEX',
+  currencyPair: 'BTC/USDT',
+  leverage: 125,
+  investment: 100,
+  
+  // 专业版配置
+  timeframe: '5分钟',
+  tradeMode: '多空双开',
+  positionSize: 1,
+  takeProfit: 100,
+  stopLoss: 300,
+  stopMode: '两者都可触发',
+  maxPositions: 100,
+  maxOrders: 0,
+  maxLossStreak: 0,
+  autoCancel: '否',
+  autoCloseReverse: '否',
+  reverseOpen: '否',
+  runDays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+  startTime: '00:00',
+  endTime: '23:59'
+})
+
+function removeFilter(filterId: number) {
+  selectedFilters.value = selectedFilters.value.filter(f => f.id !== filterId)
+}
 
 function initConfig() {
-  const vals: Record<string, string | number> = {}
+  const vals: Record<string, string | number | string[]> = {}
   strategy.value?.params?.forEach((p) => {
     vals[p.name] = p.default
   })
-  configValues.value = vals
+  configValues.value = { ...configValues.value, ...vals }
 }
 
 watch(() => route.params.id, initConfig, { immediate: true })
@@ -272,9 +549,12 @@ async function handleLaunch() {
     router.push({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
+  
   const dlg = DialogPlugin.confirm({
     header: '确认启动策略',
-    body: `即将启动「${strategy.value?.name}」，投入资金 ${configValues.value.investment || 1000} USDT。确认启动？`,
+    body: `即将启动「${strategy.value?.name}」，投入资金 ${configValues.value.investment || 1000} USDT。${
+      isSimpleMode.value ? '（简易版模式）' : '（专业版模式）'
+    }确认启动？`,
     theme: 'warning',
     confirmBtn: '确认启动',
     cancelBtn: '取消',

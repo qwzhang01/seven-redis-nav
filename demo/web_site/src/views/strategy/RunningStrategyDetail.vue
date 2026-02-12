@@ -282,7 +282,7 @@
     </div>
 
     <!-- Bottom Section: Logs -->
-    <div class="border-t border-dark-700">
+    <div v-if="strategy.id" class="border-t border-dark-700">
       <div class="px-6 py-4 bg-dark-800/30">
         <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
           <FileText :size="18" class="text-blue-400" />
