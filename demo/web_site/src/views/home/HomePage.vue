@@ -23,7 +23,7 @@
           </h1>
 
           <p class="text-lg md:text-xl text-dark-100 max-w-2xl mx-auto mb-10 animate-fade-in-up" style="animation-delay: 0.2s">
-            Quant Meta 的交易指标享誉全球并屡获殊荣是有原因的。融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。
+            BigBeluga 的交易指标享誉全球并屡获殊荣是有原因的。融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。
           </p>
 
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up" style="animation-delay: 0.3s">
@@ -50,33 +50,59 @@
     <section class="py-24 bg-gradient-to-b from-dark-900/30 to-transparent">
       <div class="page-container">
         <div class="text-center mb-16">
-          <h2 class="section-title">信号与警报</h2>
-          <p class="section-subtitle">Quant Meta指标融合了先进的趋势逻辑、结构分析、流动性模型和成交量智能</p>
+          <h2 class="section-title">核心功能</h2>
+          <p class="section-subtitle">从策略选择到信号跟单，一站式量化交易解决方案</p>
         </div>
         
         <!-- Grid Layout with Picture 2 Style -->
-        <div class="space-y-12">
-          <div 
-            v-for="(module, index) in coreModules" 
-            :key="module.title"
-            class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center"
-            :class="{ 'lg:grid-flow-col-dense': index % 2 === 1 }"
-          >
-            <!-- Chart/Visual Area (Left) -->
-            <div class="relative group">
-              <div class="glass-card p-6 rounded-2xl overflow-hidden">
-                <!-- Chart Container -->
-                <div class="h-64 bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-4 flex items-center justify-center">
+        <div class="space-y-16">
+          <!-- Main Signal & Alert Section -->
+          <div class="glass-card p-8 rounded-2xl border border-white/10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <!-- Left: Content -->
+              <div class="space-y-6">
+                <!-- Badge -->
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-500/10 border border-primary-500/20">
+                  <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                  <span class="text-sm text-primary-400 font-medium">专为专业交易者设计的指标</span>
+                </div>
+                
+                <h3 class="text-2xl font-bold text-white">信号与警报</h3>
+                
+                <p class="text-dark-100 text-lg leading-relaxed">
+                  BigBeluga 的交易指标融合了先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。无论是趋势信号、BOS/CHOCH 警报、智能带量测还是流动性抢占，每个警报都经过精心设计，旨在提供清晰的提示、精准的时机和可靠的判断。
+                </p>
+                
+                <!-- Features Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div v-for="feature in ['趋势逻辑', '结构分析', '流动性模型', '成交量智能']" :key="feature" class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-primary-500" />
+                    <span class="text-dark-100 text-sm">{{ feature }}</span>
+                  </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div class="pt-4">
+                  <a href="/system/signals" target="_blank" class="btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base">
+                    <span>获取指标</span>
+                    <ArrowRight :size="16" />
+                  </a>
+                </div>
+              </div>
+              
+              <!-- Right: Chart Visualization -->
+              <div class="relative group">
+                <div class="bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
                   <!-- Chart Background Grid -->
                   <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
                   
-                  <!-- Chart Line -->
+                  <!-- Main Chart Line -->
                   <div class="absolute bottom-0 left-0 right-0 h-32">
                     <svg class="w-full h-full" viewBox="0 0 400 160">
                       <path 
-                        :d="module.chartData" 
+                        d="M20,100 Q60,80 100,120 Q140,60 180,100 Q220,140 260,80 Q300,120 340,100" 
                         fill="none" 
-                        :stroke="module.chartColor" 
+                        stroke="#3b82f6" 
                         stroke-width="2" 
                         class="animate-draw-line"
                         style="animation-delay: 0.3s"
@@ -90,53 +116,257 @@
                   <div class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/30 animate-pulse" />
                 </div>
                 
-                <!-- Chart Stats -->
-                <div class="mt-4 grid grid-cols-3 gap-2 text-center">
-                  <div v-for="stat in module.stats" :key="stat.label" class="text-xs">
-                    <div class="font-semibold text-white">{{ stat.value }}</div>
-                    <div class="text-dark-100">{{ stat.label }}</div>
+                <!-- Performance Stats -->
+                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div class="text-lg font-bold text-white">98.7%</div>
+                    <div class="text-xs text-dark-100">信号准确率</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">23.5%</div>
+                    <div class="text-xs text-dark-100">平均收益</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">1.8秒</div>
+                    <div class="text-xs text-dark-100">响应速度</div>
                   </div>
                 </div>
               </div>
             </div>
-
-            <!-- Content Area (Right) -->
-            <div class="space-y-6">
-              <!-- Icon and Title -->
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="module.iconBg">
-                  <component :is="module.icon" :size="24" :class="module.iconColor" />
+          </div>
+          
+          <!-- System Strategy Module -->
+          <div class="glass-card p-8 rounded-2xl border border-white/10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <!-- Left: Chart Visualization -->
+              <div class="relative group">
+                <div class="bg-gradient-to-br from-accent-blue/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
+                  <!-- Chart Background Grid -->
+                  <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
+                  
+                  <!-- Strategy Performance Chart -->
+                  <div class="absolute bottom-0 left-0 right-0 h-32">
+                    <svg class="w-full h-full" viewBox="0 0 400 160">
+                      <path 
+                        d="M20,140 Q60,100 100,120 Q140,80 180,100 Q220,60 260,80 Q300,100 340,60" 
+                        fill="none" 
+                        stroke="#0ea5e9" 
+                        stroke-width="2" 
+                        class="animate-draw-line"
+                        style="animation-delay: 0.3s"
+                      />
+                    </svg>
+                  </div>
+                  
+                  <!-- Chart Points -->
+                  <div class="absolute top-1/3 left-1/4 w-3 h-3 rounded-full bg-accent-blue/80 shadow-lg shadow-blue-500/30 animate-pulse" />
+                  <div class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
+                  <div class="absolute bottom-1/3 right-1/4 w-3 h-3 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/30 animate-pulse" />
                 </div>
-                <h3 class="text-2xl font-bold text-white">{{ module.title }}</h3>
-              </div>
-
-              <!-- Description -->
-              <p class="text-dark-100 text-lg leading-relaxed">{{ module.description }}</p>
-
-              <!-- Features -->
-              <div class="space-y-2">
-                <div v-for="feature in module.features" :key="feature" class="flex items-center gap-3 text-sm">
-                  <div class="w-2 h-2 rounded-full bg-primary-500" />
-                  <span class="text-dark-100">{{ feature }}</span>
+                
+                <!-- Performance Stats -->
+                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div class="text-lg font-bold text-white">85.2%</div>
+                    <div class="text-xs text-dark-100">策略胜率</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">18.7%</div>
+                    <div class="text-xs text-dark-100">年化收益</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">0.95</div>
+                    <div class="text-xs text-dark-100">夏普比率</div>
+                  </div>
                 </div>
               </div>
-
-              <!-- Action Button -->
-              <div class="pt-4">
-                <a :href="module.to" target="_blank" class="btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base">
-                  <span>{{ module.buttonText }}</span>
-                  <ArrowRight :size="16" />
-                </a>
-              </div>
-
-              <!-- User Info (Bottom) -->
-              <div class="flex items-center gap-3 pt-4 border-t border-white/10">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center">
-                  <User :size="14" class="text-primary-400" />
+              
+              <!-- Right: Content -->
+              <div class="space-y-6">
+                <!-- Badge -->
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-blue/10 border border-accent-blue/20">
+                  <span class="w-2 h-2 rounded-full bg-accent-blue animate-pulse" />
+                  <span class="text-sm text-accent-blue font-medium">智能量化策略系统</span>
                 </div>
-                <div class="text-xs text-dark-100">
-                  <div>{{ module.userInfo.activeUsers }}</div>
-                  <div>{{ module.userInfo.description }}</div>
+                
+                <h3 class="text-2xl font-bold text-white">系统策略</h3>
+                
+                <p class="text-dark-100 text-lg leading-relaxed">
+                  基于深度学习和强化学习的量化策略系统，支持多因子模型、风险平价、动量策略等高级算法，为专业交易者提供机构级别的策略执行能力。从策略回测到实盘运行，全程自动化管理。
+                </p>
+                
+                <!-- Features Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div v-for="feature in ['多因子模型策略', '实时风险监控', '自动参数优化', '回测验证系统']" :key="feature" class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-accent-blue" />
+                    <span class="text-dark-100 text-sm">{{ feature }}</span>
+                  </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div class="pt-4">
+                  <a href="/system/strategies" target="_blank" class="btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base">
+                    <span>探索策略</span>
+                    <ArrowRight :size="16" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Market Depth Analysis Module -->
+          <div class="glass-card p-8 rounded-2xl border border-white/10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <!-- Left: Content -->
+              <div class="space-y-6">
+                <!-- Badge -->
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                  <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span class="text-sm text-amber-400 font-medium">专业市场微观分析</span>
+                </div>
+                
+                <h3 class="text-2xl font-bold text-white">市场深度分析</h3>
+                
+                <p class="text-dark-100 text-lg leading-relaxed">
+                  实时监控订单簿深度、流动性分布、大单动向等关键指标，提供专业的市场微观结构分析，帮助您把握最佳入场时机。深度洞察市场情绪和资金流向。
+                </p>
+                
+                <!-- Features Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div v-for="feature in ['订单簿深度监控', '流动性热力图', '大单追踪系统', '市场情绪分析']" :key="feature" class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-amber-500" />
+                    <span class="text-dark-100 text-sm">{{ feature }}</span>
+                  </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div class="pt-4">
+                  <button class="btn-outline inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base cursor-not-allowed opacity-50">
+                    <span>深度分析</span>
+                    <ArrowRight :size="16" />
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Right: Chart Visualization -->
+              <div class="relative group">
+                <div class="bg-gradient-to-br from-amber-500/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
+                  <!-- Chart Background Grid -->
+                  <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
+                  
+                  <!-- Depth Analysis Chart -->
+                  <div class="absolute bottom-0 left-0 right-0 h-32">
+                    <svg class="w-full h-full" viewBox="0 0 400 160">
+                      <path 
+                        d="M20,80 Q60,120 100,100 Q140,140 180,120 Q220,100 260,140 Q300,120 340,100" 
+                        fill="none" 
+                        stroke="#f59e0b" 
+                        stroke-width="2" 
+                        class="animate-draw-line"
+                        style="animation-delay: 0.3s"
+                      />
+                    </svg>
+                  </div>
+                  
+                  <!-- Chart Points -->
+                  <div class="absolute top-1/4 left-1/4 w-3 h-3 rounded-full bg-amber-500/80 shadow-lg shadow-amber-500/30 animate-pulse" />
+                  <div class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
+                  <div class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-red-500/80 shadow-lg shadow-red-500/30 animate-pulse" />
+                </div>
+                
+                <!-- Performance Stats -->
+                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div class="text-lg font-bold text-white">92.3%</div>
+                    <div class="text-xs text-dark-100">分析准确率</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">15.8%</div>
+                    <div class="text-xs text-dark-100">入场时机优化</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">2.1秒</div>
+                    <div class="text-xs text-dark-100">数据更新频率</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Risk Management Module -->
+          <div class="glass-card p-8 rounded-2xl border border-white/10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <!-- Left: Chart Visualization -->
+              <div class="relative group">
+                <div class="bg-gradient-to-br from-purple-500/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
+                  <!-- Chart Background Grid -->
+                  <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
+                  
+                  <!-- Risk Management Chart -->
+                  <div class="absolute bottom-0 left-0 right-0 h-32">
+                    <svg class="w-full h-full" viewBox="0 0 400 160">
+                      <path 
+                        d="M20,100 Q60,80 100,100 Q140,120 180,100 Q220,80 260,100 Q300,120 340,100" 
+                        fill="none" 
+                        stroke="#a855f7" 
+                        stroke-width="2" 
+                        class="animate-draw-line"
+                        style="animation-delay: 0.3s"
+                      />
+                    </svg>
+                  </div>
+                  
+                  <!-- Chart Points -->
+                  <div class="absolute top-1/4 left-1/4 w-3 h-3 rounded-full bg-purple-500/80 shadow-lg shadow-purple-500/30 animate-pulse" />
+                  <div class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
+                  <div class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-green-500/80 shadow-lg shadow-green-500/30 animate-pulse" />
+                </div>
+                
+                <!-- Performance Stats -->
+                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div class="text-lg font-bold text-white">99.5%</div>
+                    <div class="text-xs text-dark-100">风控成功率</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">45.2%</div>
+                    <div class="text-xs text-dark-100">风险降低</div>
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-white">0.3秒</div>
+                    <div class="text-xs text-dark-100">响应时间</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Right: Content -->
+              <div class="space-y-6">
+                <!-- Badge -->
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20">
+                  <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                  <span class="text-sm text-purple-400 font-medium">全面风控保障</span>
+                </div>
+                
+                <h3 class="text-2xl font-bold text-white">风险管理系统</h3>
+                
+                <p class="text-dark-100 text-lg leading-relaxed">
+                  全面的风险管理框架，包含仓位控制、止损止盈、波动率监控等多维度风控措施，确保交易安全稳定运行。智能风控系统实时保护您的资产安全。
+                </p>
+                
+                <!-- Features Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div v-for="feature in ['智能止损止盈', '仓位动态调整', '波动率预警', '压力测试系统']" :key="feature" class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-purple-500" />
+                    <span class="text-dark-100 text-sm">{{ feature }}</span>
+                  </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div class="pt-4">
+                  <button class="btn-outline inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base cursor-not-allowed opacity-50">
+                    <span>风险管理</span>
+                    <ArrowRight :size="16" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -269,32 +499,6 @@ const heroStats = [
 
 const coreModules = [
   {
-    title: '智能交易信号',
-    description: '融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。每个警报都经过精心设计，旨在提供清晰的提示、精准的时机和可靠的判断。',
-    icon: Zap,
-    iconBg: 'bg-primary-500/10',
-    iconColor: 'text-primary-400',
-    to: '/system/signals',
-    buttonText: '获取指标',
-    chartData: 'M20,100 Q60,80 100,120 Q140,60 180,100 Q220,140 260,80 Q300,120 340,100',
-    chartColor: '#3b82f6',
-    stats: [
-      { value: '98.7%', label: '信号准确率' },
-      { value: '23.5%', label: '平均收益' },
-      { value: '1.8秒', label: '响应速度' }
-    ],
-    features: [
-      '趋势信号识别',
-      'BOS/CHOCH警报',
-      '智能带量测',
-      '流动性抢占提示'
-    ],
-    userInfo: {
-      activeUsers: '15,000+ 专业交易者',
-      description: '正在使用智能信号'
-    }
-  },
-  {
     title: '量化策略引擎',
     description: '基于深度学习和强化学习的量化策略系统，支持多因子模型、风险平价、动量策略等高级算法，为专业交易者提供机构级别的策略执行能力。',
     icon: Radio,
@@ -302,23 +506,12 @@ const coreModules = [
     iconColor: 'text-blue-400',
     to: '/system/strategies',
     buttonText: '探索策略',
-    chartData: 'M20,80 Q80,120 140,60 Q200,100 260,80 Q320,120 380,100',
-    chartColor: '#10b981',
-    stats: [
-      { value: '45.2%', label: '最高年化' },
-      { value: '8.3%', label: '最大回撤' },
-      { value: '2.1', label: '夏普比率' }
-    ],
     features: [
       '多因子模型策略',
       '实时风险监控',
       '自动参数优化',
       '回测验证系统'
-    ],
-    userInfo: {
-      activeUsers: '8,500+ 策略用户',
-      description: '正在运行量化策略'
-    }
+    ]
   },
   {
     title: '市场深度分析',
@@ -328,23 +521,12 @@ const coreModules = [
     iconColor: 'text-amber-400',
     to: '/system/analysis',
     buttonText: '深度分析',
-    chartData: 'M20,120 Q100,60 180,140 Q260,80 340,120',
-    chartColor: '#f59e0b',
-    stats: [
-      { value: '99.9%', label: '数据准确率' },
-      { value: '500ms', label: '实时延迟' },
-      { value: '50+', label: '监控指标' }
-    ],
     features: [
       '订单簿深度监控',
       '流动性热力图',
       '大单追踪系统',
       '市场情绪分析'
-    ],
-    userInfo: {
-      activeUsers: '12,000+ 分析用户',
-      description: '正在使用深度分析'
-    }
+    ]
   },
   {
     title: '风险管理系统',
@@ -354,23 +536,12 @@ const coreModules = [
     iconColor: 'text-purple-400',
     to: '/system/risk',
     buttonText: '风险管理',
-    chartData: 'M20,100 Q60,140 100,80 Q140,120 180,60 Q220,100 260,140 Q300,80 340,100',
-    chartColor: '#8b5cf6',
-    stats: [
-      { value: '0事故', label: '安全记录' },
-      { value: '99.99%', label: '系统稳定' },
-      { value: '24/7', label: '实时监控' }
-    ],
     features: [
       '智能止损止盈',
       '仓位动态调整',
       '波动率预警',
       '压力测试系统'
-    ],
-    userInfo: {
-      activeUsers: '20,000+ 风控用户',
-      description: '正在使用风控系统'
-    }
+    ]
   },
 ]
 
