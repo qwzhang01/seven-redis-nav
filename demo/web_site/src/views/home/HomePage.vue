@@ -712,7 +712,7 @@ const strategies = [
 
 const nextStrategy = () => {
   // Reset animation state before switching
-  const container = document.querySelector('.strategy-card')
+  const container = document.querySelector('.strategy-card') as HTMLElement
   if (container) {
     container.style.opacity = '0'
     container.style.transform = 'translateY(20px)'

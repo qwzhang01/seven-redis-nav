@@ -535,7 +535,7 @@ function removeFilter(filterId: number) {
 }
 
 function initConfig() {
-  const vals: Record<string, string | number | string[]> = {}
+  const vals: Record<string, string | number | string[] | boolean> = {}
   strategy.value?.params?.forEach((p) => {
     vals[p.name] = p.default
   })
