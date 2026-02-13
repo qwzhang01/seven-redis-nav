@@ -11,20 +11,20 @@
       <div class="glass-card p-5 mb-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">市场类型</label>
-            <t-select v-model="filters.market" placeholder="全部市场" clearable size="medium" :popup-props="{ overlayClassName: 'dark-select' }">
+            <label class="text-xs text-white-100 mb-1.5 block">市场类型</label>
+            <t-select v-model="filters.market" placeholder="全部市场" clearable size="medium" :popup-props="{ overlayClassName: 'dark-select' }" class="text-white">
               <t-option v-for="m in markets" :key="m" :label="m" :value="m" />
             </t-select>
           </div>
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">策略类型</label>
-            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">策略类型</label>
+            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium" class="text-white">
               <t-option v-for="t in types" :key="t" :label="t" :value="t" />
             </t-select>
           </div>
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">风险等级</label>
-            <t-select v-model="filters.risk" placeholder="全部等级" clearable size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">风险等级</label>
+            <t-select v-model="filters.risk" placeholder="全部等级" clearable size="medium" class="text-white">
               <t-option label="低风险" value="low" />
               <t-option label="中风险" value="medium" />
               <t-option label="高风险" value="high" />
@@ -182,3 +182,37 @@ const paginatedStrategies = computed(() => {
   return filteredStrategies.value.slice(start, start + pageSize)
 })
 </script>
+
+<style scoped>
+/* 确保下拉框占位符文本颜色为白色 */
+:deep(.t-select .t-select__single-input),
+:deep(.t-select .t-select__placeholder),
+:deep(.t-select.t-is-empty .t-select__single-input),
+:deep(.t-select.t-is-empty .t-select__placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::placeholder),
+:deep(.t-select .t-select__placeholder::placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
+:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-moz-placeholder),
+:deep(.t-select .t-select__placeholder::-moz-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input:-ms-input-placeholder),
+:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select-option) {
+  color: #ffffff !important;
+}
+</style>

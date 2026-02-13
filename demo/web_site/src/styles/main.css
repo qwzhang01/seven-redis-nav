@@ -41,6 +41,54 @@ body {
   border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+.t-select__dropdown .t-option,
+.t-dropdown__menu .t-dropdown__item {
+  color: #ffffff !important;
+}
+
+.t-select__dropdown .t-option:hover,
+.t-dropdown__menu .t-dropdown__item:hover {
+  background-color: rgba(0, 212, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.t-select__dropdown .t-option.t-is-selected,
+.t-dropdown__menu .t-dropdown__item.t-is-selected {
+  background-color: rgba(0, 212, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+.t-select__single-input,
+.t-select__placeholder,
+.t-select .t-select__placeholder,
+.t-select.t-is-empty .t-select__single-input,
+.t-select.t-is-empty .t-select__placeholder,
+.t-select .t-select__single-input,
+.t-select .t-select__single-input::placeholder,
+.t-select .t-select__placeholder::placeholder {
+  color: #ffffff !important;
+}
+
+/* 确保下拉框占位符在所有状态下都显示白色 */
+.t-select .t-select__single-input::-webkit-input-placeholder,
+.t-select .t-select__placeholder::-webkit-input-placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input::-moz-placeholder,
+.t-select .t-select__placeholder::-moz-placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input:-ms-input-placeholder,
+.t-select .t-select__placeholder:-ms-input-placeholder {
+  color: #ffffff !important;
+}
+
+.t-select__dropdown .t-option-group__title {
+  color: #ffffff !important;
+}
+
 .t-button--variant-base.t-button--theme-primary {
   background: linear-gradient(135deg, #00d4ff 0%, #3b82f6 100%) !important;
   border: none !important;
@@ -129,6 +177,51 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3a4568;
+}
+
+/* Placeholder Styles */
+.placeholder-white::placeholder {
+  color: #ffffff !important;
+}
+
+.placeholder-white::-webkit-input-placeholder {
+  color: #ffffff !important;
+}
+
+.placeholder-white::-moz-placeholder {
+  color: #ffffff !important;
+}
+
+.placeholder-white:-ms-input-placeholder {
+  color: #ffffff !important;
+}
+
+/* TDesign Select Placeholder Styles */
+.t-select .t-select__single-input,
+.t-select .t-select__placeholder,
+.t-select.t-is-empty .t-select__single-input,
+.t-select.t-is-empty .t-select__placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input::placeholder,
+.t-select .t-select__placeholder::placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input::-webkit-input-placeholder,
+.t-select .t-select__placeholder::-webkit-input-placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input::-moz-placeholder,
+.t-select .t-select__placeholder::-moz-placeholder {
+  color: #ffffff !important;
+}
+
+.t-select .t-select__single-input:-ms-input-placeholder,
+.t-select .t-select__placeholder:-ms-input-placeholder {
+  color: #ffffff !important;
 }
 
 /* Utility Classes */

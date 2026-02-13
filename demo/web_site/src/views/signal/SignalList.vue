@@ -11,21 +11,21 @@
       <div class="glass-card p-5 mb-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">来源平台</label>
-            <t-select v-model="filters.platform" placeholder="全部平台" clearable size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">来源平台</label>
+            <t-select v-model="filters.platform" placeholder="全部平台" clearable size="medium" class="text-white" style="color: white !important;">
               <t-option v-for="p in platforms" :key="p" :label="p" :value="p" />
             </t-select>
           </div>
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">信号类型</label>
-            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">信号类型</label>
+            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium" class="text-white" style="color: white !important;">
               <t-option label="实盘" value="live" />
               <t-option label="模拟盘" value="simulated" />
             </t-select>
           </div>
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">运行天数</label>
-            <t-select v-model="filters.minDays" placeholder="不限" clearable size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">运行天数</label>
+            <t-select v-model="filters.minDays" placeholder="不限" clearable size="medium" class="text-white" style="color: white !important;">
               <t-option label="≥ 7天" :value="7" />
               <t-option label="≥ 30天" :value="30" />
               <t-option label="≥ 90天" :value="90" />
@@ -33,8 +33,8 @@
             </t-select>
           </div>
           <div>
-            <label class="text-xs text-dark-100 mb-1.5 block">排序方式</label>
-            <t-select v-model="sortBy" size="medium">
+            <label class="text-xs text-white-100 mb-1.5 block">排序方式</label>
+            <t-select v-model="sortBy" size="medium" class="text-white" style="color: white !important;">
               <t-option label="收益率(高→低)" value="returnDesc" />
               <t-option label="收益率(低→高)" value="returnAsc" />
               <t-option label="回撤(低→高)" value="drawdownAsc" />
@@ -177,3 +177,64 @@ const paginatedSignals = computed(() => {
   return filteredSignals.value.slice(start, start + pageSize)
 })
 </script>
+
+<style scoped>
+/* 确保下拉框占位符文本颜色为白色 */
+:deep(.t-select .t-select__single-input),
+:deep(.t-select .t-select__placeholder),
+:deep(.t-select.t-is-empty .t-select__single-input),
+:deep(.t-select.t-is-empty .t-select__placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::placeholder),
+:deep(.t-select .t-select__placeholder::placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
+:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-moz-placeholder),
+:deep(.t-select .t-select__placeholder::-moz-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input:-ms-input-placeholder),
+:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
+  color: #ffffff !important;
+}
+:deep(.t-select__dropdown .t-option),
+:deep(.t-option),
+:deep(.t-select__dropdown .t-option:hover),
+:deep(.t-option:hover),
+:deep(.t-select__dropdown .t-option.t-is-selected),
+:deep(.t-option.t-is-selected),
+:deep(.t-select__dropdown .t-option.t-is-disabled),
+:deep(.t-option.t-is-disabled) {
+  color: #ffffff !important;
+}
+
+/* 确保下拉选项的文本在所有状态下都显示白色 */
+:deep(.t-select__dropdown),
+:deep(.t-select__dropdown *),
+:deep(.t-select__dropdown .t-option-group__title),
+:deep(.t-select__dropdown .t-option),
+:deep(.t-select__dropdown .t-option:hover),
+:deep(.t-select__dropdown .t-option.t-is-selected),
+:deep(.t-select__dropdown .t-option.t-is-disabled) {
+  color: #ffffff !important;
+}
+
+/* 最高优先级的下拉选项文本颜色设置 */
+:deep(.t-select) .t-select__dropdown,
+:deep(.t-select) .t-select__dropdown *,
+:deep(.t-select) .t-option,
+:deep(.t-select) .t-option:hover,
+:deep(.t-select) .t-option.t-is-selected,
+:deep(.t-select) .t-option.t-is-disabled {
+  color: #ffffff !important;
+}
+</style>

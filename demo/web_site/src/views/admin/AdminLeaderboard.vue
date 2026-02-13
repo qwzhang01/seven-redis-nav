@@ -40,7 +40,7 @@
           </div>
           <div>
             <label class="text-sm text-dark-100 mb-1.5 block">更新频率</label>
-            <t-select v-model="updateFrequency" size="medium">
+            <t-select v-model="updateFrequency" size="medium" class="text-white" style="color: white !important;">
               <t-option label="实时" value="realtime" />
               <t-option label="每小时" value="hourly" />
               <t-option label="每日" value="daily" />
@@ -69,3 +69,33 @@ const rules = reactive([
   { priority: 5, field: 'sharpeRatio', label: '夏普比率', description: '风险调整后收益', enabled: false },
 ])
 </script>
+
+<style scoped>
+/* 确保下拉框占位符文本颜色为白色 */
+:deep(.t-select .t-select__single-input),
+:deep(.t-select .t-select__placeholder),
+:deep(.t-select.t-is-empty .t-select__single-input),
+:deep(.t-select.t-is-empty .t-select__placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::placeholder),
+:deep(.t-select .t-select__placeholder::placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
+:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-moz-placeholder),
+:deep(.t-select .t-select__placeholder::-moz-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input:-ms-input-placeholder),
+:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
+  color: #ffffff !important;
+}
+</style>

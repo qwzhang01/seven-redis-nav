@@ -39,6 +39,7 @@ export default {
           200: '#3a4568',
           100: '#4a5680',
         },
+        white: '#ffffff',
       },
       fontFamily: {
         sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],

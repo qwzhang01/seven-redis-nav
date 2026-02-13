@@ -232,6 +232,58 @@ class BacktestEngine:
 
         return result
 
+    async def run_from_database(
+        self,
+        strategy: Strategy,
+        symbols: list[str],
+        timeframes: list[TimeFrame],
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 10000
+    ) -> BacktestResult:
+        """
+        从TimescaleDB获取数据并运行回测
+
+        Args:
+            strategy: 策略实例
+            symbols: 交易对列表
+            timeframes: 时间框架列表
+            start_time: 开始时间
+            end_time: 结束时间
+            limit: 最大数据条数
+
+        Returns:
+            回测结果
+        """
+        if not self.use_database or not self._data_query_service:
+            raise ValueError("Database mode is not enabled or data query service is not available")
+
+        logger.info("Starting backtest from database",
+                   strategy=strategy.name,
+                   symbols=symbols,
+                   timeframes=[tf.value for tf in timeframes],
+                   start_time=start_time,
+                   end_time=end_time)
+
+        # 从数据库获取数据
+        bars = await self._data_query_service.get_multiple_kline_data(
+            symbols=symbols,
+            timeframes=timeframes,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit
+        )
+
+        # 转换为回测引擎需要的格式
+        normalized_bars = {}
+        for symbol, tf_data in bars.items():
+            normalized_bars[symbol] = {}
+            for timeframe, bar_array in tf_data.items():
+                if len(bar_array.timestamp) > 0:  # 确保有数据
+                    normalized_bars[symbol][timeframe] = bar_array
+
+        return self.run(strategy, normalized_bars)
+
     @staticmethod
     def _normalize_bars(
         bars: dict[str, BarArray] | BarArray | dict[str, dict[TimeFrame, BarArray]],

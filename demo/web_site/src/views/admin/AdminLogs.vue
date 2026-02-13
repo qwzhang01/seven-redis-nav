@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-bold text-white">风控与日志</h2>
       <div class="flex items-center gap-3">
-        <t-select v-model="logLevel" placeholder="日志级别" size="medium" style="width: 140px">
+        <t-select v-model="logLevel" placeholder="日志级别" size="medium" style="width: 140px; color: white !important;" class="text-white">
           <t-option label="全部" value="all" />
           <t-option label="INFO" value="info" />
           <t-option label="WARN" value="warn" />
@@ -92,3 +92,33 @@ const filteredLogs = computed(() => {
   return logs.filter((l) => l.level === logLevel.value.toUpperCase())
 })
 </script>
+
+<style scoped>
+/* 确保下拉框占位符文本颜色为白色 */
+:deep(.t-select .t-select__single-input),
+:deep(.t-select .t-select__placeholder),
+:deep(.t-select.t-is-empty .t-select__single-input),
+:deep(.t-select.t-is-empty .t-select__placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::placeholder),
+:deep(.t-select .t-select__placeholder::placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
+:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-moz-placeholder),
+:deep(.t-select .t-select__placeholder::-moz-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input:-ms-input-placeholder),
+:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
+  color: #ffffff !important;
+}
+</style>

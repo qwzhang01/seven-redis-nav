@@ -12,16 +12,16 @@
       <t-input v-model="search" placeholder="搜索策略..." clearable size="medium" style="width: 240px">
         <template #prefix-icon><Search :size="16" class="text-dark-100" /></template>
       </t-input>
-      <t-select v-model="filterStatus" placeholder="状态" clearable size="medium" style="width: 140px">
+      <t-select v-model="filterStatus" placeholder="状态" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
         <t-option label="运行中" value="active" />
         <t-option label="已停止" value="stopped" />
       </t-select>
-      <t-select v-model="filterRisk" placeholder="风险等级" clearable size="medium" style="width: 140px">
+      <t-select v-model="filterRisk" placeholder="风险等级" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
         <t-option label="低风险" value="low" />
         <t-option label="中风险" value="medium" />
         <t-option label="高风险" value="high" />
       </t-select>
-      <t-select v-model="filterExchange" placeholder="交易所" clearable size="medium" style="width: 160px">
+      <t-select v-model="filterExchange" placeholder="交易所" clearable size="medium" style="width: 160px; color: white !important;" class="text-white">
         <t-option label="Binance" value="Binance" />
         <t-option label="OKX" value="OKX" />
         <t-option label="Bybit" value="Bybit" />
@@ -31,7 +31,7 @@
         <t-option label="Kraken" value="Kraken" />
         <t-option label="Coinbase" value="Coinbase" />
       </t-select>
-      <t-select v-model="filterTimeframe" placeholder="时间周期" clearable size="medium" style="width: 140px">
+      <t-select v-model="filterTimeframe" placeholder="时间周期" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
         <t-option label="1分钟" value="1m" />
         <t-option label="5分钟" value="5m" />
         <t-option label="15分钟" value="15m" />
@@ -111,3 +111,33 @@ const filteredList = computed(() => {
   })
 })
 </script>
+
+<style scoped>
+/* 确保下拉框占位符文本颜色为白色 */
+:deep(.t-select .t-select__single-input),
+:deep(.t-select .t-select__placeholder),
+:deep(.t-select.t-is-empty .t-select__single-input),
+:deep(.t-select.t-is-empty .t-select__placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::placeholder),
+:deep(.t-select .t-select__placeholder::placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
+:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input::-moz-placeholder),
+:deep(.t-select .t-select__placeholder::-moz-placeholder) {
+  color: #ffffff !important;
+}
+
+:deep(.t-select .t-select__single-input:-ms-input-placeholder),
+:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
+  color: #ffffff !important;
+}
+</style>
