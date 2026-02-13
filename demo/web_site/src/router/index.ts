@@ -16,6 +16,10 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
+    redirect: '/index'
+  },
+  {
+    path: '/index',
     component: () => import('@/views/layout/AppLayout.vue'),
     children: [
       {

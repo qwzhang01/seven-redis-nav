@@ -112,6 +112,7 @@ const currentTime = ref('')
 const isFullscreen = ref(false)
 
 const navItems = [
+  { path: '/index', label: '首页' },
   { path: '/system/trading', label: '交易' },
   { path: '/system/strategies', label: '系统策略' },
   { path: '/system/signals', label: '信号广场' },

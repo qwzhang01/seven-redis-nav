@@ -12,7 +12,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label class="text-xs text-white-100 mb-1.5 block">市场类型</label>
-            <t-select v-model="filters.market" placeholder="全部市场" clearable size="medium" :popup-props="{ overlayClassName: 'dark-select' }" class="text-white">
+            <t-select v-model="filters.market" placeholder="全部市场" clearable size="medium"
+              :popup-props="{ overlayClassName: 'dark-select' }" class="text-white">
               <t-option v-for="m in markets" :key="m" :label="m" :value="m" />
             </t-select>
           </div>
@@ -32,7 +33,9 @@
           </div>
           <div class="flex items-end">
             <t-input v-model="filters.search" placeholder="搜索策略名称..." clearable size="medium">
-              <template #prefix-icon><Search :size="16" class="text-dark-100" /></template>
+              <template #prefix-icon>
+                <Search :size="16" class="text-dark-100" />
+              </template>
             </t-input>
           </div>
         </div>
@@ -42,13 +45,9 @@
       <div class="flex items-center justify-between mb-6">
         <span class="text-sm text-dark-100">共 {{ filteredStrategies.length }} 个策略</span>
         <div class="flex items-center gap-2">
-          <button
-            v-for="view in ['grid', 'list'] as const"
-            :key="view"
-            @click="viewMode = view"
+          <button v-for="view in ['grid', 'list'] as const" :key="view" @click="viewMode = view"
             class="p-2 rounded-lg transition-all"
-            :class="viewMode === view ? 'bg-primary-500/10 text-primary-500' : 'text-dark-100 hover:text-white'"
-          >
+            :class="viewMode === view ? 'bg-primary-500/10 text-primary-500' : 'text-dark-100 hover:text-white'">
             <LayoutGrid v-if="view === 'grid'" :size="16" />
             <List v-else :size="16" />
           </button>
@@ -57,18 +56,15 @@
 
       <!-- Strategy Cards -->
       <div :class="viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'">
-        <div
-          v-for="strategy in paginatedStrategies"
-          :key="strategy.id"
-          class="glass-card-hover p-6 cursor-pointer"
+        <div v-for="strategy in paginatedStrategies" :key="strategy.id" class="glass-card-hover p-6 cursor-pointer"
           :class="viewMode === 'list' ? 'flex items-center gap-6' : ''"
-          @click="$router.push(`/system/strategies/${strategy.id}`)"
-        >
+          @click="$router.push(`/system/strategies/${strategy.id}`)">
           <!-- Grid View -->
           <template v-if="viewMode === 'grid'">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center">
+                <div
+                  class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center">
                   <Zap :size="18" class="text-primary-400" />
                 </div>
                 <div>
@@ -103,7 +99,8 @@
 
           <!-- List View -->
           <template v-else>
-            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center shrink-0">
+            <div
+              class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500/20 to-accent-blue/20 flex items-center justify-center shrink-0">
               <Zap :size="18" class="text-primary-400" />
             </div>
             <div class="flex-1 min-w-0">
@@ -112,7 +109,8 @@
             </div>
             <div class="hidden sm:flex items-center gap-6">
               <div class="text-center">
-                <div class="text-sm font-bold" :class="strategy.returnRate >= 0 ? 'text-emerald-400' : 'text-red-400'">{{ strategy.returnRate >= 0 ? '+' : '' }}{{ strategy.returnRate }}%</div>
+                <div class="text-sm font-bold" :class="strategy.returnRate >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  {{ strategy.returnRate >= 0 ? '+' : '' }}{{ strategy.returnRate }}%</div>
                 <div class="text-[10px] text-dark-100">收益率</div>
               </div>
               <div class="text-center">
@@ -134,13 +132,8 @@
 
       <!-- Pagination -->
       <div v-if="totalPages > 1" class="mt-10 flex justify-center">
-        <t-pagination
-          v-model:current="currentPage"
-          :total="filteredStrategies.length"
-          :page-size="pageSize"
-          :show-page-size="false"
-          theme="simple"
-        />
+        <t-pagination v-model:current="currentPage" :total="filteredStrategies.length" :page-size="pageSize"
+          :show-page-size="false" theme="simple" />
       </div>
     </div>
   </div>
@@ -184,35 +177,5 @@ const paginatedStrategies = computed(() => {
 </script>
 
 <style scoped>
-/* 确保下拉框占位符文本颜色为白色 */
-:deep(.t-select .t-select__single-input),
-:deep(.t-select .t-select__placeholder),
-:deep(.t-select.t-is-empty .t-select__single-input),
-:deep(.t-select.t-is-empty .t-select__placeholder) {
-  color: #ffffff !important;
-}
 
-:deep(.t-select .t-select__single-input::placeholder),
-:deep(.t-select .t-select__placeholder::placeholder) {
-  color: #ffffff !important;
-}
-
-:deep(.t-select .t-select__single-input::-webkit-input-placeholder),
-:deep(.t-select .t-select__placeholder::-webkit-input-placeholder) {
-  color: #ffffff !important;
-}
-
-:deep(.t-select .t-select__single-input::-moz-placeholder),
-:deep(.t-select .t-select__placeholder::-moz-placeholder) {
-  color: #ffffff !important;
-}
-
-:deep(.t-select .t-select__single-input:-ms-input-placeholder),
-:deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
-  color: #ffffff !important;
-}
-
-:deep(.t-select-option) {
-  color: #ffffff !important;
-}
 </style>
