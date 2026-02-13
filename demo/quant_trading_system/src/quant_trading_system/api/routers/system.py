@@ -1,8 +1,14 @@
 """
-系统路由
-========
+系统路由模块
+===========
 
-系统信息和健康检查接口
+提供系统管理和监控相关的API接口，包括系统信息、配置查询、健康检查和性能指标等功能。
+
+主要功能：
+- 系统基本信息查询
+- 配置参数查询（非敏感信息）
+- 系统健康状态检查
+- 性能指标和统计信息查询
 """
 
 from typing import Any
@@ -11,17 +17,38 @@ from fastapi import APIRouter
 
 from quant_trading_system.core.config import settings
 
+# 创建系统路由实例
 router = APIRouter()
 
 
 def _get_orchestrator():
+    """
+    获取编排器实例
+
+    返回当前系统的编排器实例，用于访问系统状态和组件信息。
+
+    返回：
+    - Orchestrator实例或None（系统未启动时）
+    """
     from quant_trading_system.api.main import get_orchestrator
     return get_orchestrator()
 
 
 @router.get("/info")
 async def get_system_info() -> dict[str, Any]:
-    """获取系统信息"""
+    """
+    获取系统基本信息
+
+    查询量化交易系统的版本、环境、运行状态等基本信息。
+
+    返回：
+    - name: 系统名称
+    - version: 系统版本号
+    - env: 运行环境（development/production）
+    - debug: 调试模式状态
+    - trading_mode: 交易模式（live/backtest）
+    - trading_running: 交易系统是否正在运行
+    """
     orch = _get_orchestrator()
     return {
         "name": settings.app_name,
@@ -35,7 +62,24 @@ async def get_system_info() -> dict[str, Any]:
 
 @router.get("/config")
 async def get_config() -> dict[str, Any]:
-    """获取系统配置（非敏感信息）"""
+    """
+    获取系统配置信息（非敏感信息）
+
+    查询系统的公开配置参数，不包含敏感信息如API密钥等。
+
+    返回：
+    - trading: 交易相关配置
+    - strategy: 策略相关配置
+
+    交易配置包含：
+    - order_timeout: 订单超时时间
+    - default_slippage: 默认滑点率
+    - default_commission_rate: 默认手续费率
+
+    策略配置包含：
+    - max_concurrent_strategies: 最大并发策略数
+    - backtest_start_capital: 回测初始资金
+    """
     return {
         "trading": {
             "order_timeout": settings.trading.order_timeout,
@@ -51,7 +95,22 @@ async def get_config() -> dict[str, Any]:
 
 @router.get("/health")
 async def health_check() -> dict[str, Any]:
-    """健康检查"""
+    """
+    系统健康检查
+
+    检查系统各核心组件的运行状态，评估系统整体健康度。
+
+    返回：
+    - status: 系统整体状态（healthy/degraded）
+    - checks: 各组件健康状态检查结果
+
+    组件检查包含：
+    - api: API服务状态
+    - event_engine: 事件引擎状态
+    - market_service: 市场服务状态
+    - strategy_engine: 策略引擎状态
+    - trading_engine: 交易引擎状态
+    """
     orch = _get_orchestrator()
     return {
         "status": "healthy" if (orch and orch.is_running) else "degraded",
@@ -67,7 +126,20 @@ async def health_check() -> dict[str, Any]:
 
 @router.get("/metrics")
 async def get_metrics() -> dict[str, Any]:
-    """获取系统指标"""
+    """
+    获取系统性能指标
+
+    查询系统各核心组件的性能统计数据和运行指标。
+
+    返回：
+    - event_engine: 事件引擎统计信息
+    - market_service: 市场服务统计信息
+    - strategy_engine: 策略引擎统计信息
+    - trading_engine: 交易引擎统计信息
+    - risk_manager: 风险管理器统计信息
+
+    当系统未启动时返回空的统计信息字典。
+    """
     orch = _get_orchestrator()
     if not orch:
         return {
