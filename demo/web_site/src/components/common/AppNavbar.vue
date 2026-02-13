@@ -22,7 +22,7 @@
             :class="[
               isActive(item.path)
                 ? 'text-primary-500 bg-primary-500/10'
-                : 'text-gray-300 hover:text-white hover:bg-white/[0.04]'
+                : 'text-dark-100 hover:text-white hover:bg-white/[0.04]'
             ]"
           >
             {{ item.label }}
@@ -32,11 +32,11 @@
         <!-- Actions -->
         <div class="flex items-center gap-3">
           <template v-if="authStore.isLoggedIn">
-            <router-link to="/system/user" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04] transition-all">
+            <router-link to="/system/user" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
               <User :size="16" />
               <span>{{ authStore.user?.username || '我的' }}</span>
             </router-link>
-            <router-link v-if="authStore.isAdmin" to="/admin" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04] transition-all">
+            <router-link v-if="authStore.isAdmin" to="/admin" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
               <ShieldCheck :size="16" />
             </router-link>
             <button @click="handleLogout" class="btn-outline !py-2 !px-4 text-sm hidden sm:block">
@@ -44,7 +44,7 @@
             </button>
           </template>
           <template v-else>
-            <router-link to="/login" class="hidden sm:block text-sm text-gray-300 hover:text-white px-4 py-2 rounded-lg hover:bg-white/[0.04] transition-all">
+            <router-link to="/login" class="hidden sm:block text-sm text-dark-100 hover:text-white px-4 py-2 rounded-lg hover:bg-white/[0.04] transition-all">
               登录
             </router-link>
             <router-link to="/register" class="btn-primary !py-2 !px-4 text-sm hidden sm:block">
@@ -52,7 +52,7 @@
             </router-link>
           </template>
           <!-- Mobile Menu Toggle -->
-          <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/[0.04]">
+          <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden p-2 rounded-lg text-dark-100 hover:text-white hover:bg-white/[0.04]">
             <Menu v-if="!mobileMenuOpen" :size="22" />
             <X v-else :size="22" />
           </button>
@@ -70,17 +70,17 @@
             :to="item.path"
             class="block px-4 py-3 rounded-lg text-sm font-medium transition-all"
             :class="[
-              isActive(item.path) ? 'text-primary-500 bg-primary-500/10' : 'text-gray-300 hover:text-white hover:bg-white/[0.04]'
+              isActive(item.path) ? 'text-primary-500 bg-primary-500/10' : 'text-dark-100 hover:text-white hover:bg-white/[0.04]'
             ]"
             @click="mobileMenuOpen = false"
           >
             {{ item.label }}
           </router-link>
           <template v-if="authStore.isLoggedIn">
-            <router-link to="/system/user" class="block px-4 py-3 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
+            <router-link to="/system/user" class="block px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
               我的账户
             </router-link>
-            <router-link v-if="authStore.isAdmin" to="/admin" class="block px-4 py-3 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
+            <router-link v-if="authStore.isAdmin" to="/admin" class="block px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04]" @click="mobileMenuOpen = false">
               管理后台
             </router-link>
             <div class="pt-2 px-4">

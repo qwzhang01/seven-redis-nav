@@ -35,6 +35,7 @@ from quant_trading_system.services.indicators.indicator_engine import (
     IndicatorEngine,
     get_indicator_engine,
 )
+from quant_trading_system.services.database.data_query import get_data_query_service
 
 logger = structlog.get_logger(__name__)
 
@@ -153,11 +154,18 @@ class BacktestEngine:
     def __init__(
         self,
         config: BacktestConfig | None = None,
+        use_database: bool = False,
     ) -> None:
         self.config = config or BacktestConfig()
+        self.use_database = use_database
 
         # 指标引擎
         self._indicator_engine = get_indicator_engine()
+
+        # 数据查询服务（如果使用数据库）
+        self._data_query_service = None
+        if use_database:
+            self._data_query_service = get_data_query_service()
 
         # 账户
         self._account: Account | None = None
@@ -535,7 +543,7 @@ class BacktestEngine:
         # 创建订单
         import uuid
         from datetime import datetime
-        
+
         order = Order(
             id=str(uuid.uuid4()),
             symbol=symbol,
@@ -602,7 +610,7 @@ class BacktestEngine:
     def _update_position_from_trade(self, trade: Trade) -> None:
         """根据成交更新持仓"""
         symbol = trade.symbol
-        
+
         if symbol not in self._positions:
             # 创建新持仓，提供所有必需字段
             self._positions[symbol] = Position(
@@ -613,9 +621,9 @@ class BacktestEngine:
                 realized_pnl=0.0,
                 last_price=trade.price
             )
-        
+
         position = self._positions[symbol]
-        
+
         if trade.side == OrderSide.BUY:
             # 买入逻辑
             if position.quantity == 0:
@@ -633,14 +641,14 @@ class BacktestEngine:
                 profit = (trade.price - position.avg_price) * trade.quantity
                 position.realized_pnl += profit
                 position.quantity -= trade.quantity
-                
+
                 # 如果完全平仓，重置平均价格
                 if position.quantity == 0:
                     position.avg_price = 0.0
-        
+
         # 更新最新价格
         position.last_price = trade.price
-        
+
         # 更新未实现盈亏
         if position.quantity > 0:
             position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity
@@ -680,7 +688,7 @@ class BacktestEngine:
         for position in self._positions.values():
             # 直接更新last_price字段
             position.last_price = current_price
-            
+
             # 更新未实现盈亏
             if position.quantity > 0:
                 position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity

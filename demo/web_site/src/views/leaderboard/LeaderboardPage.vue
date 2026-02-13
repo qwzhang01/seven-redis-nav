@@ -33,7 +33,7 @@
           <div class="absolute top-0 right-0 w-16 h-16">
             <div class="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
                  :class="[
-                   index === 0 ? 'bg-amber-500/20 text-amber-400' : index === 1 ? 'bg-gray-400/20 text-gray-300' : 'bg-orange-500/20 text-orange-400'
+                   index === 0 ? 'bg-amber-500/20 text-amber-400' : index === 1 ? 'bg-gray-400/20 text-dark-100' : 'bg-orange-500/20 text-orange-400'
                  ]">
               {{ index + 1 }}
             </div>
