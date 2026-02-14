@@ -19,14 +19,26 @@ function randomPick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-function generateReturnCurve(days: number, finalReturn: number): number[] {
-  const curve: number[] = [0]
+function generateReturnCurve(days: number, finalReturn: number): { data: number[], labels: string[] } {
+  const data: number[] = [0]
+  const labels: string[] = []
   const step = finalReturn / days
+  
+  // 生成起始日期（当前日期往前推days天）
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - days)
+  
   for (let i = 1; i <= Math.min(days, 90); i++) {
     const noise = (Math.random() - 0.4) * Math.abs(step) * 3
-    curve.push(parseFloat((curve[i - 1] + step + noise).toFixed(2)))
+    data.push(parseFloat((data[i - 1] + step + noise).toFixed(2)))
+    
+    // 生成对应的时间标签
+    const currentDate = new Date(startDate)
+    currentDate.setDate(startDate.getDate() + i)
+    labels.push(currentDate.toISOString().split('T')[0])
   }
-  return curve
+  
+  return { data, labels }
 }
 
 export function generateStrategies(count = 12): Strategy[] {
@@ -104,6 +116,8 @@ export function generateSignals(count = 20): Signal[] {
       }
     })
 
+    const returnCurveData = generateReturnCurve(runDays, cumulativeReturn)
+
     return {
       id: `signal-${i + 1}`,
       name: `${randomPick(['Alpha', 'Sigma', 'Quant', 'Matrix', 'Nexus', 'Omega', 'Apex', 'Pulse'])} ${randomPick(['Pro', 'Elite', 'Master', 'Prime', 'X'])} #${i + 1}`,
@@ -114,7 +128,8 @@ export function generateSignals(count = 20): Signal[] {
       runDays,
       status: Math.random() > 0.15 ? 'running' : 'stopped',
       followers: randomInt(10, 5000),
-      returnCurve: generateReturnCurve(runDays, cumulativeReturn),
+      returnCurve: returnCurveData.data,
+      returnCurveLabels: returnCurveData.labels,
       positions,
       description: `专注于${randomPick(marketTypes)}的${randomPick(['高频', '中频', '低频', '混合'])}交易信号，采用${randomPick(['AI模型', '多因子', '技术面', '基本面'])}分析。`,
       // 新增详细参数

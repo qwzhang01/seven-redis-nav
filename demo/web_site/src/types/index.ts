@@ -64,6 +64,7 @@ export interface Signal {
   status: 'running' | 'stopped'
   followers: number
   returnCurve?: number[]
+  returnCurveLabels?: string[]
   positions?: Position[]
   description?: string
   // 新增详细参数

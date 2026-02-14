@@ -14,6 +14,7 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
 const props = withDefaults(defineProps<{
   data: number[]
+  labels?: string[]
   height?: number
   color?: string
   showArea?: boolean
@@ -30,14 +31,30 @@ const chartOption = computed(() => ({
     backgroundColor: '#1a2035',
     borderColor: 'rgba(255,255,255,0.06)',
     textStyle: { color: '#e2e8f0', fontSize: 12 },
-    formatter: (params: { value: number }[]) => `收益率: ${params[0]?.value?.toFixed(2)}%`,
+    formatter: (params: { value: number; dataIndex: number }[]) => {
+      const value = params[0]?.value
+      const label = props.labels?.[params[0]?.dataIndex] || `D${params[0]?.dataIndex}`
+      return `时间: ${label}<br/>收益率: ${value?.toFixed(2)}%`
+    },
   },
   xAxis: {
     type: 'category',
-    data: props.data.map((_, i) => `D${i}`),
+    data: props.labels || props.data.map((_, i) => `D${i}`),
     axisLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
     axisTick: { show: false },
-    axisLabel: { show: false },
+    axisLabel: { 
+      show: true, 
+      color: '#64748b', 
+      fontSize: 11,
+      formatter: (value: string) => {
+        // 如果是时间格式的标签，显示更简洁的格式
+        if (value.includes('-')) {
+          const date = new Date(value)
+          return `${date.getMonth() + 1}/${date.getDate()}`
+        }
+        return value
+      }
+    },
   },
   yAxis: {
     type: 'value',

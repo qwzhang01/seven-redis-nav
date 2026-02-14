@@ -196,6 +196,100 @@ class TimescaleDB:
                     );
                 """)
 
+                # 创建用户管理相关表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_info (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        username VARCHAR(64) UNIQUE NOT NULL,
+                        nickname VARCHAR(128) NOT NULL,
+                        password_hash VARCHAR(255) NOT NULL,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        email_verified BOOLEAN DEFAULT FALSE,
+                        phone VARCHAR(32),
+                        phone_verified BOOLEAN DEFAULT FALSE,
+                        avatar_url VARCHAR(512),
+                        user_type VARCHAR(32) DEFAULT 'customer', -- customer/admin
+                        registration_time TIMESTAMPTZ DEFAULT NOW(),
+                        last_login_time TIMESTAMPTZ,
+                        status VARCHAR(32) DEFAULT 'active', -- active/inactive/locked
+                        create_by VARCHAR(64) DEFAULT 'system',
+                        create_time TIMESTAMPTZ DEFAULT NOW(),
+                        update_by VARCHAR(64),
+                        update_time TIMESTAMPTZ DEFAULT NOW(),
+                        enable_flag BOOLEAN DEFAULT TRUE
+                    );
+                """)
+
+                # 创建交易所信息表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS exchange_info (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        exchange_code VARCHAR(32) UNIQUE NOT NULL, -- binance/okx/huobi
+                        exchange_name VARCHAR(128) NOT NULL,
+                        exchange_type VARCHAR(32) DEFAULT 'spot', -- spot/futures/margin
+                        base_url VARCHAR(512) NOT NULL,
+                        api_doc_url VARCHAR(512),
+                        status VARCHAR(32) DEFAULT 'active', -- active/inactive
+                        supported_pairs JSONB,
+                        rate_limits JSONB,
+                        create_by VARCHAR(64) DEFAULT 'system',
+                        create_time TIMESTAMPTZ DEFAULT NOW(),
+                        update_by VARCHAR(64),
+                        update_time TIMESTAMPTZ DEFAULT NOW(),
+                        enable_flag BOOLEAN DEFAULT TRUE
+                    );
+                """)
+
+                # 创建用户交易所API表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_exchange_api (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id UUID NOT NULL REFERENCES user_info(id),
+                        exchange_id UUID NOT NULL REFERENCES exchange_info(id),
+                        label VARCHAR(128) NOT NULL,
+                        api_key VARCHAR(512) NOT NULL,
+                        secret_key VARCHAR(512) NOT NULL,
+                        passphrase VARCHAR(512), -- 部分交易所需要
+                        permissions JSONB, -- 权限配置
+                        status VARCHAR(32) DEFAULT 'pending', -- pending/approved/rejected/disabled
+                        review_reason TEXT, -- 审核原因
+                        approved_by VARCHAR(64),
+                        approved_time TIMESTAMPTZ,
+                        last_used_time TIMESTAMPTZ,
+                        create_by VARCHAR(64),
+                        create_time TIMESTAMPTZ DEFAULT NOW(),
+                        update_by VARCHAR(64),
+                        update_time TIMESTAMPTZ DEFAULT NOW(),
+                        enable_flag BOOLEAN DEFAULT TRUE
+                    );
+                """)
+
+                # 创建索引
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_info_username
+                    ON user_info (username);
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_info_email
+                    ON user_info (email);
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_exchange_api_user_id
+                    ON user_exchange_api (user_id);
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_exchange_api_exchange_id
+                    ON user_exchange_api (exchange_id);
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_exchange_api_status
+                    ON user_exchange_api (status);
+                """)
+
                 conn.commit()
                 logger.info("Database tables initialized successfully")
 

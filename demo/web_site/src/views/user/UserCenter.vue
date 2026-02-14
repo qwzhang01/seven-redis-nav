@@ -147,7 +147,7 @@
         </div>
         <div class="glass-card p-6">
           <h3 class="text-white font-bold mb-4">收益曲线</h3>
-          <ReturnCurveChart :data="profitCurve" :height="300" color="#10b981" />
+          <ReturnCurveChart :data="profitCurve" :labels="profitLabels" :height="300" color="#10b981" />
         </div>
       </div>
 
@@ -284,6 +284,12 @@ const apiKeys = [
 
 const profitCurve = Array.from({ length: 60 }, (_, i) => {
   return parseFloat((Math.sin(i / 10) * 5 + i * 0.4 + (Math.random() - 0.3) * 3).toFixed(2))
+})
+
+const profitLabels = Array.from({ length: 60 }, (_, i) => {
+  const date = new Date()
+  date.setDate(date.getDate() - (59 - i))
+  return date.toISOString().split('T')[0]
 })
 
 const filteredUserStrategies = computed(() => {

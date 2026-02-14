@@ -568,7 +568,7 @@
               </div>
             </div>
 
-            <ReturnCurveChart v-if="signal.returnCurve?.length" :data="signal.returnCurve" :height="100"
+            <ReturnCurveChart v-if="signal.returnCurve?.length" :data="signal.returnCurve" :labels="signal.returnCurveLabels" :height="100"
               :color="signal.cumulativeReturn >= 0 ? '#10b981' : '#ef4444'" />
 
             <div class="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">

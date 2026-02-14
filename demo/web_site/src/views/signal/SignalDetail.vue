@@ -193,6 +193,7 @@
               <ReturnCurveChart
                 v-if="signal.returnCurve?.length"
                 :data="signal.returnCurve"
+                :labels="signal.returnCurveLabels"
                 :height="280"
                 :color="signal.cumulativeReturn >= 0 ? '#10b981' : '#ef4444'"
               />
