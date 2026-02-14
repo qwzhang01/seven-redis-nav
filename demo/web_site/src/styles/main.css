@@ -41,21 +41,41 @@ body {
   border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+/* 下拉选项样式 - 支持旧版和新版类名 */
 .t-select__dropdown .t-option,
-.t-dropdown__menu .t-dropdown__item {
+.t-dropdown__menu .t-dropdown__item,
+.t-select-option,
+.t-popup__content .t-select-option,
+.t-select__dropdown-inner .t-select-option,
+.t-select__list .t-select-option {
   color: #ffffff !important;
 }
 
 .t-select__dropdown .t-option:hover,
-.t-dropdown__menu .t-dropdown__item:hover {
+.t-dropdown__menu .t-dropdown__item:hover,
+.t-select-option:hover,
+.t-popup__content .t-select-option:hover,
+.t-select__dropdown-inner .t-select-option:hover,
+.t-select__list .t-select-option:hover {
   background-color: rgba(0, 212, 255, 0.1) !important;
   color: #ffffff !important;
 }
 
+/* 选中状态 - 字体改为黑色 */
 .t-select__dropdown .t-option.t-is-selected,
-.t-dropdown__menu .t-dropdown__item.t-is-selected {
+.t-dropdown__menu .t-dropdown__item.t-is-selected,
+.t-select-option.t-is-selected,
+.t-popup__content .t-select-option.t-is-selected,
+.t-select__dropdown-inner .t-select-option.t-is-selected,
+.t-select__list .t-select-option.t-is-selected {
   background-color: rgba(0, 212, 255, 0.15) !important;
-  color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* 确保选项内的所有元素继承颜色 */
+.t-select-option *,
+.t-select-option span {
+  color: inherit !important;
 }
 
 .t-select__single-input,

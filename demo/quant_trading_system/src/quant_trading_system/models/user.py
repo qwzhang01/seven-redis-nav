@@ -174,3 +174,31 @@ class UserListResponse(BaseModel):
     """用户列表响应模型"""
     total: int
     items: List[UserResponse]
+
+
+# 为API响应添加成功状态包装
+class APIResponse(BaseModel):
+    """API响应包装模型"""
+    success: bool
+    data: Optional[Any] = None
+    message: str
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+
+
+# 用户列表响应包装
+class UserListAPIResponse(APIResponse):
+    """用户列表API响应"""
+    data: UserListResponse
+
+
+# 交易所列表响应包装
+class ExchangeListAPIResponse(APIResponse):
+    """交易所列表API响应"""
+    data: ExchangeListResponse
+
+
+# API密钥列表响应包装
+class APIKeyListAPIResponse(APIResponse):
+    """API密钥列表API响应"""
+    data: APIKeyListResponse

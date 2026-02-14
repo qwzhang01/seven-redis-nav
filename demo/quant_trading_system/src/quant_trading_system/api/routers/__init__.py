@@ -19,6 +19,7 @@ from quant_trading_system.api.routers.strategy import router as strategy_router
 from quant_trading_system.api.routers.trading import router as trading_router
 from quant_trading_system.api.routers.backtest import router as backtest_router
 from quant_trading_system.api.routers.system import router as system_router
+from quant_trading_system.api.routers.user import router as user_router
 
 __all__ = [
     "market_router",
@@ -26,4 +27,5 @@ __all__ = [
     "trading_router",
     "backtest_router",
     "system_router",
+    "user_router"
 ]

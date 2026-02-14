@@ -140,4 +140,52 @@ const filteredList = computed(() => {
 :deep(.t-select .t-select__placeholder:-ms-input-placeholder) {
   color: #ffffff !important;
 }
+
+/* 针对实际DOM结构的下拉选项样式 */
+:deep(.t-popup__content .t-select-option),
+:deep(.t-select__dropdown-inner .t-select-option),
+:deep(.t-select__list .t-select-option),
+:deep(.t-select-option) {
+  color: #ffffff !important;
+}
+
+:deep(.t-popup__content .t-select-option:hover),
+:deep(.t-select__dropdown-inner .t-select-option:hover),
+:deep(.t-select__list .t-select-option:hover),
+:deep(.t-select-option:hover) {
+  color: #ffffff !important;
+}
+
+/* 选中状态下的文本颜色改为黑色 */
+:deep(.t-popup__content .t-select-option.t-is-selected),
+:deep(.t-select__dropdown-inner .t-select-option.t-is-selected),
+:deep(.t-select__list .t-select-option.t-is-selected),
+:deep(.t-select-option.t-is-selected) {
+  color: #000000 !important;
+}
+
+/* 确保下拉选项内的span元素也应用颜色 */
+:deep(.t-select-option span),
+:deep(.t-select-option.t-is-selected span) {
+  color: inherit !important;
+}
+
+/* 针对下拉列表中的所有文本 */
+:deep(.t-popup__content),
+:deep(.t-popup__content *),
+:deep(.t-select__dropdown-inner),
+:deep(.t-select__dropdown-inner *),
+:deep(.t-select__list),
+:deep(.t-select__list *) {
+  color: #ffffff !important;
+}
+
+:deep(.t-popup__content .t-select-option.t-is-selected),
+:deep(.t-popup__content .t-select-option.t-is-selected *),
+:deep(.t-select__dropdown-inner .t-select-option.t-is-selected),
+:deep(.t-select__dropdown-inner .t-select-option.t-is-selected *),
+:deep(.t-select__list .t-select-option.t-is-selected),
+:deep(.t-select__list .t-select-option.t-is-selected *) {
+  color: #000000 !important;
+}
 </style>

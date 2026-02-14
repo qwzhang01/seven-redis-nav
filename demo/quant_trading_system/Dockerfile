@@ -1,77 +1,41 @@
-# 多阶段构建 - 量化交易系统
-FROM python:3.11-slim as base
+# 使用官方Python运行时作为基础镜像
+FROM python:3.9-slim
 
-# 设置环境变量
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_TIMEOUT=300 \
-    PIP_RETRIES=3 \
-    PYTHONPATH=/app
-
-# 安装系统依赖（包括ta-lib所需的依赖）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    wget \
-    git \
-    libpq-dev \
-    # ta-lib依赖
-    libta-lib-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# 创建非root用户
-RUN groupadd --gid 1000 quant \
-    && useradd --uid 1000 --gid quant --shell /bin/bash --create-home quant
-
+# 设置工作目录
 WORKDIR /app
 
-# 构建阶段
-FROM base as builder
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    postgresql-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
-COPY pyproject.toml ./
+COPY requirements.txt .
 
-# 升级pip并安装构建工具
-RUN pip install --upgrade pip \
-    && pip install build setuptools wheel
+# 安装Python依赖
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 构建并安装项目依赖（使用pyproject.toml中的依赖）
-RUN pip install --timeout=300 --retries=3 .
+# 复制应用代码
+COPY . .
 
-# 运行阶段
-FROM base as runner
-
-# 安装运行时的健康检查工具
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# 复制源码
-COPY --chown=quant:quant src/ ./src/
-
-# 复制已安装的依赖
-COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
-
-# 创建必要的目录
-RUN mkdir -p /app/logs /app/data /app/cache \
-    && chown -R quant:quant /app
-
-# 切换到非root用户
-USER quant
+# 创建非root用户
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 # 暴露端口
 EXPOSE 8000
 
-# 健康检查（使用Python内置HTTP客户端）
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # 启动命令
-CMD ["uvicorn", "quant_trading_system.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "src.quant_trading_system.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

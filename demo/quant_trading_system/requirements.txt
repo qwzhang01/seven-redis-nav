@@ -1,0 +1,121 @@
+# 量化交易系统依赖包列表
+
+# Web框架
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# 数据库
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# 认证与安全
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# 密码加密
+bcrypt==4.1.2
+
+# JWT令牌
+pyjwt==2.8.0
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# HTTP客户端
+httpx==0.25.2
+requests==2.31.0
+
+# 数据验证
+pydantic==2.5.1
+pydantic-settings==2.1.0
+
+# 异步支持
+anyio==4.2.0
+
+# 时间处理
+python-dateutil==2.8.2
+pytz==2023.3.post1
+
+# 日志记录
+structlog==23.2.0
+
+# 测试框架
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# 开发工具
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.5.0
+
+# 数据库迁移
+alembic==1.12.1
+
+# 序列化
+orjson==3.9.10
+
+# 数学计算
+numpy==1.26.2
+pandas==2.1.4
+
+# 时序数据库支持（可选）
+timescaledb==2.13.0
+
+# 邮件服务（用于密码重置）
+aiosmtplib==3.0.1
+
+# 缓存支持
+redis==5.0.1
+
+# API文档
+swagger-ui-bundle==1.0.0
+
+# 监控和指标
+prometheus-client==0.19.0
+
+# 配置管理
+pyyaml==6.0.1
+
+# 命令行工具
+click==8.1.7
+
+# 异步任务队列（可选）
+celery==5.3.4
+
+# WebSocket支持（可选）
+websockets==12.0
+
+# 数据可视化（可选）
+matplotlib==3.8.2
+plotly==5.17.0
+
+# 金融数据处理（可选）
+ta-lib==0.4.27
+
+# 开发环境依赖（可选）
+jupyter==1.0.0
+ipython==8.17.2
+
+# 代码质量检查
+bandit==1.7.6
+safety==2.3.5
+
+# 性能分析
+py-spy==0.3.14
+
+# 部署相关
+gunicorn==21.2.0
+
+# 注意：以下包可能需要根据操作系统进行特殊安装
+# ta-lib: 需要先安装系统依赖
+# timescaledb: 需要PostgreSQL扩展支持
+
+# 安装命令：
+# pip install -r requirements.txt
+
+# 对于生产环境，建议使用：
+# pip install --no-cache-dir -r requirements.txt
