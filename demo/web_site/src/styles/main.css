@@ -244,6 +244,46 @@ body {
   color: #ffffff !important;
 }
 
+/* TDesign Input Placeholder Styles */
+.t-input__inner,
+.t-input input,
+.t-textarea__inner,
+.t-textarea textarea {
+  color: #ffffff !important;
+}
+
+.t-input__inner::placeholder,
+.t-input input::placeholder,
+.t-textarea__inner::placeholder,
+.t-textarea textarea::placeholder {
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+}
+
+.t-input__inner::-webkit-input-placeholder,
+.t-input input::-webkit-input-placeholder,
+.t-textarea__inner::-webkit-input-placeholder,
+.t-textarea textarea::-webkit-input-placeholder {
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+}
+
+.t-input__inner::-moz-placeholder,
+.t-input input::-moz-placeholder,
+.t-textarea__inner::-moz-placeholder,
+.t-textarea textarea::-moz-placeholder {
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+}
+
+.t-input__inner:-ms-input-placeholder,
+.t-input input:-ms-input-placeholder,
+.t-textarea__inner:-ms-input-placeholder,
+.t-textarea textarea:-ms-input-placeholder {
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+}
+
 /* Utility Classes */
 @layer components {
   .glass-card {
