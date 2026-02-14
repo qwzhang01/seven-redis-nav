@@ -85,6 +85,39 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str = "sqlite:///./test.db"
     TEST_MODE: bool = False
 
+    # 应用环境配置
+    APP_ENV: str = "development"
+
+    # 交易所API配置
+    BINANCE_API_KEY: Optional[str] = None
+    BINANCE_SECRET_KEY: Optional[str] = None
+    BINANCE_TESTNET: bool = True
+    OKX_API_KEY: Optional[str] = None
+    OKX_SECRET_KEY: Optional[str] = None
+    OKX_PASSPHRASE: Optional[str] = None
+
+    # 数据源配置
+    DATA_PROVIDER: str = "binance"
+    HISTORICAL_DATA_PATH: str = "./data/historical"
+
+    # 回测配置
+    BACKTEST_START_DATE: str = "2024-01-01"
+    BACKTEST_END_DATE: str = "2024-12-31"
+    INITIAL_CAPITAL: float = 100000
+
+    # 风控配置
+    MAX_POSITION_SIZE: float = 0.1
+    MAX_DRAWDOWN: float = 0.2
+    STOP_LOSS_PCT: float = 0.02
+
+    # 通知配置
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_CHAT_ID: Optional[str] = None
+    EMAIL_SMTP_HOST: Optional[str] = None
+    EMAIL_SMTP_PORT: int = 587
+    EMAIL_USERNAME: Optional[str] = None
+    EMAIL_PASSWORD: Optional[str] = None
+
     @validator("DATABASE_URL")
     def validate_database_url(cls, v):
         """验证数据库URL格式"""

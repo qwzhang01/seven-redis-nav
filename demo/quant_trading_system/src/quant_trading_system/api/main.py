@@ -15,7 +15,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 
 from .routers import user, health
-from ..services.database.database import create_tables, get_db_session
+from ..services.database.database import init_database
 from ..config import settings
 
 
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
     # 初始化数据库表
     try:
-        await create_tables()
+        await init_database()
         print("✅ 数据库表初始化完成")
     except Exception as e:
         print(f"❌ 数据库初始化失败: {e}")
@@ -201,6 +201,14 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
+
+
+def create_app() -> FastAPI:
+    """
+    创建FastAPI应用实例
+    用于在其他模块中导入使用
+    """
+    return app
 
 
 if __name__ == "__main__":

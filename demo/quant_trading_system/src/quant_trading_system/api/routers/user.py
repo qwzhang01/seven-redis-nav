@@ -22,6 +22,7 @@ from pydantic import EmailStr
 from quant_trading_system.models.user import (
     UserCreate,
     UserResponse,
+    UserUpdate,
     LoginRequest,
     LoginResponse,
     PasswordChangeRequest,
@@ -108,7 +109,7 @@ class MockDatabase:
                 base_url="https://api.binance.com",
                 api_doc_url="https://binance-docs.github.io/apidocs/",
                 status="active",
-                supported_pairs={"BTCUSDT", "ETHUSDT", "BNBUSDT"},
+            supported_pairs={"BTCUSDT": True, "ETHUSDT": True, "BNBUSDT": True},
                 rate_limits={"requests_per_minute": 1200},
                 create_time=datetime.now(),
                 update_time=datetime.now()
@@ -121,7 +122,7 @@ class MockDatabase:
                 base_url="https://www.okx.com",
                 api_doc_url="https://www.okx.com/docs/",
                 status="active",
-                supported_pairs={"BTC-USDT", "ETH-USDT", "OKB-USDT"},
+            supported_pairs={"BTC-USDT": True, "ETH-USDT": True, "OKB-USDT": True},
                 rate_limits={"requests_per_minute": 300},
                 create_time=datetime.now(),
                 update_time=datetime.now()

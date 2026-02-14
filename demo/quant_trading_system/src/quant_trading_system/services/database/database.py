@@ -11,6 +11,12 @@ from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
+import os
+from urllib.parse import urlparse
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 logger = structlog.get_logger(__name__)
 
@@ -28,11 +34,28 @@ class TimescaleDB:
         min_conn: int = 1,
         max_conn: int = 10
     ):
-        self.host = host
-        self.port = port
-        self.database = database
-        self.user = user
-        self.password = password
+        # 优先使用环境变量中的DATABASE_URL
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            # 解析数据库URL
+            parsed_url = urlparse(database_url)
+            self.host = parsed_url.hostname or "localhost"
+            self.port = parsed_url.port or 5432
+            self.database = parsed_url.path.lstrip('/') or "quant_trading"
+            self.user = parsed_url.username or "quant"
+            # 处理密码中的引号
+            password = parsed_url.password or "quant123"
+            if password and password.startswith("'") and password.endswith("'"):
+                password = password[1:-1]
+            self.password = password
+        else:
+            # 使用默认参数
+            self.host = host
+            self.port = port
+            self.database = database
+            self.user = user
+            self.password = password
+
         self.min_conn = min_conn
         self.max_conn = max_conn
         self._connection_pool: Optional[Any] = None
@@ -109,10 +132,40 @@ class TimescaleDB:
                 """)
 
                 # 将kline_data表转换为时序表
-                cursor.execute("""
-                    SELECT create_hypertable('kline_data', 'timestamp',
-                    if_not_exists => TRUE);
-                """)
+                try:
+                    cursor.execute("""
+                        SELECT create_hypertable('kline_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
+                except Exception as e:
+                    # 如果创建超表失败，可能是由于唯一索引问题
+                    # 先回滚事务，然后重新创建表，再创建超表
+                    logger.warning("创建超表失败，重新创建表", error=str(e))
+                    conn.rollback()
+
+                    # 重新创建kline_data表
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS kline_data (
+                            id BIGSERIAL,
+                            symbol VARCHAR(32) NOT NULL,
+                            exchange VARCHAR(32) NOT NULL,
+                            timeframe VARCHAR(8) NOT NULL,
+                            timestamp TIMESTAMPTZ NOT NULL,
+                            open DECIMAL(20, 8) NOT NULL,
+                            high DECIMAL(20, 8) NOT NULL,
+                            low DECIMAL(20, 8) NOT NULL,
+                            close DECIMAL(20, 8) NOT NULL,
+                            volume DECIMAL(30, 8) NOT NULL,
+                            turnover DECIMAL(30, 8),
+                            is_closed BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMPTZ DEFAULT NOW()
+                        );
+                    """)
+
+                    cursor.execute("""
+                        SELECT create_hypertable('kline_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
 
                 # 创建索引
                 cursor.execute("""
@@ -143,10 +196,38 @@ class TimescaleDB:
                 """)
 
                 # 将tick_data表转换为时序表
-                cursor.execute("""
-                    SELECT create_hypertable('tick_data', 'timestamp',
-                    if_not_exists => TRUE);
-                """)
+                try:
+                    cursor.execute("""
+                        SELECT create_hypertable('tick_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
+                except Exception as e:
+                    # 如果创建超表失败，可能是由于唯一索引问题
+                    # 先回滚事务，然后重新创建表，再创建超表
+                    logger.warning("创建超表失败，重新创建表", error=str(e))
+                    conn.rollback()
+
+                    # 重新创建tick_data表
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS tick_data (
+                            id BIGSERIAL,
+                            symbol VARCHAR(32) NOT NULL,
+                            exchange VARCHAR(32) NOT NULL,
+                            timestamp TIMESTAMPTZ NOT NULL,
+                            price DECIMAL(20, 8) NOT NULL,
+                            volume DECIMAL(30, 8) NOT NULL,
+                            bid_price DECIMAL(20, 8),
+                            ask_price DECIMAL(20, 8),
+                            bid_size DECIMAL(30, 8),
+                            ask_size DECIMAL(30, 8),
+                            created_at TIMESTAMPTZ DEFAULT NOW()
+                        );
+                    """)
+
+                    cursor.execute("""
+                        SELECT create_hypertable('tick_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
 
                 # 创建索引
                 cursor.execute("""
@@ -168,10 +249,34 @@ class TimescaleDB:
                 """)
 
                 # 将depth_data表转换为时序表
-                cursor.execute("""
-                    SELECT create_hypertable('depth_data', 'timestamp',
-                    if_not_exists => TRUE);
-                """)
+                try:
+                    cursor.execute("""
+                        SELECT create_hypertable('depth_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
+                except Exception as e:
+                    # 如果创建超表失败，可能是由于唯一索引问题
+                    # 先回滚事务，然后重新创建表，再创建超表
+                    logger.warning("创建超表失败，重新创建表", error=str(e))
+                    conn.rollback()
+
+                    # 重新创建depth_data表
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS depth_data (
+                            id BIGSERIAL,
+                            symbol VARCHAR(32) NOT NULL,
+                            exchange VARCHAR(32) NOT NULL,
+                            timestamp TIMESTAMPTZ NOT NULL,
+                            bids JSONB NOT NULL,
+                            asks JSONB NOT NULL,
+                            created_at TIMESTAMPTZ DEFAULT NOW()
+                        );
+                    """)
+
+                    cursor.execute("""
+                        SELECT create_hypertable('depth_data', 'timestamp',
+                        if_not_exists => TRUE);
+                    """)
 
                 # 创建回测结果表
                 cursor.execute("""
@@ -200,10 +305,10 @@ class TimescaleDB:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS user_info (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        username VARCHAR(64) UNIQUE NOT NULL,
+                        username VARCHAR(64) NOT NULL,
                         nickname VARCHAR(128) NOT NULL,
                         password_hash VARCHAR(255) NOT NULL,
-                        email VARCHAR(255) UNIQUE NOT NULL,
+                        email VARCHAR(255) NOT NULL,
                         email_verified BOOLEAN DEFAULT FALSE,
                         phone VARCHAR(32),
                         phone_verified BOOLEAN DEFAULT FALSE,
@@ -224,7 +329,7 @@ class TimescaleDB:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS exchange_info (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        exchange_code VARCHAR(32) UNIQUE NOT NULL, -- binance/okx/huobi
+                        exchange_code VARCHAR(32) NOT NULL, -- binance/okx/huobi
                         exchange_name VARCHAR(128) NOT NULL,
                         exchange_type VARCHAR(32) DEFAULT 'spot', -- spot/futures/margin
                         base_url VARCHAR(512) NOT NULL,
@@ -266,12 +371,12 @@ class TimescaleDB:
 
                 # 创建索引
                 cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_user_info_username
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_info_username_unique
                     ON user_info (username);
                 """)
 
                 cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_user_info_email
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_info_email_unique
                     ON user_info (email);
                 """)
 

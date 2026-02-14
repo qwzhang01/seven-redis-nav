@@ -5,15 +5,29 @@
 """
 
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
-from ...services.database.database import get_db_session
-from ...models.user import HealthResponse, HealthStatus
+from ...services.database.database import get_database
+
+
+class HealthStatus(str, Enum):
+    """健康状态枚举"""
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+
+
+class HealthResponse(BaseModel):
+    """健康检查响应模型"""
+    status: HealthStatus
+    message: str
+    timestamp: datetime
+    version: str = "1.0.0"
+    checks: Optional[Dict[str, Dict[str, Any]]] = None
 
 # 创建路由
 router = APIRouter(prefix="/health", tags=["health"])
@@ -37,15 +51,15 @@ async def health_check() -> HealthResponse:
 
 
 @router.get("/db", response_model=HealthResponse)
-async def database_health_check(db: AsyncSession = Depends(get_db_session)) -> HealthResponse:
+async def database_health_check() -> HealthResponse:
     """
     数据库健康检查
     检查数据库连接是否正常
     """
     try:
-        # 执行简单的SQL查询测试数据库连接
-        result = await db.execute(text("SELECT 1"))
-        db_status = result.scalar() == 1
+        # 使用现有的数据库实例进行健康检查
+        db = get_database()
+        db_status = await db.health_check()
 
         if db_status:
             return HealthResponse(
@@ -78,7 +92,7 @@ async def database_health_check(db: AsyncSession = Depends(get_db_session)) -> H
 
 
 @router.get("/full", response_model=HealthResponse)
-async def full_health_check(db: AsyncSession = Depends(get_db_session)) -> HealthResponse:
+async def full_health_check() -> HealthResponse:
     """
     完整健康检查
     检查所有关键组件的健康状态
@@ -91,8 +105,8 @@ async def full_health_check(db: AsyncSession = Depends(get_db_session)) -> Healt
 
     # 检查数据库
     try:
-        result = await db.execute(text("SELECT 1"))
-        db_status = result.scalar() == 1
+        db = get_database()
+        db_status = await db.health_check()
         checks["database"] = {
             "status": "healthy" if db_status else "unhealthy",
             "message": "数据库连接正常" if db_status else "数据库查询失败"
@@ -109,11 +123,14 @@ async def full_health_check(db: AsyncSession = Depends(get_db_session)) -> Healt
     # 检查关键表是否存在
     try:
         # 检查用户表
-        result = await db.execute(text("SELECT COUNT(*) FROM user_info LIMIT 1"))
-        checks["user_table"] = {
-            "status": "healthy",
-            "message": "用户表正常"
-        }
+        db = get_database()
+        with db._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM user_info LIMIT 1")
+            checks["user_table"] = {
+                "status": "healthy",
+                "message": "用户表正常"
+            }
     except Exception as e:
         checks["user_table"] = {
             "status": "unhealthy",
@@ -123,11 +140,14 @@ async def full_health_check(db: AsyncSession = Depends(get_db_session)) -> Healt
 
     # 检查交易所表
     try:
-        result = await db.execute(text("SELECT COUNT(*) FROM exchange_info LIMIT 1"))
-        checks["exchange_table"] = {
-            "status": "healthy",
-            "message": "交易所表正常"
-        }
+        db = get_database()
+        with db._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM exchange_info LIMIT 1")
+            checks["exchange_table"] = {
+                "status": "healthy",
+                "message": "交易所表正常"
+            }
     except Exception as e:
         checks["exchange_table"] = {
             "status": "unhealthy",
@@ -137,11 +157,14 @@ async def full_health_check(db: AsyncSession = Depends(get_db_session)) -> Healt
 
     # 检查API密钥表
     try:
-        result = await db.execute(text("SELECT COUNT(*) FROM user_exchange_api LIMIT 1"))
-        checks["api_key_table"] = {
-            "status": "healthy",
-            "message": "API密钥表正常"
-        }
+        db = get_database()
+        with db._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM user_exchange_api LIMIT 1")
+            checks["api_key_table"] = {
+                "status": "healthy",
+                "message": "API密钥表正常"
+            }
     except Exception as e:
         checks["api_key_table"] = {
             "status": "unhealthy",
