@@ -12,7 +12,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote_plus
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -22,10 +22,25 @@ load_dotenv()
 
 logger = structlog.get_logger(__name__)
 
+
+def _build_sync_database_url() -> str:
+    """构建同步数据库URL，自动对密码中的特殊字符进行URL编码"""
+    database_url = os.getenv("DATABASE_URL", "postgresql://quant:quant123@localhost:5432/quant_trading")
+    parsed = urlparse(database_url)
+    if parsed.password:
+        encoded_password = quote_plus(parsed.password)
+        # 重新构建编码后的URL
+        netloc = f"{parsed.username}:{encoded_password}@{parsed.hostname}"
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        database_url = f"{parsed.scheme}://{netloc}{parsed.path}"
+        if parsed.query:
+            database_url += f"?{parsed.query}"
+    return database_url
+
+
 # 创建数据库引擎和会话工厂
-engine = create_engine(
-    os.getenv("DATABASE_URL", "postgresql://quant:quant123@localhost:5432/quant_trading")
-)
+engine = create_engine(_build_sync_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

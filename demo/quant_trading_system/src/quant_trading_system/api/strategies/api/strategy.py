@@ -120,6 +120,19 @@ async def get_strategy_types() -> dict[str, Any]:
         get_strategy_class,
     )
 
+    def _serialize_params_def(params_def: dict) -> dict:
+        """将 params_def 中的 type 字段（Python 类对象）转换为字符串"""
+        result = {}
+        for key, definition in params_def.items():
+            serialized = {}
+            for k, v in definition.items():
+                if k == "type" and isinstance(v, type):
+                    serialized[k] = v.__name__
+                else:
+                    serialized[k] = v
+            result[key] = serialized
+        return result
+
     types = []
     for name in list_registered():
         cls = get_strategy_class(name)
@@ -127,7 +140,7 @@ async def get_strategy_types() -> dict[str, Any]:
             types.append({
                 "name": name,
                 "description": cls.description,
-                "params": cls.params_def,
+                "params": _serialize_params_def(cls.params_def),
                 "timeframes": [tf.value for tf in cls.timeframes],
             })
     return {"types": types}

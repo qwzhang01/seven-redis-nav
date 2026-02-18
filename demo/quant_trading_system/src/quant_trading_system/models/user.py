@@ -1,7 +1,8 @@
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from uuid import UUID
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserType(str, Enum):
@@ -63,7 +64,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """用户响应模型"""
-    id: str
+    id: Union[str, UUID]
     email_verified: bool
     phone_verified: bool
     user_type: UserType
@@ -72,6 +73,11 @@ class UserResponse(UserBase):
     status: UserStatus
     create_time: datetime
     update_time: datetime
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_id_to_str(cls, v):
+        return str(v)
 
     class Config:
         from_attributes = True
@@ -106,7 +112,7 @@ class PasswordResetRequest(BaseModel):
 
 class ExchangeInfo(BaseModel):
     """交易所信息模型"""
-    id: str
+    id: Union[str, UUID]
     exchange_code: str
     exchange_name: str
     exchange_type: ExchangeType
@@ -117,6 +123,11 @@ class ExchangeInfo(BaseModel):
     rate_limits: Optional[Dict[str, Any]]
     create_time: datetime
     update_time: datetime
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_id_to_str(cls, v):
+        return str(v)
 
     class Config:
         from_attributes = True
@@ -141,9 +152,9 @@ class APIKeyUpdate(BaseModel):
 
 class APIKeyResponse(BaseModel):
     """API密钥响应模型"""
-    id: str
-    user_id: str
-    exchange_id: str
+    id: Union[str, UUID]
+    user_id: Union[str, UUID]
+    exchange_id: Union[str, UUID]
     label: str
     api_key: str
     status: APIKeyStatus
@@ -153,6 +164,11 @@ class APIKeyResponse(BaseModel):
     last_used_time: Optional[datetime]
     create_time: datetime
     update_time: datetime
+
+    @field_validator("id", "user_id", "exchange_id", mode="before")
+    @classmethod
+    def coerce_uuid_to_str(cls, v):
+        return str(v)
 
     class Config:
         from_attributes = True
