@@ -20,105 +20,31 @@ def main() -> None:
 @click.option("--port", default=8000, help="监听端口")
 @click.option("--reload", is_flag=True, help="开发模式（自动重载）")
 @click.option("--workers", default=1, help="工作进程数")
-@click.option(
-    "--strategy",
-    "strategies",
-    multiple=True,
-    metavar="NAME:SYMBOL1,SYMBOL2",
-    help=(
-        "启动一个策略，格式为 '策略名:交易对1,交易对2'。"
-        "可多次指定以同时运行多个策略，例如："
-        "--strategy MACross:BTCUSDT,ETHUSDT --strategy RSI:BNBUSDT"
-    ),
-)
-@click.option("--exchange", default="binance", envvar="TRADE_EXCHANGE", help="交易所")
-@click.option("--market-type", default="spot", envvar="TRADE_MARKET_TYPE", help="市场类型 (spot/futures)")
-@click.option("--capital", default=100000.0, envvar="TRADE_CAPITAL", help="初始资金（paper 模式）")
-@click.option("--api-key", default="", envvar="EXCHANGE_API_KEY", help="交易所 API Key")
-@click.option("--api-secret", default="", envvar="EXCHANGE_API_SECRET", help="交易所 API Secret")
-@click.option("--mode", default="paper", type=click.Choice(["paper", "live"]), envvar="TRADE_MODE", help="运行模式")
 def serve(
     host: str,
     port: int,
     reload: bool,
     workers: int,
-    strategies: tuple[str, ...],
-    exchange: str,
-    market_type: str,
-    capital: float,
-    api_key: str,
-    api_secret: str,
-    mode: str,
 ) -> None:
-    """启动API服务（可选同时启动交易引擎）
+    """启动 API 服务
+
+    服务启动时会自动加载所有已注册策略（stopped 状态）。
+    策略不会自动运行，需通过 API 显式创建并启动。
 
     示例：
 
-      # 仅启动 API 服务
-      serve --host 127.0.0.1 --port 8000
+      # 启动 API 服务（默认地址和端口）
+      serve
 
-      # 启动 API + 单策略
-      serve --strategy MACross:BTCUSDT,ETHUSDT --mode paper
+      # 指定地址和端口
+      serve --host 127.0.0.1 --port 8080
 
-      # 启动 API + 多策略并发
-      serve --strategy MACross:BTCUSDT --strategy RSI:ETHUSDT,BNBUSDT
+      # 开发模式（自动重载）
+      serve --reload
     """
-    import json
-    import os
-
     click.echo(f"Starting API server at http://{host}:{port}")
-
-    if strategies:
-        # 导入策略模块以触发注册
-        import quant_trading_system.strategies  # noqa: F401
-        from quant_trading_system.services.strategy.base import get_strategy_class
-
-        # 解析并校验每条策略配置
-        parsed: list[dict] = []
-        for spec in strategies:
-            if ":" not in spec:
-                click.echo(
-                    f"Error: --strategy 格式错误 '{spec}'，应为 '策略名:交易对1,交易对2'",
-                    err=True,
-                )
-                return
-            name, symbols_str = spec.split(":", 1)
-            name = name.strip()
-            syms = [s.strip() for s in symbols_str.split(",") if s.strip()]
-            if not syms:
-                click.echo(f"Error: 策略 '{name}' 未指定交易对", err=True)
-                return
-            if not get_strategy_class(name):
-                click.echo(f"Error: 策略 '{name}' 未找到", err=True)
-                from quant_trading_system.services.strategy.base import list_strategies
-                click.echo("可用策略:")
-                for n in list_strategies():
-                    click.echo(f"  - {n}")
-                return
-            parsed.append({"name": name, "symbols": syms})
-
-        # 将策略配置序列化为 JSON 写入环境变量，供 lifespan 读取
-        os.environ["_TRADE_STRATEGIES"] = json.dumps(parsed)
-        os.environ["_TRADE_EXCHANGE"] = exchange
-        os.environ["_TRADE_MARKET_TYPE"] = market_type
-        os.environ["_TRADE_CAPITAL"] = str(capital)
-        os.environ["_TRADE_API_KEY"] = api_key
-        os.environ["_TRADE_API_SECRET"] = api_secret
-        os.environ["_TRADE_MODE"] = mode
-
-        click.echo(f"  Exchange : {exchange} ({market_type})")
-        click.echo(f"  Mode     : {mode}")
-        click.echo(f"  Capital  : {capital:,.2f}")
-        click.echo(f"  Strategies ({len(parsed)}):")
-        for p in parsed:
-            click.echo(f"    - {p['name']} → {p['symbols']}")
-    else:
-        # 清除可能残留的环境变量
-        for key in (
-            "_TRADE_STRATEGIES", "_TRADE_EXCHANGE", "_TRADE_MARKET_TYPE",
-            "_TRADE_CAPITAL", "_TRADE_API_KEY", "_TRADE_API_SECRET", "_TRADE_MODE",
-        ):
-            os.environ.pop(key, None)
+    click.echo("  策略将在服务启动时自动加载（stopped 状态）")
+    click.echo("  请通过 API 创建并启动策略")
 
     uvicorn.run(
         "quant_trading_system.api.main:app",

@@ -69,12 +69,10 @@ def set_orchestrator(orch) -> None:
 async def lifespan(app: FastAPI):
     """
     应用生命周期管理
-    - 启动时初始化数据库，并按需启动交易引擎（支持多策略并发）
+    - 启动时初始化数据库，自动创建编排器并加载所有已注册策略（stopped 状态）
+    - 策略不会自动运行，需用户通过 API 显式启动
     - 关闭时清理资源
     """
-    import json
-    import asyncio
-
     # 启动时执行
     print("🚀 启动量化交易系统...")
 
@@ -86,55 +84,41 @@ async def lifespan(app: FastAPI):
         print(f"❌ 数据库初始化失败: {e}")
         raise
 
-    # 若 serve 命令传入了策略配置，则自动启动交易引擎
-    strategies_json = os.environ.get("_TRADE_STRATEGIES", "")
-    if strategies_json:
-        try:
-            # 导入策略模块以触发注册
-            import quant_trading_system.strategies  # noqa: F401
+    # 自动初始化编排器，加载所有已注册策略（不启动、不订阅行情）
+    try:
+        # 导入策略模块以触发注册
+        import quant_trading_system.strategies  # noqa: F401
 
-            from quant_trading_system.services.strategy.base import get_strategy_class
-            from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
+        from quant_trading_system.services.strategy.base import (
+            list_strategies as list_registered,
+            get_strategy_class,
+        )
+        from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
 
-            strategy_specs: list[dict] = json.loads(strategies_json)
-            exchange    = os.environ.get("_TRADE_EXCHANGE", "binance")
-            market_type = os.environ.get("_TRADE_MARKET_TYPE", "spot")
-            capital     = float(os.environ.get("_TRADE_CAPITAL", "100000"))
-            api_key     = os.environ.get("_TRADE_API_KEY", "")
-            api_secret  = os.environ.get("_TRADE_API_SECRET", "")
-            mode        = os.environ.get("_TRADE_MODE", "paper")
+        orchestrator = TradingOrchestrator(
+            mode="paper",       # 默认 paper 模式，用户启动策略时可按需覆盖
+            exchange="binance",
+            market_type="spot",
+        )
+        await orchestrator.start()
 
-            orchestrator = TradingOrchestrator(
-                mode=mode,
-                exchange=exchange,
-                market_type=market_type,
-                api_key=api_key,
-                api_secret=api_secret,
-                initial_capital=capital,
-            )
-            await orchestrator.start()
+        # 将所有已注册策略以 stopped 状态加入编排器（不启动、不订阅行情）
+        registered = list_registered()
+        for name in registered:
+            cls = get_strategy_class(name)
+            if cls is None:
+                continue
+            # 使用策略类自带的默认交易对（若有），否则留空
+            default_symbols = list(cls.symbols) if cls.symbols else []
+            orchestrator.add_strategy(cls, symbols=default_symbols)
 
-            # 并发添加所有策略（add_strategy 是同步的，但可以并发 start_strategy）
-            for spec in strategy_specs:
-                strategy_class = get_strategy_class(spec["name"])
-                if strategy_class is None:
-                    print(f"⚠️  策略 '{spec['name']}' 未找到，已跳过")
-                    continue
-                orchestrator.add_strategy(strategy_class, symbols=spec["symbols"])
+        set_orchestrator(orchestrator)
+        print(f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
+        print(f"   已注册策略: {registered}")
 
-            # 并发启动所有策略
-            await orchestrator.start_all_strategies()
-            # 订阅所有策略关注的行情
-            await orchestrator.subscribe_market()
-
-            set_orchestrator(orchestrator)
-
-            names = [f"{s['name']}→{s['symbols']}" for s in strategy_specs]
-            print(f"✅ 交易引擎启动完成 | 模式={mode} | 策略={names}")
-
-        except Exception as e:
-            print(f"❌ 交易引擎启动失败: {e}")
-            raise
+    except Exception as e:
+        print(f"❌ 编排器初始化失败: {e}")
+        raise
 
     yield
 

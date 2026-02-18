@@ -189,8 +189,30 @@ class TradingOrchestrator:
         return strategy_id
 
     async def start_strategy(self, strategy_id: str) -> None:
-        """启动策略"""
+        """
+        启动策略，并自动订阅该策略所需的行情数据（增量订阅，已订阅的不重复）
+        """
         await self.strategy_engine.start_strategy(strategy_id)
+
+        # 获取该策略实例，订阅其尚未订阅的交易对行情
+        strategy_instance = self.strategy_engine.get_strategy(strategy_id)
+        if strategy_instance:
+            new_symbols = [
+                sym for sym in strategy_instance.symbols
+                if sym not in self._subscribed_symbols
+            ]
+            if new_symbols:
+                await self.market_service.subscribe(
+                    symbols=new_symbols,
+                    exchange=self.exchange,
+                    market_type=self.market_type,
+                )
+                self._subscribed_symbols.extend(new_symbols)
+                logger.info(
+                    "Subscribed market data for strategy",
+                    strategy_id=strategy_id,
+                    new_symbols=new_symbols,
+                )
 
     async def start_all_strategies(self) -> None:
         """启动所有已添加的策略"""
