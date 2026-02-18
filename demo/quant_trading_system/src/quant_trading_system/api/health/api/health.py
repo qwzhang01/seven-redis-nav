@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ...services.database.database import get_database
+from quant_trading_system.services.database.database import get_database
 
 
 class HealthStatus(str, Enum):

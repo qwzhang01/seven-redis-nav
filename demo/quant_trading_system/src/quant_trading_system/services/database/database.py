@@ -6,7 +6,7 @@ TimescaleDB 数据库连接和表结构定义
 
 import asyncio
 import structlog
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Generator
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -14,11 +14,33 @@ from contextlib import contextmanager
 import os
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 
 # 加载环境变量
 load_dotenv()
 
 logger = structlog.get_logger(__name__)
+
+# 创建数据库引擎和会话工厂
+engine = create_engine(
+    os.getenv("DATABASE_URL", "postgresql://quant:quant123@localhost:5432/quant_trading")
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    获取数据库会话的依赖函数
+
+    返回:
+        Generator[Session]: 数据库会话生成器
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 class TimescaleDB:

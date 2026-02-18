@@ -19,29 +19,20 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import EmailStr
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session
 
+# 导入数据库模型和配置
+from quant_trading_system.models.database import User, Exchange, UserExchangeAPI
 from quant_trading_system.models.user import (
-    UserCreate,
-    UserResponse,
-    UserUpdate,
-    LoginRequest,
-    LoginResponse,
-    PasswordChangeRequest,
-    PasswordResetRequest,
-    APIKeyCreate,
-    APIKeyUpdate,
-    APIKeyResponse,
-    APIKeyListResponse,
-    ExchangeInfo,
-    ExchangeListResponse,
-    UserListResponse,
-    UserType,
-    APIKeyStatus
+    UserCreate, UserResponse, UserUpdate,
+    LoginRequest, LoginResponse,
+    PasswordChangeRequest, PasswordResetRequest,
+    APIKeyCreate, APIKeyUpdate, APIKeyResponse, APIKeyListResponse,
+    ExchangeInfo, ExchangeListResponse, UserListResponse,
+    UserType, APIKeyStatus
 )
 from quant_trading_system.core.config import settings
+from quant_trading_system.services.database.database import get_db
 
 # 创建用户路由实例
 router = APIRouter()
@@ -53,39 +44,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # HTTP Bearer认证
 security = HTTPBearer()
-
-# 数据库配置 - 使用配置文件中的设置
-DATABASE_URL = settings.database.timescale_url
-# 使用异步引擎
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
-engine = create_async_engine(DATABASE_URL)
-SessionLocal = sessionmaker(
-    class_=AsyncSession,
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-Base = declarative_base()
-
-# 数据库依赖
-async def get_db():
-    """异步数据库会话依赖"""
-    async with SessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
-# 创建数据库表（异步方式）
-async def create_tables():
-    """异步创建数据库表"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-# 在应用启动时调用此函数
-# Base.metadata.create_all(bind=engine)  # 注释掉这行，改为异步方式
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
