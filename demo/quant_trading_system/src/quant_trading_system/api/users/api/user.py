@@ -215,7 +215,7 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     # 创建访问令牌
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.id}, expires_delta=access_token_expires
+        data={"sub": user.username, "user_id": str(user.id)}, expires_delta=access_token_expires
     )
 
     # 转换为响应模型
