@@ -90,6 +90,22 @@ CREATE TABLE IF NOT EXISTS kline_data (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 为kline_data表字段添加注释
+COMMENT ON TABLE kline_data IS 'K线数据表';
+COMMENT ON COLUMN kline_data.id IS '主键';
+COMMENT ON COLUMN kline_data.symbol IS '交易对符号';
+COMMENT ON COLUMN kline_data.exchange IS '交易所名称';
+COMMENT ON COLUMN kline_data.timeframe IS '时间框架';
+COMMENT ON COLUMN kline_data.timestamp IS '时间戳';
+COMMENT ON COLUMN kline_data.open IS '开盘价';
+COMMENT ON COLUMN kline_data.high IS '最高价';
+COMMENT ON COLUMN kline_data.low IS '最低价';
+COMMENT ON COLUMN kline_data.close IS '收盘价';
+COMMENT ON COLUMN kline_data.volume IS '成交量';
+COMMENT ON COLUMN kline_data.turnover IS '成交额';
+COMMENT ON COLUMN kline_data.is_closed IS 'K线是否已闭合';
+COMMENT ON COLUMN kline_data.created_at IS '记录创建时间';
+
 -- 将kline_data表转换为时序表
 SELECT create_hypertable('kline_data', 'timestamp', if_not_exists => TRUE);
 
@@ -108,6 +124,20 @@ CREATE TABLE IF NOT EXISTS tick_data (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 为tick_data表字段添加注释
+COMMENT ON TABLE tick_data IS '实时行情数据表';
+COMMENT ON COLUMN tick_data.id IS '主键';
+COMMENT ON COLUMN tick_data.symbol IS '交易对符号';
+COMMENT ON COLUMN tick_data.exchange IS '交易所名称';
+COMMENT ON COLUMN tick_data.timestamp IS '时间戳';
+COMMENT ON COLUMN tick_data.price IS '最新价格';
+COMMENT ON COLUMN tick_data.volume IS '成交量';
+COMMENT ON COLUMN tick_data.bid_price IS '买一价';
+COMMENT ON COLUMN tick_data.ask_price IS '卖一价';
+COMMENT ON COLUMN tick_data.bid_size IS '买一数量';
+COMMENT ON COLUMN tick_data.ask_size IS '卖一数量';
+COMMENT ON COLUMN tick_data.created_at IS '记录创建时间';
+
 -- 将tick_data表转换为时序表
 SELECT create_hypertable('tick_data', 'timestamp', if_not_exists => TRUE);
 
@@ -121,6 +151,16 @@ CREATE TABLE IF NOT EXISTS depth_data (
     asks JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 为depth_data表字段添加注释
+COMMENT ON TABLE depth_data IS '深度数据表';
+COMMENT ON COLUMN depth_data.id IS '主键';
+COMMENT ON COLUMN depth_data.symbol IS '交易对符号';
+COMMENT ON COLUMN depth_data.exchange IS '交易所名称';
+COMMENT ON COLUMN depth_data.timestamp IS '时间戳';
+COMMENT ON COLUMN depth_data.bids IS '买盘深度';
+COMMENT ON COLUMN depth_data.asks IS '卖盘深度';
+COMMENT ON COLUMN depth_data.created_at IS '记录创建时间';
 
 -- 将depth_data表转换为时序表
 SELECT create_hypertable('depth_data', 'timestamp', if_not_exists => TRUE);
