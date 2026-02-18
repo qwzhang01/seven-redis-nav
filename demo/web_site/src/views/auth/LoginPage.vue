@@ -48,17 +48,14 @@
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div class="auth-field">
             <input
-              v-model="form.email"
-              type="email"
-              placeholder="Email address"
+              v-model="form.username"
+              type="text"
+              placeholder="用户名"
               class="auth-input"
-              :class="{ 'auth-input--error': errors.email }"
-              autocomplete="email"
+              :class="{ 'auth-input--error': errors.username }"
+              autocomplete="username"
             />
-            <button type="button" class="auth-input-icon" tabindex="-1" @click="toggleEmailVisibility">
-              <component :is="emailVisible ? Eye : EyeOff" :size="16" />
-            </button>
-            <p v-if="errors.email" class="auth-error">{{ errors.email }}</p>
+            <p v-if="errors.username" class="auth-error">{{ errors.username }}</p>
           </div>
 
           <div class="auth-field">
@@ -103,11 +100,10 @@
           </router-link>
         </p>
 
-        <!-- Demo hint -->
+        <!-- API提示 -->
         <div class="mt-6 py-2.5 px-3 rounded-lg bg-white/[0.03] border border-white/[0.05]">
           <p class="text-[11px] text-dark-200 text-center leading-relaxed">
-            演示模式：输入任意邮箱和密码即可登录<br/>
-            邮箱包含 "admin" 将获得管理员权限
+            使用后端API登录：输入注册的用户名和密码
           </p>
         </div>
       </div>
@@ -127,16 +123,15 @@ const route = useRoute()
 const authStore = useAuthStore()
 const loading = ref(false)
 const passwordVisible = ref(false)
-const emailVisible = ref(false)
 
 const form = reactive({
-  email: '',
+  username: '',
   password: '',
   remember: false,
 })
 
 const errors = reactive({
-  email: '',
+  username: '',
   password: '',
 })
 
@@ -144,47 +139,48 @@ function togglePasswordVisibility() {
   passwordVisible.value = !passwordVisible.value
 }
 
-function toggleEmailVisibility() {
-  emailVisible.value = !emailVisible.value
-}
-
 function handleGoogleLogin() {
   MessagePlugin.info('Google 登录功能即将上线')
 }
 
 function validate(): boolean {
-  errors.email = ''
+  errors.username = ''
   errors.password = ''
-  if (!form.email) {
-    errors.email = '请输入邮箱地址'
+  
+  if (!form.username) {
+    errors.username = '请输入用户名'
     return false
   }
-  if (!/\S+@\S+\.\S+/.test(form.email)) {
-    errors.email = '请输入有效的邮箱地址'
-    return false
-  }
+  
   if (!form.password) {
     errors.password = '请输入密码'
     return false
   }
+  
   if (form.password.length < 6) {
     errors.password = '密码至少6位'
     return false
   }
+  
   return true
 }
 
 async function handleLogin() {
   if (!validate()) return
+  
   loading.value = true
   try {
-    await new Promise((r) => setTimeout(r, 800))
-    authStore.login(form.email, form.password)
+    // 调用真实API登录
+    await authStore.login(form.username, form.password)
     MessagePlugin.success('登录成功')
+    
+    // 跳转到目标页面
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
-  } catch {
-    MessagePlugin.error('登录失败，请重试')
+  } catch (error: any) {
+    // 错误已在request.ts中处理，这里只需要显示通用错误
+    console.error('登录失败:', error)
+    MessagePlugin.error(error.message || '登录失败，请检查用户名和密码')
   } finally {
     loading.value = false
   }

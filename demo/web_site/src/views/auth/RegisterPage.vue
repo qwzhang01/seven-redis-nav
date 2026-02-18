@@ -48,9 +48,32 @@
         <form @submit.prevent="handleRegister" class="space-y-3.5">
           <div class="auth-field">
             <input
+              v-model="form.username"
+              type="text"
+              placeholder="用户名"
+              class="auth-input"
+              :class="{ 'auth-input--error': errors.username }"
+              autocomplete="username"
+            />
+            <p v-if="errors.username" class="auth-error">{{ errors.username }}</p>
+          </div>
+
+          <div class="auth-field">
+            <input
+              v-model="form.nickname"
+              type="text"
+              placeholder="昵称"
+              class="auth-input"
+              :class="{ 'auth-input--error': errors.nickname }"
+            />
+            <p v-if="errors.nickname" class="auth-error">{{ errors.nickname }}</p>
+          </div>
+
+          <div class="auth-field">
+            <input
               v-model="form.email"
               type="email"
-              placeholder="Email address"
+              placeholder="邮箱地址"
               class="auth-input"
               :class="{ 'auth-input--error': errors.email }"
               autocomplete="email"
@@ -59,6 +82,17 @@
               <Mail :size="16" />
             </button>
             <p v-if="errors.email" class="auth-error">{{ errors.email }}</p>
+          </div>
+
+          <div class="auth-field">
+            <input
+              v-model="form.phone"
+              type="tel"
+              placeholder="手机号（可选）"
+              class="auth-input"
+              :class="{ 'auth-input--error': errors.phone }"
+            />
+            <p v-if="errors.phone" class="auth-error">{{ errors.phone }}</p>
           </div>
 
           <div class="auth-field">
@@ -83,10 +117,10 @@
               <Check :size="12" />
             </span>
             <span class="leading-snug">
-              I have read and agreed with the
-              <a href="javascript:void(0)" class="text-primary-500 hover:text-primary-400">Terms of Use</a>
-              and
-              <a href="javascript:void(0)" class="text-primary-500 hover:text-primary-400">Privacy Policy</a>.
+              我已阅读并同意
+              <a href="javascript:void(0)" class="text-primary-500 hover:text-primary-400">服务条款</a>
+              和
+              <a href="javascript:void(0)" class="text-primary-500 hover:text-primary-400">隐私政策</a>
             </span>
           </label>
           <p v-if="errors.agree" class="auth-error !mt-0.5">{{ errors.agree }}</p>
@@ -101,9 +135,9 @@
         </form>
 
         <p class="text-center text-sm text-dark-200 mt-6">
-          Already have an account?
+          已有账户？
           <router-link to="/login" class="text-primary-500 hover:text-primary-400 font-medium transition-colors">
-            Log In
+            立即登录
           </router-link>
         </p>
       </div>
@@ -117,6 +151,7 @@ import { useRouter } from 'vue-router'
 import { X, Mail, Eye, EyeOff, Check } from 'lucide-vue-next'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import type { RegisterRequest } from '@/utils/userApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -124,13 +159,19 @@ const loading = ref(false)
 const passwordVisible = ref(false)
 
 const form = reactive({
+  username: '',
+  nickname: '',
   email: '',
+  phone: '',
   password: '',
   agree: true,
 })
 
 const errors = reactive({
+  username: '',
+  nickname: '',
   email: '',
+  phone: '',
   password: '',
   agree: '',
 })
@@ -144,36 +185,80 @@ function handleGoogleRegister() {
 }
 
 function validate(): boolean {
+  errors.username = ''
+  errors.nickname = ''
   errors.email = ''
+  errors.phone = ''
   errors.password = ''
   errors.agree = ''
+  
   let valid = true
+  
+  if (!form.username) {
+    errors.username = '请输入用户名'
+    valid = false
+  } else if (form.username.length < 3) {
+    errors.username = '用户名至少3个字符'
+    valid = false
+  }
+  
+  if (!form.nickname) {
+    errors.nickname = '请输入昵称'
+    valid = false
+  }
+  
   if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) {
     errors.email = '请输入有效的邮箱地址'
     valid = false
   }
+  
+  if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone)) {
+    errors.phone = '请输入有效的手机号'
+    valid = false
+  }
+  
   if (!form.password || form.password.length < 6) {
     errors.password = '密码至少6位'
     valid = false
   }
+  
   if (!form.agree) {
     errors.agree = '请同意服务条款和隐私政策'
     valid = false
   }
+  
   return valid
 }
 
 async function handleRegister() {
   if (!validate()) return
+  
   loading.value = true
   try {
-    await new Promise((r) => setTimeout(r, 800))
-    const username = form.email.split('@')[0]
-    authStore.register(username, form.email, form.password)
-    MessagePlugin.success('注册成功')
-    router.push('/')
-  } catch {
-    MessagePlugin.error('注册失败，请重试')
+    // 构建注册数据
+    const registerData: RegisterRequest = {
+      username: form.username,
+      nickname: form.nickname,
+      email: form.email,
+      password: form.password,
+    }
+    
+    // 添加可选字段
+    if (form.phone) {
+      registerData.phone = form.phone
+    }
+    
+    // 调用真实API注册
+    await authStore.register(registerData)
+    MessagePlugin.success('注册成功，正在跳转...')
+    
+    // 跳转到首页
+    setTimeout(() => {
+      router.push('/')
+    }, 500)
+  } catch (error: any) {
+    console.error('注册失败:', error)
+    MessagePlugin.error(error.message || '注册失败，请重试')
   } finally {
     loading.value = false
   }
