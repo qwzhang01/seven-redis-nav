@@ -41,6 +41,7 @@ from quant_trading_system.models.user import (
     UserType,
     APIKeyStatus
 )
+from quant_trading_system.core.config import settings
 
 # 创建用户路由实例
 router = APIRouter()
@@ -53,85 +54,38 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 # HTTP Bearer认证
 security = HTTPBearer()
 
-# 数据库配置
-DATABASE_URL = "postgresql://quant:quant123@localhost:5432/quant_trading"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# 数据库配置 - 使用配置文件中的设置
+DATABASE_URL = settings.database.timescale_url
+# 使用异步引擎
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+engine = create_async_engine(DATABASE_URL)
+SessionLocal = sessionmaker(
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 Base = declarative_base()
 
-# SQLAlchemy模型定义
-class User(Base):
-    __tablename__ = "user_info"
-
-    id = Column(String, primary_key=True, index=True)
-    username = Column(String(64), unique=True, index=True, nullable=False)
-    nickname = Column(String(128), nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    email_verified = Column(Boolean, default=False)
-    phone = Column(String(32))
-    phone_verified = Column(Boolean, default=False)
-    avatar_url = Column(String(512))
-    user_type = Column(String(32), default="customer")
-    registration_time = Column(DateTime, default=datetime.utcnow)
-    last_login_time = Column(DateTime)
-    status = Column(String(32), default="active")
-    create_by = Column(String(64), default="system")
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_by = Column(String(64))
-    update_time = Column(DateTime, default=datetime.utcnow)
-    enable_flag = Column(Boolean, default=True)
-
-class Exchange(Base):
-    __tablename__ = "exchange_info"
-
-    id = Column(String, primary_key=True, index=True)
-    exchange_code = Column(String(32), nullable=False)
-    exchange_name = Column(String(128), nullable=False)
-    exchange_type = Column(String(32), default="spot")
-    base_url = Column(String(512), nullable=False)
-    api_doc_url = Column(String(512))
-    status = Column(String(32), default="active")
-    supported_pairs = Column(JSON)
-    rate_limits = Column(JSON)
-    create_by = Column(String(64), default="system")
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_by = Column(String(64))
-    update_time = Column(DateTime, default=datetime.utcnow)
-    enable_flag = Column(Boolean, default=True)
-
-class UserExchangeAPI(Base):
-    __tablename__ = "user_exchange_api"
-
-    id = Column(String, primary_key=True, index=True)
-    user_id = Column(String, nullable=False)
-    exchange_id = Column(String, nullable=False)
-    label = Column(String(128), nullable=False)
-    api_key = Column(String(512), nullable=False)
-    secret_key = Column(String(512), nullable=False)
-    passphrase = Column(String(512))
-    permissions = Column(JSON)
-    status = Column(String(32), default="pending")
-    review_reason = Column(Text)
-    approved_by = Column(String(64))
-    approved_time = Column(DateTime)
-    last_used_time = Column(DateTime)
-    create_by = Column(String(64))
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_by = Column(String(64))
-    update_time = Column(DateTime, default=datetime.utcnow)
-    enable_flag = Column(Boolean, default=True)
-
 # 数据库依赖
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    """异步数据库会话依赖"""
+    async with SessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-# 创建数据库表
-Base.metadata.create_all(bind=engine)
+# 创建数据库表（异步方式）
+async def create_tables():
+    """异步创建数据库表"""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+# 在应用启动时调用此函数
+# Base.metadata.create_all(bind=engine)  # 注释掉这行，改为异步方式
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -383,7 +337,8 @@ async def change_password(
 @router.post("/password/reset")
 async def reset_password(
     background_tasks: BackgroundTasks,
-    reset_data: PasswordResetRequest
+    reset_data: PasswordResetRequest,
+    db: Session = Depends(get_db)
 ):
     """
     忘记密码重置
@@ -399,12 +354,7 @@ async def reset_password(
     - 重置成功消息
     """
     # 查找用户
-    user = None
-    for u in db.users.values():
-        if u.email == reset_data.email:
-            user = u
-            break
-
+    user = db.query(User).filter(User.email == reset_data.email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -419,36 +369,52 @@ async def reset_password(
         )
 
     # 模拟密码重置（实际项目中应对新密码进行哈希处理）
-    user.update_time = datetime.now()
+    user.update_time = datetime.utcnow()
+    db.commit()
 
     return {"message": "密码重置成功"}
 
 
-@router.get("/profile", response_model=UserResponse)
-async def get_user_profile(
+@router.put("/profile", response_model=UserResponse)
+async def update_user_profile(
+    user_update: UserUpdate,
     username: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
     """
-    获取用户账号信息
+    更新用户信息
 
-    获取当前登录用户的详细信息。
+    更新当前登录用户的个人信息。
+
+    参数：
+    - nickname: 昵称（可选）
+    - email: 邮箱地址（可选）
+    - phone: 手机号（可选）
+    - avatar_url: 头像URL（可选）
 
     返回：
-    - 用户详细信息
+    - 更新后的用户信息
     """
-    user = db.query(User).filter(
-        User.username == username,
-        User.enable_flag == True
-    ).first()
-
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    # 转换为响应模型
+    # 更新用户信息
+    if user_update.nickname is not None:
+        user.nickname = user_update.nickname
+    if user_update.email is not None:
+        user.email = user_update.email
+    if user_update.phone is not None:
+        user.phone = user_update.phone
+    if user_update.avatar_url is not None:
+        user.avatar_url = user_update.avatar_url
+
+    user.update_time = datetime.utcnow()
+    db.commit()
+
     return UserResponse(
         id=user.id,
         username=user.username,
@@ -467,97 +433,11 @@ async def get_user_profile(
     )
 
 
-@router.put("/profile", response_model=UserResponse)
-async def update_user_profile(
-    user_update: UserUpdate,
-    username: str = Depends(verify_token)
-):
-    """
-    更新用户信息
-
-    更新当前登录用户的个人信息。
-
-    参数：
-    - nickname: 昵称（可选）
-    - email: 邮箱地址（可选）
-    - phone: 手机号（可选）
-    - avatar_url: 头像URL（可选）
-
-    返回：
-    - 更新后的用户信息
-    """
-    user = db.users.get(username)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
-        )
-
-    # 更新用户信息
-    if user_update.nickname is not None:
-        user.nickname = user_update.nickname
-    if user_update.email is not None:
-        user.email = user_update.email
-    if user_update.phone is not None:
-        user.phone = user_update.phone
-    if user_update.avatar_url is not None:
-        user.avatar_url = user_update.avatar_url
-
-    user.update_time = datetime.now()
-
-    return user
-
-
-@router.get("/exchanges", response_model=ExchangeListResponse)
-async def get_exchanges(
-    exchange_type: Optional[str] = None,
-    status: Optional[str] = None,
+@router.get("/exchanges/{exchange_id}", response_model=ExchangeInfo)
+async def get_exchange(
+    exchange_id: str,
     db: Session = Depends(get_db)
 ):
-    """
-    获取交易所列表
-
-    获取支持的交易所信息列表，可按类型和状态筛选。
-
-    参数：
-    - exchange_type: 交易所类型筛选（spot/futures/margin）
-    - status: 状态筛选（active/inactive）
-
-    返回：
-    - 交易所列表
-    """
-    query = db.query(Exchange).filter(Exchange.enable_flag == True)
-
-    # 筛选
-    if exchange_type:
-        query = query.filter(Exchange.exchange_type == exchange_type)
-    if status:
-        query = query.filter(Exchange.status == status)
-
-    exchanges = query.all()
-
-    # 转换为响应模型
-    exchange_items = []
-    for exchange in exchanges:
-        exchange_items.append(ExchangeInfo(
-            id=exchange.id,
-            exchange_code=exchange.exchange_code,
-            exchange_name=exchange.exchange_name,
-            exchange_type=exchange.exchange_type,
-            base_url=exchange.base_url,
-            api_doc_url=exchange.api_doc_url,
-            status=exchange.status,
-            supported_pairs=exchange.supported_pairs,
-            rate_limits=exchange.rate_limits,
-            create_time=exchange.create_time,
-            update_time=exchange.update_time
-        ))
-
-    return ExchangeListResponse(total=len(exchange_items), items=exchange_items)
-
-
-@router.get("/exchanges/{exchange_id}", response_model=ExchangeInfo)
-async def get_exchange(exchange_id: str):
     """
     获取交易所详情
 
@@ -569,20 +449,33 @@ async def get_exchange(exchange_id: str):
     返回：
     - 交易所详细信息
     """
-    exchange = db.exchanges.get(exchange_id)
+    exchange = db.query(Exchange).filter(Exchange.id == exchange_id).first()
     if not exchange:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="交易所不存在"
         )
 
-    return exchange
+    return ExchangeInfo(
+        id=exchange.id,
+        exchange_code=exchange.exchange_code,
+        exchange_name=exchange.exchange_name,
+        exchange_type=exchange.exchange_type,
+        base_url=exchange.base_url,
+        api_doc_url=exchange.api_doc_url,
+        status=exchange.status,
+        supported_pairs=exchange.supported_pairs,
+        rate_limits=exchange.rate_limits,
+        create_time=exchange.create_time,
+        update_time=exchange.update_time
+    )
 
 
 @router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     api_key_data: APIKeyCreate,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     添加API密钥
@@ -600,7 +493,7 @@ async def create_api_key(
     返回：
     - 创建的API密钥信息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -608,7 +501,7 @@ async def create_api_key(
         )
 
     # 检查交易所是否存在
-    exchange = db.exchanges.get(api_key_data.exchange_id)
+    exchange = db.query(Exchange).filter(Exchange.id == api_key_data.exchange_id).first()
     if not exchange:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -616,31 +509,49 @@ async def create_api_key(
         )
 
     # 创建API密钥记录
-    api_key_id = str(len(db.api_keys) + 1)
-    api_key = APIKeyResponse(
+    import uuid
+    api_key_id = str(uuid.uuid4())
+
+    new_api_key = UserExchangeAPI(
         id=api_key_id,
         user_id=user.id,
         exchange_id=api_key_data.exchange_id,
         label=api_key_data.label,
         api_key=api_key_data.api_key,
-        status=APIKeyStatus.PENDING,
-        review_reason=None,
-        approved_by=None,
-        approved_time=None,
-        last_used_time=None,
-        create_time=datetime.now(),
-        update_time=datetime.now()
+        secret_key=api_key_data.secret_key,
+        passphrase=api_key_data.passphrase,
+        permissions=api_key_data.permissions,
+        status="pending",
+        create_by=username,
+        create_time=datetime.utcnow(),
+        update_time=datetime.utcnow()
     )
 
-    db.api_keys[api_key_id] = api_key
+    db.add(new_api_key)
+    db.commit()
+    db.refresh(new_api_key)
 
-    return api_key
+    return APIKeyResponse(
+        id=new_api_key.id,
+        user_id=new_api_key.user_id,
+        exchange_id=new_api_key.exchange_id,
+        label=new_api_key.label,
+        api_key=new_api_key.api_key,
+        status=APIKeyStatus(new_api_key.status),
+        review_reason=new_api_key.review_reason,
+        approved_by=new_api_key.approved_by,
+        approved_time=new_api_key.approved_time,
+        last_used_time=new_api_key.last_used_time,
+        create_time=new_api_key.create_time,
+        update_time=new_api_key.update_time
+    )
 
 
 @router.get("/api-keys", response_model=APIKeyListResponse)
 async def get_api_keys(
     status: Optional[str] = None,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     获取API密钥列表
@@ -653,7 +564,7 @@ async def get_api_keys(
     返回：
     - API密钥列表
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -661,22 +572,38 @@ async def get_api_keys(
         )
 
     # 获取用户的API密钥
-    user_api_keys = [
-        api_key for api_key in db.api_keys.values()
-        if api_key.user_id == user.id
-    ]
-
-    # 筛选
+    query = db.query(UserExchangeAPI).filter(UserExchangeAPI.user_id == user.id)
     if status:
-        user_api_keys = [api_key for api_key in user_api_keys if api_key.status == status]
+        query = query.filter(UserExchangeAPI.status == status)
 
-    return APIKeyListResponse(total=len(user_api_keys), items=user_api_keys)
+    user_api_keys = query.all()
+
+    # 转换为响应模型
+    api_key_items = []
+    for api_key in user_api_keys:
+        api_key_items.append(APIKeyResponse(
+            id=api_key.id,
+            user_id=api_key.user_id,
+            exchange_id=api_key.exchange_id,
+            label=api_key.label,
+            api_key=api_key.api_key,
+            status=APIKeyStatus(api_key.status),
+            review_reason=api_key.review_reason,
+            approved_by=api_key.approved_by,
+            approved_time=api_key.approved_time,
+            last_used_time=api_key.last_used_time,
+            create_time=api_key.create_time,
+            update_time=api_key.update_time
+        ))
+
+    return APIKeyListResponse(total=len(api_key_items), items=api_key_items)
 
 
 @router.get("/api-keys/{api_key_id}", response_model=APIKeyResponse)
 async def get_api_key(
     api_key_id: str,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     获取API密钥详情
@@ -689,14 +616,14 @@ async def get_api_key(
     返回：
     - API密钥详细信息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    api_key = db.api_keys.get(api_key_id)
+    api_key = db.query(UserExchangeAPI).filter(UserExchangeAPI.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -710,14 +637,28 @@ async def get_api_key(
             detail="无权访问此API密钥"
         )
 
-    return api_key
+    return APIKeyResponse(
+        id=api_key.id,
+        user_id=api_key.user_id,
+        exchange_id=api_key.exchange_id,
+        label=api_key.label,
+        api_key=api_key.api_key,
+        status=APIKeyStatus(api_key.status),
+        review_reason=api_key.review_reason,
+        approved_by=api_key.approved_by,
+        approved_time=api_key.approved_time,
+        last_used_time=api_key.last_used_time,
+        create_time=api_key.create_time,
+        update_time=api_key.update_time
+    )
 
 
 @router.put("/api-keys/{api_key_id}", response_model=APIKeyResponse)
 async def update_api_key(
     api_key_id: str,
     api_key_update: APIKeyUpdate,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     更新API密钥
@@ -733,14 +674,14 @@ async def update_api_key(
     返回：
     - 更新后的API密钥信息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    api_key = db.api_keys.get(api_key_id)
+    api_key = db.query(UserExchangeAPI).filter(UserExchangeAPI.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -762,15 +703,30 @@ async def update_api_key(
     if api_key_update.status is not None:
         api_key.status = api_key_update.status
 
-    api_key.update_time = datetime.now()
+    api_key.update_time = datetime.utcnow()
+    db.commit()
 
-    return api_key
+    return APIKeyResponse(
+        id=api_key.id,
+        user_id=api_key.user_id,
+        exchange_id=api_key.exchange_id,
+        label=api_key.label,
+        api_key=api_key.api_key,
+        status=APIKeyStatus(api_key.status),
+        review_reason=api_key.review_reason,
+        approved_by=api_key.approved_by,
+        approved_time=api_key.approved_time,
+        last_used_time=api_key.last_used_time,
+        create_time=api_key.create_time,
+        update_time=api_key.update_time
+    )
 
 
 @router.delete("/api-keys/{api_key_id}")
 async def delete_api_key(
     api_key_id: str,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     删除API密钥
@@ -783,14 +739,14 @@ async def delete_api_key(
     返回：
     - 删除成功消息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    api_key = db.api_keys.get(api_key_id)
+    api_key = db.query(UserExchangeAPI).filter(UserExchangeAPI.id == api_key_id).first()
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -805,6 +761,7 @@ async def delete_api_key(
         )
 
     # 删除API密钥
-    del db.api_keys[api_key_id]
+    db.delete(api_key)
+    db.commit()
 
     return {"message": "API密钥删除成功"}

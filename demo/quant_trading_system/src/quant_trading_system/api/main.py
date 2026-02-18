@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
 """
-量化交易系统 - FastAPI主应用
-用户管理和交易所API管理系统的入口点
+量化交易系统 API 主入口
 """
 
 import os
+from pathlib import Path
+
+# 在导入其他模块之前加载.env文件
+from dotenv import load_dotenv
+
+# 加载项目根目录下的.env文件
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
+load_dotenv(env_path)
+
+import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from quant_trading_system.core.config import settings
+from quant_trading_system.core.logging import setup_logging
+
+# 设置日志
+setup_logging()
+logger = logging.getLogger(__name__)
+
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 

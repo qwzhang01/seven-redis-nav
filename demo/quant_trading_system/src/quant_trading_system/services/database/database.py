@@ -112,6 +112,15 @@ class TimescaleDB:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
+                # 检查TimescaleDB扩展是否可用
+                cursor.execute("SELECT * FROM pg_extension WHERE extname = 'timescaledb'")
+                timescaledb_available = cursor.fetchone() is not None
+
+                if timescaledb_available:
+                    logger.info("TimescaleDB扩展可用，将创建超表")
+                else:
+                    logger.info("TimescaleDB扩展不可用，将创建普通PostgreSQL表")
+
                 # 创建K线数据表（时序表）
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS kline_data (
@@ -131,41 +140,42 @@ class TimescaleDB:
                     );
                 """)
 
-                # 将kline_data表转换为时序表
-                try:
-                    cursor.execute("""
-                        SELECT create_hypertable('kline_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
-                except Exception as e:
-                    # 如果创建超表失败，可能是由于唯一索引问题
-                    # 先回滚事务，然后重新创建表，再创建超表
-                    logger.warning("创建超表失败，重新创建表", error=str(e))
-                    conn.rollback()
+                # 如果TimescaleDB可用，将kline_data表转换为时序表
+                if timescaledb_available:
+                    try:
+                        cursor.execute("""
+                            SELECT create_hypertable('kline_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
+                    except Exception as e:
+                        # 如果创建超表失败，可能是由于唯一索引问题
+                        # 先回滚事务，然后重新创建表，再创建超表
+                        logger.warning("创建超表失败，重新创建表", error=str(e))
+                        conn.rollback()
 
-                    # 重新创建kline_data表
-                    cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS kline_data (
-                            id BIGSERIAL,
-                            symbol VARCHAR(32) NOT NULL,
-                            exchange VARCHAR(32) NOT NULL,
-                            timeframe VARCHAR(8) NOT NULL,
-                            timestamp TIMESTAMPTZ NOT NULL,
-                            open DECIMAL(20, 8) NOT NULL,
-                            high DECIMAL(20, 8) NOT NULL,
-                            low DECIMAL(20, 8) NOT NULL,
-                            close DECIMAL(20, 8) NOT NULL,
-                            volume DECIMAL(30, 8) NOT NULL,
-                            turnover DECIMAL(30, 8),
-                            is_closed BOOLEAN DEFAULT TRUE,
-                            created_at TIMESTAMPTZ DEFAULT NOW()
-                        );
-                    """)
+                        # 重新创建kline_data表
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS kline_data (
+                                id BIGSERIAL,
+                                symbol VARCHAR(32) NOT NULL,
+                                exchange VARCHAR(32) NOT NULL,
+                                timeframe VARCHAR(8) NOT NULL,
+                                timestamp TIMESTAMPTZ NOT NULL,
+                                open DECIMAL(20, 8) NOT NULL,
+                                high DECIMAL(20, 8) NOT NULL,
+                                low DECIMAL(20, 8) NOT NULL,
+                                close DECIMAL(20, 8) NOT NULL,
+                                volume DECIMAL(30, 8) NOT NULL,
+                                turnover DECIMAL(30, 8),
+                                is_closed BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            );
+                        """)
 
-                    cursor.execute("""
-                        SELECT create_hypertable('kline_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
+                        cursor.execute("""
+                            SELECT create_hypertable('kline_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
 
                 # 创建索引
                 cursor.execute("""
@@ -195,39 +205,40 @@ class TimescaleDB:
                     );
                 """)
 
-                # 将tick_data表转换为时序表
-                try:
-                    cursor.execute("""
-                        SELECT create_hypertable('tick_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
-                except Exception as e:
-                    # 如果创建超表失败，可能是由于唯一索引问题
-                    # 先回滚事务，然后重新创建表，再创建超表
-                    logger.warning("创建超表失败，重新创建表", error=str(e))
-                    conn.rollback()
+                # 如果TimescaleDB可用，将tick_data表转换为时序表
+                if timescaledb_available:
+                    try:
+                        cursor.execute("""
+                            SELECT create_hypertable('tick_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
+                    except Exception as e:
+                        # 如果创建超表失败，可能是由于唯一索引问题
+                        # 先回滚事务，然后重新创建表，再创建超表
+                        logger.warning("创建超表失败，重新创建表", error=str(e))
+                        conn.rollback()
 
-                    # 重新创建tick_data表
-                    cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS tick_data (
-                            id BIGSERIAL,
-                            symbol VARCHAR(32) NOT NULL,
-                            exchange VARCHAR(32) NOT NULL,
-                            timestamp TIMESTAMPTZ NOT NULL,
-                            price DECIMAL(20, 8) NOT NULL,
-                            volume DECIMAL(30, 8) NOT NULL,
-                            bid_price DECIMAL(20, 8),
-                            ask_price DECIMAL(20, 8),
-                            bid_size DECIMAL(30, 8),
-                            ask_size DECIMAL(30, 8),
-                            created_at TIMESTAMPTZ DEFAULT NOW()
-                        );
-                    """)
+                        # 重新创建tick_data表
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS tick_data (
+                                id BIGSERIAL,
+                                symbol VARCHAR(32) NOT NULL,
+                                exchange VARCHAR(32) NOT NULL,
+                                timestamp TIMESTAMPTZ NOT NULL,
+                                price DECIMAL(20, 8) NOT NULL,
+                                volume DECIMAL(30, 8) NOT NULL,
+                                bid_price DECIMAL(20, 8),
+                                ask_price DECIMAL(20, 8),
+                                bid_size DECIMAL(30, 8),
+                                ask_size DECIMAL(30, 8),
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            );
+                        """)
 
-                    cursor.execute("""
-                        SELECT create_hypertable('tick_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
+                        cursor.execute("""
+                            SELECT create_hypertable('tick_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
 
                 # 创建索引
                 cursor.execute("""
@@ -248,35 +259,36 @@ class TimescaleDB:
                     );
                 """)
 
-                # 将depth_data表转换为时序表
-                try:
-                    cursor.execute("""
-                        SELECT create_hypertable('depth_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
-                except Exception as e:
-                    # 如果创建超表失败，可能是由于唯一索引问题
-                    # 先回滚事务，然后重新创建表，再创建超表
-                    logger.warning("创建超表失败，重新创建表", error=str(e))
-                    conn.rollback()
+                # 如果TimescaleDB可用，将depth_data表转换为时序表
+                if timescaledb_available:
+                    try:
+                        cursor.execute("""
+                            SELECT create_hypertable('depth_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
+                    except Exception as e:
+                        # 如果创建超表失败，可能是由于唯一索引问题
+                        # 先回滚事务，然后重新创建表，再创建超表
+                        logger.warning("创建超表失败，重新创建表", error=str(e))
+                        conn.rollback()
 
-                    # 重新创建depth_data表
-                    cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS depth_data (
-                            id BIGSERIAL,
-                            symbol VARCHAR(32) NOT NULL,
-                            exchange VARCHAR(32) NOT NULL,
-                            timestamp TIMESTAMPTZ NOT NULL,
-                            bids JSONB NOT NULL,
-                            asks JSONB NOT NULL,
-                            created_at TIMESTAMPTZ DEFAULT NOW()
-                        );
-                    """)
+                        # 重新创建depth_data表
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS depth_data (
+                                id BIGSERIAL,
+                                symbol VARCHAR(32) NOT NULL,
+                                exchange VARCHAR(32) NOT NULL,
+                                timestamp TIMESTAMPTZ NOT NULL,
+                                bids JSONB NOT NULL,
+                                asks JSONB NOT NULL,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            );
+                        """)
 
-                    cursor.execute("""
-                        SELECT create_hypertable('depth_data', 'timestamp',
-                        if_not_exists => TRUE);
-                    """)
+                        cursor.execute("""
+                            SELECT create_hypertable('depth_data', 'timestamp',
+                            if_not_exists => TRUE);
+                        """)
 
                 # 创建回测结果表
                 cursor.execute("""
