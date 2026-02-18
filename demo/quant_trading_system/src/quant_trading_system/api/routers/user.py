@@ -14,10 +14,14 @@
 
 from typing import List, Optional
 from datetime import datetime, timedelta
+import bcrypt
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
 from pydantic import EmailStr
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Text, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
 from quant_trading_system.models.user import (
     UserCreate,
@@ -48,6 +52,86 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # HTTP Bearer认证
 security = HTTPBearer()
+
+# 数据库配置
+DATABASE_URL = "postgresql://quant:quant123@localhost:5432/quant_trading"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# SQLAlchemy模型定义
+class User(Base):
+    __tablename__ = "user_info"
+
+    id = Column(String, primary_key=True, index=True)
+    username = Column(String(64), unique=True, index=True, nullable=False)
+    nickname = Column(String(128), nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    email_verified = Column(Boolean, default=False)
+    phone = Column(String(32))
+    phone_verified = Column(Boolean, default=False)
+    avatar_url = Column(String(512))
+    user_type = Column(String(32), default="customer")
+    registration_time = Column(DateTime, default=datetime.utcnow)
+    last_login_time = Column(DateTime)
+    status = Column(String(32), default="active")
+    create_by = Column(String(64), default="system")
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+class Exchange(Base):
+    __tablename__ = "exchange_info"
+
+    id = Column(String, primary_key=True, index=True)
+    exchange_code = Column(String(32), nullable=False)
+    exchange_name = Column(String(128), nullable=False)
+    exchange_type = Column(String(32), default="spot")
+    base_url = Column(String(512), nullable=False)
+    api_doc_url = Column(String(512))
+    status = Column(String(32), default="active")
+    supported_pairs = Column(JSON)
+    rate_limits = Column(JSON)
+    create_by = Column(String(64), default="system")
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+class UserExchangeAPI(Base):
+    __tablename__ = "user_exchange_api"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, nullable=False)
+    exchange_id = Column(String, nullable=False)
+    label = Column(String(128), nullable=False)
+    api_key = Column(String(512), nullable=False)
+    secret_key = Column(String(512), nullable=False)
+    passphrase = Column(String(512))
+    permissions = Column(JSON)
+    status = Column(String(32), default="pending")
+    review_reason = Column(Text)
+    approved_by = Column(String(64))
+    approved_time = Column(DateTime)
+    last_used_time = Column(DateTime)
+    create_by = Column(String(64))
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+# 数据库依赖
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# 创建数据库表
+Base.metadata.create_all(bind=engine)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -85,56 +169,8 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 
-# 模拟数据库操作（实际项目中应使用真实的数据库操作）
-class MockDatabase:
-    """模拟数据库操作类"""
-
-    def __init__(self):
-        self.users = {}
-        self.exchanges = {}
-        self.api_keys = {}
-
-        # 初始化一些示例数据
-        self._init_sample_data()
-
-    def _init_sample_data(self):
-        """初始化示例数据"""
-        # 示例交易所
-        self.exchanges = {
-            "binance": ExchangeInfo(
-                id="1",
-                exchange_code="binance",
-                exchange_name="币安",
-                exchange_type="spot",
-                base_url="https://api.binance.com",
-                api_doc_url="https://binance-docs.github.io/apidocs/",
-                status="active",
-            supported_pairs={"BTCUSDT": True, "ETHUSDT": True, "BNBUSDT": True},
-                rate_limits={"requests_per_minute": 1200},
-                create_time=datetime.now(),
-                update_time=datetime.now()
-            ),
-            "okx": ExchangeInfo(
-                id="2",
-                exchange_code="okx",
-                exchange_name="欧易",
-                exchange_type="spot",
-                base_url="https://www.okx.com",
-                api_doc_url="https://www.okx.com/docs/",
-                status="active",
-            supported_pairs={"BTC-USDT": True, "ETH-USDT": True, "OKB-USDT": True},
-                rate_limits={"requests_per_minute": 300},
-                create_time=datetime.now(),
-                update_time=datetime.now()
-            )
-        }
-
-
-db = MockDatabase()
-
-
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserCreate):
+async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     用户注册
 
@@ -150,46 +186,74 @@ async def register_user(user_data: UserCreate):
     - 注册成功的用户信息
     """
     # 检查用户名是否已存在
-    if user_data.username in db.users:
+    existing_user = db.query(User).filter(User.username == user_data.username).first()
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="用户名已存在"
         )
 
     # 检查邮箱是否已存在
-    for user in db.users.values():
-        if user.email == user_data.email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邮箱地址已存在"
-            )
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="邮箱地址已存在"
+        )
 
     # 创建用户（实际项目中应对密码进行哈希处理）
-    user_id = str(len(db.users) + 1)
-    user = UserResponse(
+    import uuid
+    user_id = str(uuid.uuid4())
+
+    # 密码哈希处理
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(user_data.password.encode('utf-8'), salt)
+
+    new_user = User(
         id=user_id,
         username=user_data.username,
         nickname=user_data.nickname,
+        password_hash=hashed_password.decode('utf-8'),
         email=user_data.email,
         phone=user_data.phone,
         avatar_url=user_data.avatar_url,
-        user_type=user_data.user_type,
+        user_type=user_data.user_type.value if hasattr(user_data.user_type, 'value') else user_data.user_type,
         email_verified=False,
         phone_verified=False,
-        registration_time=datetime.now(),
+        registration_time=datetime.utcnow(),
         last_login_time=None,
         status="active",
-        create_time=datetime.now(),
-        update_time=datetime.now()
+        create_by="system",
+        create_time=datetime.utcnow(),
+        update_time=datetime.utcnow(),
+        enable_flag=True
     )
 
-    db.users[user_data.username] = user
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-    return user
+    # 转换为响应模型
+    return UserResponse(
+        id=new_user.id,
+        username=new_user.username,
+        nickname=new_user.nickname,
+        email=new_user.email,
+        phone=new_user.phone,
+        avatar_url=new_user.avatar_url,
+        user_type=UserType(new_user.user_type),
+        email_verified=new_user.email_verified,
+        phone_verified=new_user.phone_verified,
+        registration_time=new_user.registration_time,
+        last_login_time=new_user.last_login_time,
+        status=new_user.status,
+        create_time=new_user.create_time,
+        update_time=new_user.update_time
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(login_data: LoginRequest):
+async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     """
     用户登录
 
@@ -205,12 +269,11 @@ async def login(login_data: LoginRequest):
     - expires_in: 过期时间（秒）
     - user: 用户信息
     """
-    # 模拟用户验证（实际项目中应验证密码哈希）
-    user = None
-    for u in db.users.values():
-        if u.username == login_data.username or u.email == login_data.username:
-            user = u
-            break
+    # 根据用户名或邮箱查找用户
+    user = db.query(User).filter(
+        (User.username == login_data.username) | (User.email == login_data.username),
+        User.enable_flag == True
+    ).first()
 
     if not user:
         raise HTTPException(
@@ -218,34 +281,62 @@ async def login(login_data: LoginRequest):
             detail="用户名或密码错误"
         )
 
-    # 模拟密码验证（实际项目中应使用密码哈希验证）
-    if login_data.password != "password123":  # 示例密码
+    # 验证密码（实际项目中应使用密码哈希验证）
+    if not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误"
         )
 
+    # 检查用户状态
+    if user.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账户已被禁用"
+        )
+
     # 更新最后登录时间
-    user.last_login_time = datetime.now()
+    user.last_login_time = datetime.utcnow()
+    user.update_time = datetime.utcnow()
+    db.commit()
 
     # 创建访问令牌
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "user_id": user.id}, expires_delta=access_token_expires
+    )
+
+    # 转换为响应模型
+    user_response = UserResponse(
+        id=user.id,
+        username=user.username,
+        nickname=user.nickname,
+        email=user.email,
+        phone=user.phone,
+        avatar_url=user.avatar_url,
+        user_type=UserType(user.user_type),
+        email_verified=user.email_verified,
+        phone_verified=user.phone_verified,
+        registration_time=user.registration_time,
+        last_login_time=user.last_login_time,
+        status=user.status,
+        create_time=user.create_time,
+        update_time=user.update_time
     )
 
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
         expires_in=access_token_expires.total_seconds(),
-        user=user
+        user=user_response
     )
 
 
 @router.post("/password/change")
 async def change_password(
     password_data: PasswordChangeRequest,
-    username: str = Depends(verify_token)
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
     """
     修改密码
@@ -259,22 +350,32 @@ async def change_password(
     返回：
     - 修改成功消息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(
+        User.username == username,
+        User.enable_flag == True
+    ).first()
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    # 模拟旧密码验证（实际项目中应验证密码哈希）
-    if password_data.old_password != "password123":
+    # 验证旧密码
+    if not bcrypt.checkpw(password_data.old_password.encode('utf-8'), user.password_hash.encode('utf-8')):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="旧密码错误"
         )
 
-    # 模拟密码修改（实际项目中应对新密码进行哈希处理）
-    user.update_time = datetime.now()
+    # 对新密码进行哈希处理
+    salt = bcrypt.gensalt()
+    new_hashed_password = bcrypt.hashpw(password_data.new_password.encode('utf-8'), salt)
+
+    # 更新密码和更新时间
+    user.password_hash = new_hashed_password.decode('utf-8')
+    user.update_time = datetime.utcnow()
+    db.commit()
 
     return {"message": "密码修改成功"}
 
@@ -324,7 +425,10 @@ async def reset_password(
 
 
 @router.get("/profile", response_model=UserResponse)
-async def get_user_profile(username: str = Depends(verify_token)):
+async def get_user_profile(
+    username: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
     """
     获取用户账号信息
 
@@ -333,14 +437,34 @@ async def get_user_profile(username: str = Depends(verify_token)):
     返回：
     - 用户详细信息
     """
-    user = db.users.get(username)
+    user = db.query(User).filter(
+        User.username == username,
+        User.enable_flag == True
+    ).first()
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
 
-    return user
+    # 转换为响应模型
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        nickname=user.nickname,
+        email=user.email,
+        phone=user.phone,
+        avatar_url=user.avatar_url,
+        user_type=UserType(user.user_type),
+        email_verified=user.email_verified,
+        phone_verified=user.phone_verified,
+        registration_time=user.registration_time,
+        last_login_time=user.last_login_time,
+        status=user.status,
+        create_time=user.create_time,
+        update_time=user.update_time
+    )
 
 
 @router.put("/profile", response_model=UserResponse)
@@ -387,7 +511,8 @@ async def update_user_profile(
 @router.get("/exchanges", response_model=ExchangeListResponse)
 async def get_exchanges(
     exchange_type: Optional[str] = None,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
     """
     获取交易所列表
@@ -401,15 +526,34 @@ async def get_exchanges(
     返回：
     - 交易所列表
     """
-    exchanges = list(db.exchanges.values())
+    query = db.query(Exchange).filter(Exchange.enable_flag == True)
 
     # 筛选
     if exchange_type:
-        exchanges = [e for e in exchanges if e.exchange_type == exchange_type]
+        query = query.filter(Exchange.exchange_type == exchange_type)
     if status:
-        exchanges = [e for e in exchanges if e.status == status]
+        query = query.filter(Exchange.status == status)
 
-    return ExchangeListResponse(total=len(exchanges), items=exchanges)
+    exchanges = query.all()
+
+    # 转换为响应模型
+    exchange_items = []
+    for exchange in exchanges:
+        exchange_items.append(ExchangeInfo(
+            id=exchange.id,
+            exchange_code=exchange.exchange_code,
+            exchange_name=exchange.exchange_name,
+            exchange_type=exchange.exchange_type,
+            base_url=exchange.base_url,
+            api_doc_url=exchange.api_doc_url,
+            status=exchange.status,
+            supported_pairs=exchange.supported_pairs,
+            rate_limits=exchange.rate_limits,
+            create_time=exchange.create_time,
+            update_time=exchange.update_time
+        ))
+
+    return ExchangeListResponse(total=len(exchange_items), items=exchange_items)
 
 
 @router.get("/exchanges/{exchange_id}", response_model=ExchangeInfo)
