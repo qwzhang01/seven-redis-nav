@@ -186,6 +186,68 @@ CREATE TABLE IF NOT EXISTS backtest_results (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 创建订阅配置表
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    exchange VARCHAR(50) NOT NULL,
+    market_type VARCHAR(20) DEFAULT 'spot',
+    data_type VARCHAR(20) NOT NULL,
+    symbols JSONB NOT NULL,
+    interval VARCHAR(10),
+    status VARCHAR(20) DEFAULT 'stopped', -- stopped/running/paused
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_sync_time TIMESTAMPTZ,
+    total_records BIGINT DEFAULT 0,
+    error_count INT DEFAULT 0,
+    last_error TEXT,
+    config JSONB
+);
+
+COMMENT ON TABLE subscriptions IS '行情订阅配置表';
+COMMENT ON COLUMN subscriptions.id IS '订阅ID';
+COMMENT ON COLUMN subscriptions.name IS '订阅名称';
+COMMENT ON COLUMN subscriptions.exchange IS '交易所名称';
+COMMENT ON COLUMN subscriptions.market_type IS '市场类型：spot/futures/margin';
+COMMENT ON COLUMN subscriptions.data_type IS '数据类型：kline/ticker/depth/trade/orderbook';
+COMMENT ON COLUMN subscriptions.symbols IS '交易对列表（JSON数组）';
+COMMENT ON COLUMN subscriptions.interval IS 'K线周期（仅data_type为kline时有效）';
+COMMENT ON COLUMN subscriptions.status IS '订阅状态：stopped/running/paused';
+COMMENT ON COLUMN subscriptions.last_sync_time IS '最后同步时间';
+COMMENT ON COLUMN subscriptions.total_records IS '累计同步记录数';
+COMMENT ON COLUMN subscriptions.error_count IS '累计错误次数';
+COMMENT ON COLUMN subscriptions.last_error IS '最后一次错误信息';
+COMMENT ON COLUMN subscriptions.config IS '高级配置（auto_restart/max_retries/batch_size/sync_interval）';
+
+-- 创建同步任务表
+CREATE TABLE IF NOT EXISTS sync_tasks (
+    id VARCHAR(50) PRIMARY KEY,
+    subscription_id VARCHAR(50) NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- pending/running/completed/failed/cancelled
+    progress INT DEFAULT 0,
+    total_records BIGINT DEFAULT 0,
+    synced_records BIGINT DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+COMMENT ON TABLE sync_tasks IS '手动同步任务表';
+COMMENT ON COLUMN sync_tasks.id IS '任务ID';
+COMMENT ON COLUMN sync_tasks.subscription_id IS '关联订阅ID（级联删除）';
+COMMENT ON COLUMN sync_tasks.start_time IS '同步数据起始时间';
+COMMENT ON COLUMN sync_tasks.end_time IS '同步数据结束时间';
+COMMENT ON COLUMN sync_tasks.status IS '任务状态：pending/running/completed/failed/cancelled';
+COMMENT ON COLUMN sync_tasks.progress IS '同步进度（0-100）';
+COMMENT ON COLUMN sync_tasks.total_records IS '预计总记录数';
+COMMENT ON COLUMN sync_tasks.synced_records IS '已同步记录数';
+COMMENT ON COLUMN sync_tasks.error_message IS '错误信息';
+COMMENT ON COLUMN sync_tasks.completed_at IS '任务完成时间';
+
 -- 创建索引
 -- 用户信息表索引
 CREATE INDEX IF NOT EXISTS idx_user_info_username ON user_info (username);
@@ -221,6 +283,17 @@ CREATE INDEX IF NOT EXISTS idx_depth_timestamp ON depth_data (timestamp DESC);
 -- 回测结果表索引
 CREATE INDEX IF NOT EXISTS idx_backtest_strategy_name ON backtest_results (strategy_name);
 CREATE INDEX IF NOT EXISTS idx_backtest_time_range ON backtest_results (start_time, end_time);
+
+-- 订阅配置表索引
+CREATE INDEX IF NOT EXISTS idx_subscriptions_exchange ON subscriptions (exchange);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions (status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_data_type ON subscriptions (data_type);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_created_at ON subscriptions (created_at DESC);
+
+-- 同步任务表索引
+CREATE INDEX IF NOT EXISTS idx_sync_tasks_subscription_id ON sync_tasks (subscription_id);
+CREATE INDEX IF NOT EXISTS idx_sync_tasks_status ON sync_tasks (status);
+CREATE INDEX IF NOT EXISTS idx_sync_tasks_created_at ON sync_tasks (created_at DESC);
 
 -- 插入示例数据
 -- 插入示例交易所

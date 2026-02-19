@@ -7,7 +7,7 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any
-from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -91,3 +91,48 @@ class UserExchangeAPI(Base):
     # 关系
     user = relationship("User", back_populates="api_keys")
     exchange = relationship("Exchange", back_populates="api_keys")
+
+
+class Subscription(Base):
+    """行情订阅配置模型"""
+    __tablename__ = "subscriptions"
+
+    id = Column(String(50), primary_key=True)
+    name = Column(String(200), nullable=False)
+    exchange = Column(String(50), nullable=False)
+    market_type = Column(String(20), default="spot")
+    data_type = Column(String(20), nullable=False)
+    symbols = Column(JSON, nullable=False)
+    interval = Column(String(10))
+    status = Column(String(20), default="stopped")  # stopped/running/paused
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    last_sync_time = Column(DateTime)
+    total_records = Column(BigInteger, default=0)
+    error_count = Column(Integer, default=0)
+    last_error = Column(Text)
+    config = Column(JSON)
+
+    # 关系
+    sync_tasks = relationship("SyncTask", back_populates="subscription", cascade="all, delete-orphan")
+
+
+class SyncTask(Base):
+    """手动同步任务模型"""
+    __tablename__ = "sync_tasks"
+
+    id = Column(String(50), primary_key=True)
+    subscription_id = Column(String(50), ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    status = Column(String(20), default="pending")  # pending/running/completed/failed/cancelled
+    progress = Column(Integer, default=0)
+    total_records = Column(BigInteger, default=0)
+    synced_records = Column(BigInteger, default=0)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+    # 关系
+    subscription = relationship("Subscription", back_populates="sync_tasks")

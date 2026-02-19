@@ -94,23 +94,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 获取用户信息
-   */
-  async function fetchUserProfile(): Promise<UserInfo> {
-    try {
-      const profile = await userApi.getProfile()
-      const userInfo = transformUserProfile(profile)
-      user.value = userInfo
-      localStorage.setItem('qm_user', JSON.stringify(userInfo))
-      return userInfo
-    } catch (error) {
-      // 如果获取失败，可能是token过期，执行登出
-      logout()
-      throw error
-    }
-  }
-
-  /**
    * 更新用户信息
    */
   async function updateProfile(data: {
@@ -164,7 +147,6 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
-    fetchUserProfile,
     updateProfile,
     changePassword,
   }

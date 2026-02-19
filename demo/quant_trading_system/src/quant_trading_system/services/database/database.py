@@ -444,6 +444,72 @@ class TimescaleDB:
                     ON user_exchange_api (status);
                 """)
 
+                # 创建订阅配置表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS subscriptions (
+                        id VARCHAR(50) PRIMARY KEY,
+                        name VARCHAR(200) NOT NULL,
+                        exchange VARCHAR(50) NOT NULL,
+                        market_type VARCHAR(20) DEFAULT 'spot',
+                        data_type VARCHAR(20) NOT NULL,
+                        symbols JSONB NOT NULL,
+                        interval VARCHAR(10),
+                        status VARCHAR(20) DEFAULT 'stopped',
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW(),
+                        last_sync_time TIMESTAMPTZ,
+                        total_records BIGINT DEFAULT 0,
+                        error_count INT DEFAULT 0,
+                        last_error TEXT,
+                        config JSONB
+                    );
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_subscriptions_exchange
+                    ON subscriptions (exchange);
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_subscriptions_status
+                    ON subscriptions (status);
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_subscriptions_data_type
+                    ON subscriptions (data_type);
+                """)
+
+                # 创建同步任务表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sync_tasks (
+                        id VARCHAR(50) PRIMARY KEY,
+                        subscription_id VARCHAR(50) NOT NULL
+                            REFERENCES subscriptions(id) ON DELETE CASCADE,
+                        start_time TIMESTAMPTZ NOT NULL,
+                        end_time TIMESTAMPTZ NOT NULL,
+                        status VARCHAR(20) DEFAULT 'pending',
+                        progress INT DEFAULT 0,
+                        total_records BIGINT DEFAULT 0,
+                        synced_records BIGINT DEFAULT 0,
+                        error_message TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW(),
+                        completed_at TIMESTAMPTZ
+                    );
+                """)
+
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_sync_tasks_subscription_id
+                    ON sync_tasks (subscription_id);
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_sync_tasks_status
+                    ON sync_tasks (status);
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_sync_tasks_created_at
+                    ON sync_tasks (created_at DESC);
+                """)
+
                 conn.commit()
                 logger.info("Database tables initialized successfully")
 

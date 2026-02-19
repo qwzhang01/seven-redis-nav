@@ -4,7 +4,12 @@
 
 行情模块提供市场行情数据相关的 API 接口，支持行情订阅、K 线数据查询、实时 Tick 数据、市场深度等功能。
 
-**Base URL**: `/market`
+**Base URL**: `/api/v1/c/market`
+
+> **认证说明**：所有行情接口均需要在请求头中携带有效的 JWT 令牌：
+> ```http
+> Authorization: Bearer <token>
+> ```
 
 ---
 
@@ -12,13 +17,13 @@
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
-| POST | `/market/subscribe` | 订阅行情数据 |
-| POST | `/market/unsubscribe` | 取消行情订阅 |
-| GET | `/market/kline/{symbol}` | 获取 K 线数据 |
-| GET | `/market/tick/{symbol}` | 获取最新 Tick 数据 |
-| GET | `/market/depth/{symbol}` | 获取市场深度数据 |
-| GET | `/market/symbols` | 获取已订阅的交易对列表 |
-| GET | `/market/stats` | 获取行情服务统计信息 |
+| POST | `/api/v1/c/market/subscribe` | 订阅行情数据 |
+| POST | `/api/v1/c/market/unsubscribe` | 取消行情订阅 |
+| GET | `/api/v1/c/market/kline/{symbol}` | 获取 K 线数据 |
+| GET | `/api/v1/c/market/tick/{symbol}` | 获取最新 Tick 数据 |
+| GET | `/api/v1/c/market/depth/{symbol}` | 获取市场深度数据 |
+| GET | `/api/v1/c/market/symbols` | 获取已订阅的交易对列表 |
+| GET | `/api/v1/c/market/stats` | 获取行情服务统计信息 |
 
 ---
 
@@ -26,7 +31,7 @@
 
 ### 1. 订阅行情数据
 
-**POST** `/market/subscribe`
+**POST** `/api/v1/c/market/subscribe`
 
 向市场服务订阅指定交易对的实时行情数据。
 
@@ -66,7 +71,7 @@
 
 ### 2. 取消行情订阅
 
-**POST** `/market/unsubscribe`
+**POST** `/api/v1/c/market/unsubscribe`
 
 取消对指定交易对的行情数据订阅。
 
@@ -106,7 +111,7 @@
 
 ### 3. 获取 K 线数据
 
-**GET** `/market/kline/{symbol}`
+**GET** `/api/v1/c/market/kline/{symbol}`
 
 查询指定交易对和时间周期的历史 K 线数据。
 
@@ -139,7 +144,7 @@
 #### 请求示例
 
 ```
-GET /market/kline/BTCUSDT?timeframe=1h&limit=50
+GET /api/v1/c/market/kline/BTCUSDT?timeframe=1h&limit=50
 ```
 
 #### 响应
@@ -186,7 +191,7 @@ GET /market/kline/BTCUSDT?timeframe=1h&limit=50
 
 ### 4. 获取最新 Tick 数据
 
-**GET** `/market/tick/{symbol}`
+**GET** `/api/v1/c/market/tick/{symbol}`
 
 查询指定交易对的最新 Tick 行情数据。
 
@@ -199,7 +204,7 @@ GET /market/kline/BTCUSDT?timeframe=1h&limit=50
 #### 请求示例
 
 ```
-GET /market/tick/BTCUSDT
+GET /api/v1/c/market/tick/BTCUSDT
 ```
 
 #### 响应
@@ -230,7 +235,7 @@ GET /market/tick/BTCUSDT
 
 ### 5. 获取市场深度数据
 
-**GET** `/market/depth/{symbol}`
+**GET** `/api/v1/c/market/depth/{symbol}`
 
 查询指定交易对的买卖盘深度数据。
 
@@ -249,7 +254,7 @@ GET /market/tick/BTCUSDT
 #### 请求示例
 
 ```
-GET /market/depth/BTCUSDT?limit=10
+GET /api/v1/c/market/depth/BTCUSDT?limit=10
 ```
 
 #### 响应
@@ -286,7 +291,7 @@ GET /market/depth/BTCUSDT?limit=10
 
 ### 6. 获取已订阅的交易对列表
 
-**GET** `/market/symbols`
+**GET** `/api/v1/c/market/symbols`
 
 查询指定交易所和市场类型下已订阅的交易对列表。
 
@@ -300,7 +305,7 @@ GET /market/depth/BTCUSDT?limit=10
 #### 请求示例
 
 ```
-GET /market/symbols?exchange=binance&market_type=spot
+GET /api/v1/c/market/symbols?exchange=binance&market_type=spot
 ```
 
 #### 响应
@@ -323,14 +328,14 @@ GET /market/symbols?exchange=binance&market_type=spot
 
 ### 7. 获取行情服务统计信息
 
-**GET** `/market/stats`
+**GET** `/api/v1/c/market/stats`
 
 查询市场服务的运行统计数据和性能指标。
 
 #### 请求示例
 
 ```
-GET /market/stats
+GET /api/v1/c/market/stats
 ```
 
 #### 响应
@@ -353,4 +358,6 @@ GET /market/stats
 | HTTP 状态码 | 描述 |
 |-------------|------|
 | 400 | 请求参数错误（如无效的时间周期） |
+| 401 | 未提供认证凭据或令牌无效/已过期 |
+| 429 | 请求过于频繁（每 IP 每 60 秒最多 200 次） |
 | 503 | 交易系统未启动，请先启动系统后再调用 |
