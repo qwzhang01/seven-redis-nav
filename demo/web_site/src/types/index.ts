@@ -145,3 +145,42 @@ export interface ApiKey {
   userId: string
   userName: string
 }
+
+export interface DataSubscription {
+  id: string
+  name: string
+  exchange: string
+  dataType: 'kline' | 'ticker' | 'depth' | 'trade' | 'orderbook'
+  symbols: string[]
+  interval?: string
+  status: 'running' | 'paused' | 'stopped'
+  createdAt: string
+  updatedAt: string
+  lastSyncTime?: string
+  totalRecords: number
+  errorCount: number
+  config: {
+    autoRestart: boolean
+    maxRetries: number
+    batchSize: number
+    syncInterval: number
+  }
+}
+
+export interface SyncTask {
+  id: string
+  subscriptionId: string
+  subscriptionName: string
+  exchange: string
+  symbols: string[]
+  dataType: string
+  startTime: string
+  endTime: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  totalRecords: number
+  syncedRecords: number
+  errorMessage?: string
+  createdAt: string
+  completedAt?: string
+}

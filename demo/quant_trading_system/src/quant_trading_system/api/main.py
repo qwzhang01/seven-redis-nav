@@ -19,6 +19,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.logging import setup_logging
+from quant_trading_system.api.middlewares import (
+    RequestIDMiddleware,
+    LoggingMiddleware,
+    RateLimitMiddleware,
+    AuthMiddleware,
+)
 
 # 设置日志
 setup_logging()
@@ -33,14 +39,9 @@ from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 
-# 导入新的业务域路由
-from .users.api.user import router as user_router
-from .strategies.api.strategy import router as strategy_router
-from .trading.api.trading import router as trading_router
-from .market.api.market import router as market_router
-from .backtest.api.backtest import router as backtest_router
-from .system.api.system import router as system_router
-from .health.api.health import router as health_router
+# 导入 C 端（普通用户）和 Admin 端（管理员）聚合路由
+from .c import c_router
+from .m import m_router
 
 from ..services.database.database import init_database
 from ..config import settings
@@ -142,7 +143,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 配置CORS中间件
+# ── 中间件注册（执行顺序：后注册先执行）──────────────────────────
+# 执行顺序：RequestID → Logging → RateLimit → Auth → CORS → 路由
+
+# 1. CORS（最内层，最后注册）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -150,6 +154,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 2. 认证中间件：统一 JWT Token 校验，白名单路径自动跳过
+app.add_middleware(AuthMiddleware)
+
+# 3. 限流中间件：每 IP 每 60 秒最多 200 次请求
+app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
+
+# 4. 请求日志中间件：记录方法、路径、状态码、耗时
+app.add_middleware(LoggingMiddleware)
+
+# 5. 请求 ID 中间件（最外层，最先注册）：注入 X-Request-ID
+app.add_middleware(RequestIDMiddleware)
 
 
 # 全局异常处理
@@ -182,13 +198,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 # 注册路由
-app.include_router(user_router, prefix="/api/v1/user", tags=["user"])
-app.include_router(strategy_router, prefix="/api/v1/strategy", tags=["strategy"])
-app.include_router(trading_router, prefix="/api/v1/trading", tags=["trading"])
-app.include_router(market_router, prefix="/api/v1/market", tags=["market"])
-app.include_router(backtest_router, prefix="/api/v1/backtest", tags=["backtest"])
-app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
-app.include_router(health_router, prefix="/api/v1", tags=["health"])
+# C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
+app.include_router(c_router, prefix="/api/v1/c")
+
+# Admin 端（管理员）：/api/v1/m/strategy、/api/v1/m/system、/api/v1/m/health
+app.include_router(m_router, prefix="/api/v1/m")
 
 
 # 根路径

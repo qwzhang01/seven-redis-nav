@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, Zap, Radio, Trophy, ShieldAlert, ArrowLeft, Key, TrendingUp } from 'lucide-vue-next'
+import { LayoutDashboard, Zap, Radio, Trophy, ShieldAlert, ArrowLeft, Key, TrendingUp, Database } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -65,6 +65,7 @@ const menuItems = [
   { path: '/admin/signals', label: '信号接入', icon: Radio },
   { path: '/admin/leaderboard', label: '排行榜配置', icon: Trophy },
   { path: '/admin/api-keys', label: 'API密钥审核', icon: Key },
+  { path: '/admin/data-subscription', label: '实时数据订阅', icon: Database },
   { path: '/admin/logs', label: '风控与日志', icon: ShieldAlert },
 ]
 

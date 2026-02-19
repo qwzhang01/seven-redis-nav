@@ -131,6 +131,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminApiKeys.vue'),
         meta: { title: 'API密钥审核', requiresAuth: true, requiresAdmin: true },
       },
+      {
+        path: 'data-subscription',
+        name: 'AdminDataSubscription',
+        component: () => import('@/views/admin/AdminDataSubscription.vue'),
+        meta: { title: '实时数据订阅', requiresAuth: true, requiresAdmin: true },
+      },
     ],
   },
   {
