@@ -6,17 +6,28 @@ FROM node:20-alpine AS builder
 # 设置工作目录
 WORKDIR /app
 
+# 安装构建所需的系统依赖（Alpine musl 环境需要）
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    && ln -sf python3 /usr/bin/python
+
 # 安装构建依赖（利用缓存层）
 COPY package.json package-lock.json ./
-# 使用更快的安装选项，跳过可选依赖
-RUN npm ci --prefer-offline --no-audit --progress=false --omit=optional \
+
+# 关键修复：不要跳过可选依赖，Rollup 在 Alpine 环境需要 @rollup/rollup-linux-x64-musl
+RUN npm ci --prefer-offline --no-audit --progress=false \
     && npm cache clean --force
 
 # 复制源代码并构建
 COPY . .
-# 设置 NODE_ENV 并构建，不显示详细输出
+
+# 设置 NODE_ENV 并构建
 ENV NODE_ENV=production
-RUN npm run build
+RUN npm run build \
+    && ls -lah dist/ \
+    && echo "✓ 构建完成"
 
 # ========================================
 # Production Stage - 生产环境

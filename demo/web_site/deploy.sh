@@ -132,6 +132,7 @@ rollback() {
         docker run -d \
             --name "${CONTAINER_NAME}" \
             -p "${HOST_PORT}:${CONTAINER_PORT}" \
+            --add-host=host.docker.internal:host-gateway \
             --restart unless-stopped \
             --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
             --health-interval=30s \
@@ -224,6 +225,7 @@ main() {
     if docker run -d \
         --name "${temp_container}" \
         -p "${temp_port}:${CONTAINER_PORT}" \
+        --add-host=host.docker.internal:host-gateway \
         --restart unless-stopped \
         --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
         --health-interval=30s \
@@ -266,6 +268,7 @@ main() {
     if docker run -d \
         --name "${CONTAINER_NAME}" \
         -p "${HOST_PORT}:${CONTAINER_PORT}" \
+        --add-host=host.docker.internal:host-gateway \
         --restart unless-stopped \
         --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
         --health-interval=30s \
