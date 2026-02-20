@@ -71,7 +71,15 @@ if docker ps -q -f name="^${CONTAINER_NAME}$" | grep -q .; then
     log "旧容器已停止"
 fi
 
-# ---- 8. 启动新容器 ----
+# ---- 8. 清理旧镜像（保留最近2个版本，避免磁盘堆积）----
+log "清理旧镜像..."
+docker images "${IMAGE_NAME}" --format "{{.ID}} {{.Tag}}" \
+    | grep -v "latest" \
+    | grep -v "${APP_VERSION}" \
+    | awk '{print $1}' \
+    | xargs -r docker rmi || warn "部分旧镜像清理失败（可能仍被其他容器引用），已跳过"
+
+# ---- 9. 启动新容器 ----
 log "启动新容器..."
 cd "$PUBLISH_DIR"
 APP_VERSION="$APP_VERSION" docker compose -f docker-compose.prod.yml up -d --no-build
@@ -109,6 +117,6 @@ done
 
 # ---- 10. 部署完成 ----
 log "===== 部署成功！quant_app v${APP_VERSION} 已运行 ====="
-log "健康检查:  curl http://localhost:8000/health"
+log "健康检查:  curl http://localhost:8000/api/v1/m/health"
 log "查看日志:  docker logs -f $CONTAINER_NAME"
 log "容器状态:  docker ps -f name=$CONTAINER_NAME"
