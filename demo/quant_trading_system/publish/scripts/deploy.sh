@@ -33,26 +33,17 @@ docker info > /dev/null 2>&1 || error "Docker 未运行，请先启动 Docker"
 docker compose version > /dev/null 2>&1 || error "docker compose 插件未安装"
 
 # ---- 3. 自动检测生产网络 ----
+# 生产环境已知网络为 script_default，优先使用；也可通过 redis 容器动态确认
 PROD_NETWORK=$(docker inspect redis --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null | awk '{print $1}' || true)
 if [ -z "$PROD_NETWORK" ]; then
-    warn "无法自动检测生产网络（redis 容器未运行？），尝试从 docker-compose.prod.yml 读取..."
-    PROD_NETWORK=$(grep -A2 'prod_network:' "$PUBLISH_DIR/docker-compose.prod.yml" | grep 'name:' | awk '{print $2}' || true)
-    [ -n "$PROD_NETWORK" ] && [ "$PROD_NETWORK" != "<已有容器所在的网络名>" ] \
-        || error "无法确定生产网络名，请手动编辑 docker-compose.prod.yml 中的 networks.prod_network.name"
+    warn "无法自动检测生产网络（redis 容器未运行？），使用默认网络 script_default"
+    PROD_NETWORK="script_default"
 fi
 log "生产网络: $PROD_NETWORK"
 
-# 更新 compose 文件中的网络名（如果还是占位符）
-if grep -q '<已有容器所在的网络名>' "$PUBLISH_DIR/docker-compose.prod.yml"; then
-    sed -i.bak "s|name: <已有容器所在的网络名>|name: $PROD_NETWORK|g" \
-        "$PUBLISH_DIR/docker-compose.prod.yml"
-    log "已自动更新 docker-compose.prod.yml 网络名为: $PROD_NETWORK"
-fi
-
-# ---- 4. 确认网络存在，不存在则创建 ----
+# ---- 4. 确认网络存在，不存在则报错（生产网络应由基础设施管理，不自动创建）----
 if ! docker network inspect "$PROD_NETWORK" > /dev/null 2>&1; then
-    warn "网络 $PROD_NETWORK 不存在，尝试创建..."
-    docker network create "$PROD_NETWORK" || error "创建网络失败"
+    error "网络 $PROD_NETWORK 不存在，请确认基础服务（redis/postgres/kafka/minio）已正常运行"
 fi
 
 # ---- 5. 构建镜像 ----

@@ -8,3 +8,12 @@
 | 5e6adbaa576c | apache/kafka:latest | "/__cacert_entrypoin…" | 6 days ago | Up 6 days | 0.0.0.0:9092->9092/tcp, [::]:9092->9092/tcp | kafka |
 | 2f4a2d6c08cd | minio/minio:latest | "/usr/bin/docker-ent…" | 6 days ago | Up 6 days | 0.0.0.0:9000-9001->9000-9001/tcp, [::]:9000-9001->9000-9001/tcp | minio |
 
+
+### 生产环境已经有的网络
+
+| NETWORK ID | NAME | DRIVER | SCOPE |
+|------------|------|--------|-------|
+| 4ced50e298ce | bridge | bridge | local |
+| 0e623213a439 | host | host | local |
+| 5985a3d28070 | none | null | local |
+| d5eb0d872924 | script_default | bridge | local |

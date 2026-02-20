@@ -45,10 +45,10 @@ services:
           memory: 512M
 
 # ============================================================
-# 网络配置：加入已有生产网络，与 Redis/PostgreSQL/Kafka/MinIO 互通
-# 执行 docker network ls 查看已有网络名，填入 name 字段
+# 网络配置：加入已有生产网络 script_default，与 Redis/PostgreSQL/Kafka/MinIO 互通
+# 生产环境现有网络：script_default（bridge，所有基础服务均在此网络）
 # ============================================================
 networks:
   prod_network:
     external: true
-    name: <已有容器所在的网络名>
+    name: script_default
