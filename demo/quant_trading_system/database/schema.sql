@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS user_exchange_api (
 
 -- 创建K线数据表（时序表）
 CREATE TABLE IF NOT EXISTS kline_data (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timeframe VARCHAR(8) NOT NULL,
@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS kline_data (
     volume DECIMAL(30, 8) NOT NULL,
     turnover DECIMAL(30, 8),
     is_closed BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, timestamp)
 );
 
 -- 为kline_data表字段添加注释
@@ -111,7 +112,7 @@ SELECT create_hypertable('kline_data', 'timestamp', if_not_exists => TRUE);
 
 -- 创建实时行情数据表
 CREATE TABLE IF NOT EXISTS tick_data (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
@@ -121,7 +122,8 @@ CREATE TABLE IF NOT EXISTS tick_data (
     ask_price DECIMAL(20, 8),
     bid_size DECIMAL(30, 8),
     ask_size DECIMAL(30, 8),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, timestamp)
 );
 
 -- 为tick_data表字段添加注释
@@ -143,13 +145,14 @@ SELECT create_hypertable('tick_data', 'timestamp', if_not_exists => TRUE);
 
 -- 创建深度数据表
 CREATE TABLE IF NOT EXISTS depth_data (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     bids JSONB NOT NULL,
     asks JSONB NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, timestamp)
 );
 
 -- 为depth_data表字段添加注释
