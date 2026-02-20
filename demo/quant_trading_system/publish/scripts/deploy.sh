@@ -85,7 +85,7 @@ cd "$PUBLISH_DIR"
 APP_VERSION="$APP_VERSION" docker compose -f docker-compose.prod.yml up -d --no-build
 log "容器已启动，等待健康检查..."
 
-# ---- 9. 等待健康检查通过 ----
+# ---- 10. 等待健康检查通过 ----
 MAX_WAIT=120
 WAITED=0
 while true; do
@@ -100,6 +100,9 @@ while true; do
             log "健康检查失败，查看容器日志："
             docker logs --tail=50 "$CONTAINER_NAME"
             error "部署失败：服务健康检查不通过"
+            ;;
+        starting)
+            # 容器正在启动，继续等待
             ;;
         not_found)
             error "容器 $CONTAINER_NAME 未找到"
