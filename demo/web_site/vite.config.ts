@@ -27,7 +27,7 @@ export default defineConfig({
         // 代码分割优化
         manualChunks: {
           'vue-vendor': ['vue', 'vue-router'],
-          'ui-vendor': ['element-plus'],
+          'ui-vendor': ['tdesign-vue-next'],
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
