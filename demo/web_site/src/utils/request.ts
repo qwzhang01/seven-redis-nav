@@ -50,9 +50,9 @@ export function clearToken() {
  */
 function requestInterceptor(url: string, config: RequestConfig): [string, RequestInit] {
   // 设置默认headers
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(config.headers || {}),
+    ...(config.headers as Record<string, string> || {}),
   }
 
   // 添加认证token
