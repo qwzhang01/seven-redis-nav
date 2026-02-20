@@ -228,10 +228,6 @@ class Settings(BaseSettings):
             )
 
 
-# 创建全局配置实例
-settings = Settings()
-
-
 def get_settings() -> Settings:
     """
     获取配置实例

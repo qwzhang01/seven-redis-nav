@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 
-from quant_trading_system.core.config import settings
+from quant_trading_system.config import settings
 from quant_trading_system.core.logging import setup_logging
 from quant_trading_system.api.middlewares import (
     RequestIDMiddleware,
