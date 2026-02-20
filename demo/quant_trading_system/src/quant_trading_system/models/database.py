@@ -246,3 +246,90 @@ class RiskAlert(Base):
     resolved_by = Column(String(64))
     extra_data = Column(JSONB)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SignalFollowOrder(Base):
+    """信号跟单订单主表模型"""
+    __tablename__ = "signal_follow_orders"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    strategy_id = Column(String(128), nullable=False)
+    signal_name = Column(String(256), nullable=False)
+    exchange = Column(String(32), nullable=False, default="binance")
+    follow_amount = Column(Numeric(20, 2), nullable=False)       # 跟单资金（USDT）
+    current_value = Column(Numeric(20, 2))                       # 当前净值（USDT）
+    follow_ratio = Column(Numeric(5, 4), default=1.0)            # 跟单比例
+    stop_loss = Column(Numeric(5, 4))                            # 止损比例
+    total_return = Column(Numeric(10, 6), default=0)             # 总收益率
+    max_drawdown = Column(Numeric(10, 6), default=0)             # 最大回撤
+    current_drawdown = Column(Numeric(10, 6), default=0)         # 当前回撤
+    today_return = Column(Numeric(10, 6), default=0)             # 今日收益率
+    win_rate = Column(Numeric(10, 6), default=0)                 # 胜率
+    total_trades = Column(Integer, default=0)                    # 总交易次数
+    win_trades = Column(Integer, default=0)                      # 盈利次数
+    loss_trades = Column(Integer, default=0)                     # 亏损次数
+    avg_win = Column(Numeric(20, 8), default=0)                  # 平均盈利（USDT）
+    avg_loss = Column(Numeric(20, 8), default=0)                 # 平均亏损（USDT）
+    profit_factor = Column(Numeric(10, 4), default=0)            # 盈亏比
+    risk_level = Column(String(16), default="low")               # low/medium/high
+    status = Column(String(16), default="following")             # following/stopped/paused
+    start_time = Column(DateTime, default=datetime.utcnow)
+    stop_time = Column(DateTime)
+    return_curve = Column(JSONB)                                 # 收益曲线数据
+    return_curve_labels = Column(JSONB)                          # 收益曲线时间标签
+    create_by = Column(String(64))
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+    # 关系
+    positions = relationship("SignalFollowPosition", back_populates="follow_order", cascade="all, delete-orphan")
+    trades = relationship("SignalFollowTrade", back_populates="follow_order", cascade="all, delete-orphan")
+
+
+class SignalFollowPosition(Base):
+    """信号跟单持仓模型"""
+    __tablename__ = "signal_follow_positions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    follow_order_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    symbol = Column(String(32), nullable=False)
+    side = Column(String(8), nullable=False)                     # long/short
+    amount = Column(Numeric(20, 8), nullable=False)              # 持仓数量
+    entry_price = Column(Numeric(20, 8), nullable=False)         # 开仓价格
+    current_price = Column(Numeric(20, 8))                       # 当前价格
+    pnl = Column(Numeric(20, 8), default=0)                      # 盈亏金额（USDT）
+    pnl_percent = Column(Numeric(10, 6), default=0)              # 盈亏率
+    status = Column(String(16), default="open")                  # open/closed
+    open_time = Column(DateTime, default=datetime.utcnow)
+    close_time = Column(DateTime)
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow)
+
+    # 关系
+    follow_order = relationship("SignalFollowOrder", back_populates="positions")
+
+
+class SignalFollowTrade(Base):
+    """信号跟单交易记录模型"""
+    __tablename__ = "signal_follow_trades"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    follow_order_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    position_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_positions.id"))
+    symbol = Column(String(32), nullable=False)
+    side = Column(String(8), nullable=False)                     # buy/sell
+    price = Column(Numeric(20, 8), nullable=False)               # 成交价格
+    amount = Column(Numeric(20, 8), nullable=False)              # 成交数量
+    total = Column(Numeric(20, 8), nullable=False)               # 成交额（USDT）
+    pnl = Column(Numeric(20, 8))                                 # 盈亏金额（已平仓时有值）
+    fee = Column(Numeric(20, 8), default=0)                      # 手续费
+    signal_record_id = Column(UUID(as_uuid=True), ForeignKey("signal_records.id"))
+    trade_time = Column(DateTime, default=datetime.utcnow)
+    create_time = Column(DateTime, default=datetime.utcnow)
+
+    # 关系
+    follow_order = relationship("SignalFollowOrder", back_populates="trades")

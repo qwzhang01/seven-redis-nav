@@ -13,26 +13,26 @@
           <div>
             <label class="text-xs text-white-100 mb-1.5 block">市场类型</label>
             <t-select v-model="filters.market" placeholder="全部市场" clearable size="medium"
-              :popup-props="{ overlayClassName: 'dark-select' }" class="text-white">
+              :popup-props="{ overlayClassName: 'dark-select' }" class="text-white" @change="onFilterChange">
               <t-option v-for="m in markets" :key="m" :label="m" :value="m" />
             </t-select>
           </div>
           <div>
             <label class="text-xs text-white-100 mb-1.5 block">策略类型</label>
-            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium" class="text-white">
+            <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium" class="text-white" @change="onFilterChange">
               <t-option v-for="t in types" :key="t" :label="t" :value="t" />
             </t-select>
           </div>
           <div>
             <label class="text-xs text-white-100 mb-1.5 block">风险等级</label>
-            <t-select v-model="filters.risk" placeholder="全部等级" clearable size="medium" class="text-white">
+            <t-select v-model="filters.risk" placeholder="全部等级" clearable size="medium" class="text-white" @change="onFilterChange">
               <t-option label="低风险" value="low" />
               <t-option label="中风险" value="medium" />
               <t-option label="高风险" value="high" />
             </t-select>
           </div>
           <div class="flex items-end">
-            <t-input v-model="filters.search" placeholder="搜索策略名称..." clearable size="medium">
+            <t-input v-model="filters.search" placeholder="搜索策略名称..." clearable size="medium" @change="onFilterChange">
               <template #prefix-icon>
                 <Search :size="16" class="text-dark-100" />
               </template>
@@ -41,9 +41,15 @@
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="loading" class="text-center py-20">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <p class="text-dark-100 mt-4">加载中...</p>
+      </div>
+
       <!-- Results Count -->
-      <div class="flex items-center justify-between mb-6">
-        <span class="text-sm text-dark-100">共 {{ filteredStrategies.length }} 个策略</span>
+      <div v-else class="flex items-center justify-between mb-6">
+        <span class="text-sm text-dark-100">共 {{ total }} 个策略</span>
         <div class="flex items-center gap-2">
           <button v-for="view in ['grid', 'list'] as const" :key="view" @click="viewMode = view"
             class="p-2 rounded-lg transition-all"
@@ -131,23 +137,27 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="mt-10 flex justify-center">
-        <t-pagination v-model:current="currentPage" :total="filteredStrategies.length" :page-size="pageSize"
-          :show-page-size="false" theme="simple" />
+      <div v-if="!loading && totalPages > 1" class="mt-10 flex justify-center">
+        <t-pagination v-model:current="currentPage" :total="total" :page-size="pageSize"
+          :show-page-size="false" theme="simple" @change="onPageChange" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Zap, Search, LayoutGrid, List, ArrowRight, SearchX } from 'lucide-vue-next'
+import { MessagePlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
-import { strategies } from '@/utils/mockData'
+import strategyApi from '@/utils/strategyApi'
 
 const viewMode = ref<'grid' | 'list'>('grid')
 const currentPage = ref(1)
 const pageSize = 9
+const loading = ref(false)
+const strategies = ref<any[]>([])
+const total = ref(0)
 
 const filters = ref({
   market: '',
@@ -156,11 +166,51 @@ const filters = ref({
   search: '',
 })
 
-const markets = [...new Set(strategies.map((s) => s.market))]
-const types = [...new Set(strategies.map((s) => s.type))]
+const markets = ref<string[]>([])
+const types = ref<string[]>([])
+
+// 加载策略列表
+async function loadStrategies() {
+  loading.value = true
+  try {
+    const response = await strategyApi.getStrategies({
+      page: currentPage.value,
+      page_size: pageSize,
+      market: filters.value.market || undefined,
+      type: filters.value.type || undefined,
+      risk_level: filters.value.risk || undefined,
+      search: filters.value.search || undefined,
+    })
+    strategies.value = response.items
+    total.value = response.total
+    
+    // 提取市场和类型选项
+    if (response.items.length > 0) {
+      const uniqueMarkets = [...new Set(response.items.map((s: any) => s.market))]
+      const uniqueTypes = [...new Set(response.items.map((s: any) => s.type))]
+      if (markets.value.length === 0) markets.value = uniqueMarkets
+      if (types.value.length === 0) types.value = uniqueTypes
+    }
+  } catch (error) {
+    console.error('加载策略失败:', error)
+    MessagePlugin.error('加载策略失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载策略类型
+async function loadStrategyTypes() {
+  try {
+    const response = await strategyApi.getStrategyTypes()
+    types.value = response.types.map((t: any) => t.name)
+  } catch (error) {
+    console.error('加载策略类型失败:', error)
+  }
+}
 
 const filteredStrategies = computed(() => {
-  return strategies.filter((s) => {
+  return strategies.value.filter((s) => {
     if (filters.value.market && s.market !== filters.value.market) return false
     if (filters.value.type && s.type !== filters.value.type) return false
     if (filters.value.risk && s.riskLevel !== filters.value.risk) return false
@@ -169,10 +219,27 @@ const filteredStrategies = computed(() => {
   })
 })
 
-const totalPages = computed(() => Math.ceil(filteredStrategies.value.length / pageSize))
+const totalPages = computed(() => Math.ceil(total.value / pageSize))
 const paginatedStrategies = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredStrategies.value.slice(start, start + pageSize)
+  return filteredStrategies.value
+})
+
+// 监听筛选条件变化
+function onFilterChange() {
+  currentPage.value = 1
+  loadStrategies()
+}
+
+// 监听分页变化
+function onPageChange(page: number) {
+  currentPage.value = page
+  loadStrategies()
+}
+
+// 页面加载时获取数据
+onMounted(() => {
+  loadStrategies()
+  loadStrategyTypes()
 })
 </script>
 

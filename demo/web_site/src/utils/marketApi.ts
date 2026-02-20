@@ -244,49 +244,49 @@ export interface ExchangesResponse {
  * 获取K线数据
  */
 export function getKlines(params: KlineParams): Promise<KlineResponse> {
-  return get<KlineResponse>('/market/klines', params)
+  return get<KlineResponse>('/api/v1/c/market/klines', params)
 }
 
 /**
  * 获取最新行情
  */
 export function getTicker(params: TickerParams): Promise<TickerData> {
-  return get<TickerData>('/market/ticker', params)
+  return get<TickerData>('/api/v1/c/market/ticker', params)
 }
 
 /**
  * 获取所有交易对行情
  */
 export function getTickers(params: TickersParams): Promise<TickersResponse> {
-  return get<TickersResponse>('/market/tickers', params)
+  return get<TickersResponse>('/api/v1/c/market/tickers', params)
 }
 
 /**
  * 获取市场深度
  */
 export function getDepth(params: DepthParams): Promise<DepthData> {
-  return get<DepthData>('/market/depth', params)
+  return get<DepthData>('/api/v1/c/market/depth', params)
 }
 
 /**
  * 获取最近成交
  */
 export function getTrades(params: TradesParams): Promise<TradesResponse> {
-  return get<TradesResponse>('/market/trades', params)
+  return get<TradesResponse>('/api/v1/c/market/trades', params)
 }
 
 /**
  * 获取交易对列表
  */
 export function getSymbols(params: SymbolsParams): Promise<SymbolsResponse> {
-  return get<SymbolsResponse>('/market/symbols', params)
+  return get<SymbolsResponse>('/api/v1/c/market/symbols', params)
 }
 
 /**
  * 获取交易所列表
  */
 export function getExchanges(): Promise<ExchangesResponse> {
-  return get<ExchangesResponse>('/market/exchanges')
+  return get<ExchangesResponse>('/api/v1/c/market/exchanges')
 }
 
 // ==================== WebSocket相关 ====================

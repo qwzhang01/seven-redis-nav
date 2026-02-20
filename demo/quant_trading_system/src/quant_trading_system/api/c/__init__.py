@@ -16,6 +16,7 @@ C 端（普通用户）路由聚合包
 from fastapi import APIRouter
 
 from quant_trading_system.api.users.api.user import router as user_router
+from quant_trading_system.api.users.api.signal_follow import router as signal_follow_router
 from quant_trading_system.api.market.api.market import router as market_router
 from quant_trading_system.api.trading.api.trading import router as trading_router
 from quant_trading_system.api.backtest.api.backtest import router as backtest_router
@@ -26,6 +27,7 @@ from quant_trading_system.api.leaderboard.api.leaderboard import router as leade
 c_router = APIRouter()
 
 c_router.include_router(user_router, prefix="/user", tags=["C端-用户管理"])
+c_router.include_router(signal_follow_router, prefix="/user/signal-follows", tags=["C端-信号跟单"])
 c_router.include_router(market_router, prefix="/market", tags=["C端-行情数据"])
 c_router.include_router(trading_router, prefix="/trading", tags=["C端-交易管理"])
 c_router.include_router(backtest_router, prefix="/backtest", tags=["C端-策略回测"])

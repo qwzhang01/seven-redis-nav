@@ -632,13 +632,82 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { Zap, Radio, Trophy, User, ArrowRight, ArrowLeft, AlertTriangle } from 'lucide-vue-next'
+import { MessagePlugin } from 'tdesign-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
-import { signals } from '@/utils/mockData'
 
 // Modern Polling Logic for Preferred Strategies
 const currentStrategyIndex = ref(0)
 let pollingInterval: NodeJS.Timeout | null = null
+
+// 加载状态
+const loading = ref(false)
+const signalsData = ref<any[]>([])
+
+// 加载热门信号 (暂时使用Mock数据，等待信号API)
+async function loadHotSignals() {
+  try {
+    // TODO: 等待信号API实现后替换
+    // const response = await signalApi.getSignals({ page: 1, page_size: 6, sort: 'popular' })
+    // signalsData.value = response.items
+    
+    // 临时使用Mock数据
+    signalsData.value = [
+      {
+        id: 'sig-001',
+        name: '超级趋势信号',
+        platform: 'WEEX',
+        status: 'running',
+        cumulativeReturn: 23.5,
+        maxDrawdown: 8.2,
+        followers: 1250,
+        runDays: 45,
+        returnCurve: [0, 2, 5, 3, 8, 12, 10, 15, 18, 23.5],
+        returnCurveLabels: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30', 'Day 35', 'Day 40', 'Day 45']
+      },
+      {
+        id: 'sig-002',
+        name: 'MACD金叉信号',
+        platform: 'Binance',
+        status: 'running',
+        cumulativeReturn: 18.7,
+        maxDrawdown: 5.5,
+        followers: 980,
+        runDays: 30,
+        returnCurve: [0, 3, 6, 8, 10, 12, 15, 16, 17, 18.7],
+        returnCurveLabels: ['Day 1', 'Day 4', 'Day 7', 'Day 10', 'Day 13', 'Day 16', 'Day 19', 'Day 22', 'Day 26', 'Day 30']
+      },
+      {
+        id: 'sig-003',
+        name: 'RSI超卖信号',
+        platform: 'OKX',
+        status: 'running',
+        cumulativeReturn: 15.2,
+        maxDrawdown: 6.8,
+        followers: 750,
+        runDays: 25,
+        returnCurve: [0, 2, 4, 6, 8, 10, 11, 13, 14, 15.2],
+        returnCurveLabels: ['Day 1', 'Day 3', 'Day 6', 'Day 9', 'Day 12', 'Day 15', 'Day 18', 'Day 21', 'Day 23', 'Day 25']
+      }
+    ]
+  } catch (error) {
+    console.error('加载热门信号失败:', error)
+  }
+}
+
+// 页面加载时获取数据
+onMounted(async () => {
+  loading.value = true
+  try {
+    await loadHotSignals()
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    MessagePlugin.error('加载数据失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
+  startPolling()
+})
 
 // Strategy Data
 const strategies = [
@@ -810,7 +879,7 @@ const coreModules = [
 ]
 
 const hotSignals = computed(() =>
-  [...signals]
+  signalsData.value
     .filter((s) => s.status === 'running')
     .sort((a, b) => b.cumulativeReturn - a.cumulativeReturn)
     .slice(0, 6)

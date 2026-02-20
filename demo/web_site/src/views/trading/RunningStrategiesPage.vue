@@ -395,6 +395,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { MessagePlugin } from 'tdesign-vue-next'
+import strategyApi from '@/utils/strategyApi'
+import tradingApi from '@/utils/tradingApi'
 
 // 响应式数据
 const currentTime = ref('')
@@ -402,40 +405,19 @@ const filterStatus = ref('all')
 const selectedMarket = ref('BTC/USDT')
 const activeBottomTab = ref('持仓')
 const latency = ref(12)
+const loading = ref(false)
 
-// 模拟数据 - 运行策略
-const strategies = ref([
-  {
-    id: 1,
-    name: '趋势跟踪策略',
-    pair: 'BTC/USDT',
-    status: 'running',
-    pnl: 5.2,
-    position: '0.5 BTC',
-    runtime: '2天3小时',
-    signals: 24
-  },
-  {
-    id: 2,
-    name: '均值回归策略',
-    pair: 'ETH/USDT',
-    status: 'running',
-    pnl: -1.8,
-    position: '10 ETH',
-    runtime: '1天12小时',
-    signals: 18
-  },
-  {
-    id: 3,
-    name: '套利策略',
-    pair: 'BTC/ETH',
-    status: 'paused',
-    pnl: 2.1,
-    position: '0 BTC',
-    runtime: '3天',
-    signals: 32
-  }
-])
+// 运行策略数据
+const strategies = ref<any[]>([])
+
+// 持仓数据
+const positions = ref<any[]>([])
+
+// 交易历史
+const recentTrades = ref<any[]>([])
+
+// 警报数据
+const recentAlerts = ref<any[]>([])
 
 // 风险指标
 const riskMetrics = ref({
@@ -454,58 +436,91 @@ const marketData = ref([
   { label: '24H成交量', value: '12,345 BTC', change: null }
 ])
 
-// 警报数据
-const recentAlerts = ref([
-  {
-    id: 1,
-    title: '高风险警报',
-    message: '策略最大回撤超过阈值',
-    level: 'high',
-    time: '16:30:15',
-    read: false
-  },
-  {
-    id: 2,
-    title: '价格异常',
-    message: 'BTC价格波动超过5%',
-    level: 'medium',
-    time: '16:28:30',
-    read: false
-  }
-])
-
-// 持仓数据
-const positions = ref([
-  {
-    id: 1,
-    strategy: '趋势跟踪策略',
-    pair: 'BTC/USDT',
-    direction: '多',
-    amount: '0.5 BTC',
-    entryPrice: 90123.45,
-    currentPrice: 91476.14,
-    pnl: 676.35,
-    pnlRatio: 1.5
-  }
-])
-
-// 交易历史
-const recentTrades = ref([
-  {
-    id: 1,
-    time: '16:30:15',
-    strategy: '趋势跟踪策略',
-    pair: 'BTC/USDT',
-    direction: '买入',
-    price: '91,000.00',
-    amount: '0.1 BTC',
-    fee: '0.57',
-    status: '已完成'
-  }
-])
-
 // 底部选项卡
 const bottomTabs = ref(['持仓', '交易历史'])
+
+// 加载运行中的策略
+async function loadRunningStrategies() {
+  loading.value = true
+  try {
+    const response = await strategyApi.getStrategies({
+      status: 'running',
+      page: 1,
+      page_size: 50
+    })
+    strategies.value = response.items.map((item: any) => ({
+      id: item.strategy_id,
+      name: item.name,
+      pair: item.symbol,
+      status: item.status,
+      pnl: item.total_pnl_percent || 0,
+      position: `${item.current_position || 0} ${item.symbol.replace('USDT', '')}`,
+      runtime: calculateRuntime(item.created_at),
+      signals: item.signal_count || 0
+    }))
+  } catch (error: any) {
+    console.error('加载运行策略失败:', error)
+    MessagePlugin.error(error.message || '加载运行策略失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载持仓信息
+async function loadPositions() {
+  try {
+    const response = await tradingApi.getPositions({
+      exchange_id: 'binance'
+    })
+    positions.value = response.positions.map((pos: any) => ({
+      id: pos.position_id,
+      strategy: pos.strategy_name || '未知策略',
+      pair: pos.symbol,
+      direction: pos.side === 'long' ? '多' : '空',
+      amount: `${pos.quantity} ${pos.symbol.replace('USDT', '')}`,
+      entryPrice: pos.entry_price,
+      currentPrice: pos.current_price,
+      pnl: pos.unrealized_pnl,
+      pnlRatio: pos.unrealized_pnl_percent
+    }))
+  } catch (error: any) {
+    console.error('加载持仓信息失败:', error)
+  }
+}
+
+// 加载交易历史
+async function loadTrades() {
+  try {
+    const response = await tradingApi.getTrades({
+      exchange_id: 'binance',
+      page: 1,
+      page_size: 20
+    })
+    recentTrades.value = response.items.map((trade: any) => ({
+      id: trade.trade_id,
+      time: new Date(trade.created_at).toLocaleTimeString('zh-CN', { hour12: false }),
+      strategy: trade.strategy_name || '未知策略',
+      pair: trade.symbol,
+      direction: trade.side === 'buy' ? '买入' : '卖出',
+      price: trade.price.toLocaleString('en-US'),
+      amount: `${trade.quantity} ${trade.symbol.replace('USDT', '')}`,
+      fee: trade.fee.toFixed(2),
+      status: trade.status === 'filled' ? '已完成' : trade.status === 'partially_filled' ? '部分成交' : '待成交'
+    }))
+  } catch (error: any) {
+    console.error('加载交易历史失败:', error)
+  }
+}
+
+// 计算运行时间
+function calculateRuntime(createdAt: string): string {
+  const now = new Date()
+  const created = new Date(createdAt)
+  const diff = now.getTime() - created.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  return `${days}天${hours}小时`
+}
 
 // 计算属性
 const runningStrategiesCount = computed(() => 
@@ -538,19 +553,36 @@ const riskAlerts = computed(() => {
 })
 
 // 方法
-function pauseStrategy(id: number) {
-  const strategy = strategies.value.find(s => s.id === id)
-  if (strategy) strategy.status = 'paused'
+async function pauseStrategy(id: string) {
+  try {
+    await strategyApi.pauseStrategy(id)
+    MessagePlugin.success('策略已暂停')
+    await loadRunningStrategies()
+  } catch (error: any) {
+    console.error('暂停策略失败:', error)
+    MessagePlugin.error(error.message || '暂停策略失败')
+  }
 }
 
-function resumeStrategy(id: number) {
-  const strategy = strategies.value.find(s => s.id === id)
-  if (strategy) strategy.status = 'running'
+async function resumeStrategy(id: string) {
+  try {
+    await strategyApi.resumeStrategy(id)
+    MessagePlugin.success('策略已恢复')
+    await loadRunningStrategies()
+  } catch (error: any) {
+    console.error('恢复策略失败:', error)
+    MessagePlugin.error(error.message || '恢复策略失败')
+  }
 }
 
-function stopStrategy(id: number) {
-  if (confirm('确定要停止该策略吗？')) {
-    strategies.value = strategies.value.filter(s => s.id !== id)
+async function stopStrategy(id: string) {
+  try {
+    await strategyApi.stopStrategy(id)
+    MessagePlugin.success('策略已停止')
+    await loadRunningStrategies()
+  } catch (error: any) {
+    console.error('停止策略失败:', error)
+    MessagePlugin.error(error.message || '停止策略失败')
   }
 }
 
@@ -569,9 +601,16 @@ function updateTime() {
 }
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
   updateTime()
   const timer = setInterval(updateTime, 1000)
+  
+  // 加载初始数据
+  await Promise.all([
+    loadRunningStrategies(),
+    loadPositions(),
+    loadTrades()
+  ])
   
   onUnmounted(() => {
     clearInterval(timer)

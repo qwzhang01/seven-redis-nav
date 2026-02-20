@@ -168,49 +168,49 @@ export interface ApiKeyListResponse {
  * 用户注册
  */
 export function register(data: RegisterRequest): Promise<UserProfile> {
-  return post<UserProfile>('/register', data, { skipAuth: true })
+  return post<UserProfile>('/api/v1/c/user/register', data, { skipAuth: true })
 }
 
 /**
  * 用户登录
  */
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  return post<LoginResponse>('/login', data, { skipAuth: true })
+  return post<LoginResponse>('/api/v1/c/user/login', data, { skipAuth: true })
 }
 
 /**
  * 更新用户信息
  */
 export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
-  return put<UserProfile>('/profile', data)
+  return put<UserProfile>('/api/v1/c/user/profile', data)
 }
 
 /**
  * 修改密码
  */
 export function changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
-  return post<{ message: string }>('/password/change', data)
+  return post<{ message: string }>('/api/v1/c/user/password/change', data)
 }
 
 /**
  * 忘记密码重置
  */
 export function resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
-  return post<{ message: string }>('/password/reset', data, { skipAuth: true })
+  return post<{ message: string }>('/api/v1/c/user/password/reset', data, { skipAuth: true })
 }
 
 /**
  * 获取交易所详情
  */
 export function getExchangeById(exchangeId: string): Promise<ExchangeInfo> {
-  return get<ExchangeInfo>(`/exchanges/${exchangeId}`)
+  return get<ExchangeInfo>(`/api/v1/c/user/exchanges/${exchangeId}`)
 }
 
 /**
  * 添加API密钥
  */
 export function addApiKey(data: AddApiKeyRequest): Promise<ApiKeyInfo> {
-  return post<ApiKeyInfo>('/api-keys', data)
+  return post<ApiKeyInfo>('/api/v1/c/user/api-keys', data)
 }
 
 /**
@@ -218,28 +218,28 @@ export function addApiKey(data: AddApiKeyRequest): Promise<ApiKeyInfo> {
  */
 export function getApiKeys(status?: 'pending' | 'approved' | 'rejected' | 'disabled'): Promise<ApiKeyListResponse> {
   const params = status ? { status } : undefined
-  return get<ApiKeyListResponse>('/api-keys', params)
+  return get<ApiKeyListResponse>('/api/v1/c/user/api-keys', params)
 }
 
 /**
  * 获取API密钥详情
  */
 export function getApiKeyById(keyId: string): Promise<ApiKeyInfo> {
-  return get<ApiKeyInfo>(`/api-keys/${keyId}`)
+  return get<ApiKeyInfo>(`/api/v1/c/user/api-keys/${keyId}`)
 }
 
 /**
  * 更新API密钥
  */
 export function updateApiKey(keyId: string, data: UpdateApiKeyRequest): Promise<ApiKeyInfo> {
-  return put<ApiKeyInfo>(`/api-keys/${keyId}`, data)
+  return put<ApiKeyInfo>(`/api/v1/c/user/api-keys/${keyId}`, data)
 }
 
 /**
  * 删除API密钥
  */
 export function deleteApiKey(keyId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/api-keys/${keyId}`)
+  return del<{ message: string }>(`/api/v1/c/user/api-keys/${keyId}`)
 }
 
 // 导出所有API

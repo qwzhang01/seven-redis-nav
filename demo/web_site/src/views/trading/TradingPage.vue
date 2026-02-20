@@ -16,25 +16,25 @@
           
           <div class="flex items-center gap-8">
             <div>
-              <div class="text-2xl font-bold text-white">$91,476.14</div>
+              <div class="text-2xl font-bold text-white">${{ currentPrice }}</div>
               <div class="flex items-center gap-2 mt-1">
-                <span class="text-green-400 text-sm font-medium">+1.24%</span>
-                <span class="text-dark-100 text-xs">+$1,120.45</span>
+                <span :class="priceChange.startsWith('+') ? 'text-green-400' : 'text-red-400'" class="text-sm font-medium">{{ priceChange }}</span>
+                <span class="text-dark-100 text-xs">{{ priceChange }}</span>
               </div>
             </div>
             
             <div class="grid grid-cols-4 gap-6 text-sm">
               <div>
                 <span class="text-dark-100">24H最高</span>
-                <div class="text-white font-medium">$92,800.00</div>
+                <div class="text-white font-medium">${{ high24h }}</div>
               </div>
               <div>
                 <span class="text-dark-100">24H最低</span>
-                <div class="text-white font-medium">$89,200.00</div>
+                <div class="text-white font-medium">${{ low24h }}</div>
               </div>
               <div>
                 <span class="text-dark-100">24H成交量</span>
-                <div class="text-white font-medium">12,345 BTC</div>
+                <div class="text-white font-medium">{{ volume24h }}</div>
               </div>
               <div>
                 <span class="text-dark-100">更新时间</span>
@@ -212,19 +212,19 @@
             <div class="bg-dark-700/50 rounded p-3 space-y-2 text-xs">
               <div class="flex justify-between">
                 <span class="text-dark-100">可用余额</span>
-                <span class="text-white">10,000 USDT</span>
+                <span class="text-white">{{ accountBalance }} USDT</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-dark-100">所需保证金</span>
-                <span class="text-white">446.87 USDT</span>
+                <span class="text-white">{{ (parseFloat(tradePrice.replace(/,/g, '')) * parseFloat(tradeAmount) / selectedLeverage).toFixed(2) }} USDT</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-dark-100">手续费(预估)</span>
-                <span class="text-white">3.57 USDT</span>
+                <span class="text-white">{{ (parseFloat(tradePrice.replace(/,/g, '')) * parseFloat(tradeAmount) * 0.0004).toFixed(2) }} USDT</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-dark-100">预估强平价</span>
-                <span class="text-white">87,140.08 USDT</span>
+                <span class="text-white">{{ (parseFloat(tradePrice.replace(/,/g, '')) * 0.95).toFixed(2) }} USDT</span>
               </div>
             </div>
             
@@ -364,6 +364,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { TrendingUp, Clock, X, FileText } from 'lucide-vue-next'
+import { MessagePlugin } from 'tdesign-vue-next'
+import marketApi from '@/utils/marketApi'
+import tradingApi from '@/utils/tradingApi'
 
 // 响应式数据
 const currentTime = ref('')
@@ -375,6 +378,18 @@ const tradePrice = ref('91476')
 const tradeAmount = ref('0.1')
 const takeProfitPrice = ref('')
 const stopLossPrice = ref('')
+const loading = ref(false)
+
+// 市场数据
+const currentPrice = ref('91,476.14')
+const priceChange = ref('+1.24%')
+const high24h = ref('92,800.00')
+const low24h = ref('89,200.00')
+const volume24h = ref('12,345 BTC')
+
+// 账户信息
+const accountBalance = ref('10,000')
+const accountInfo = ref<any>(null)
 
 // 时间周期选项
 const timePeriods = ['1m', '5m', '15m', '1H', '4H', '1D', '1W', '1M']
@@ -382,55 +397,156 @@ const timePeriods = ['1m', '5m', '15m', '1H', '4H', '1D', '1W', '1M']
 // 交易选项卡
 const tradeTabs = ['买入', '卖出']
 
-// 模拟数据 - 当前委托
-const currentOrders = ref([
-  {
-    id: 1,
-    pair: 'BTC/USDT',
-    type: '买入',
-    price: '91,000',
-    amount: '0.1 BTC',
-    time: '16:30:15'
-  },
-  {
-    id: 2,
-    pair: 'BTC/USDT',
-    type: '卖出',
-    price: '92,000',
-    amount: '0.05 BTC',
-    time: '16:28:30'
-  }
-])
+// 当前委托
+const currentOrders = ref<any[]>([])
 
-// 模拟数据 - 历史订单
-const historyOrders = ref([
-  {
-    id: 1,
-    time: '16:30:15',
-    pair: 'BTC/USDT',
-    direction: '买入',
-    type: '限价单',
-    price: '91,000',
-    amount: '0.1 BTC',
-    filled: '0',
-    status: '待成交'
-  },
-  {
-    id: 2,
-    time: '16:28:30',
-    pair: 'BTC/USDT',
-    direction: '卖出',
-    type: '限价单',
-    price: '92,000',
-    amount: '0.05 BTC',
-    filled: '0',
-    status: '待成交'
+// 历史订单
+const historyOrders = ref<any[]>([])
+
+// WebSocket连接
+let ws: WebSocket | null = null
+
+// 加载账户信息
+async function loadAccountInfo() {
+  try {
+    const account = await tradingApi.getAccount({
+      exchange_id: 'binance'
+    })
+    accountInfo.value = account
+    accountBalance.value = account.balance.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  } catch (error) {
+    console.error('加载账户信息失败:', error)
   }
-])
+}
+
+// 加载订单列表
+async function loadOrders() {
+  try {
+    const response = await tradingApi.getOrders({
+      exchange_id: 'binance',
+      symbol: 'BTCUSDT',
+      status: 'open',
+      page: 1,
+      page_size: 20
+    })
+    currentOrders.value = response.items.map((order: any) => ({
+      id: order.order_id,
+      pair: order.symbol,
+      type: order.side === 'buy' ? '买入' : '卖出',
+      price: order.price.toLocaleString('en-US'),
+      amount: `${order.quantity} BTC`,
+      time: new Date(order.created_at).toLocaleTimeString('zh-CN', { hour12: false })
+    }))
+  } catch (error) {
+    console.error('加载订单失败:', error)
+  }
+}
+
+// 加载历史订单
+async function loadHistoryOrders() {
+  try {
+    const response = await tradingApi.getOrders({
+      exchange_id: 'binance',
+      symbol: 'BTCUSDT',
+      page: 1,
+      page_size: 20
+    })
+    historyOrders.value = response.items.map((order: any) => ({
+      id: order.order_id,
+      time: new Date(order.created_at).toLocaleTimeString('zh-CN', { hour12: false }),
+      pair: order.symbol,
+      direction: order.side === 'buy' ? '买入' : '卖出',
+      type: order.type === 'limit' ? '限价单' : '市价单',
+      price: order.price.toLocaleString('en-US'),
+      amount: `${order.quantity} BTC`,
+      filled: order.filled_quantity || 0,
+      status: order.status === 'filled' ? '已完成' : order.status === 'partially_filled' ? '部分成交' : order.status === 'open' ? '待成交' : '已撤销'
+    }))
+  } catch (error) {
+    console.error('加载历史订单失败:', error)
+  }
+}
+
+// 加载市场行情
+async function loadMarketData() {
+  try {
+    const ticker = await marketApi.getTicker({
+      exchange_id: 'binance',
+      symbol: 'BTCUSDT'
+    })
+    currentPrice.value = ticker.last_price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    priceChange.value = `${ticker.price_change_percent >= 0 ? '+' : ''}${ticker.price_change_percent.toFixed(2)}%`
+    high24h.value = ticker.high_24h.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    low24h.value = ticker.low_24h.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    volume24h.value = `${ticker.volume_24h.toLocaleString('en-US')} BTC`
+    tradePrice.value = ticker.last_price.toFixed(2)
+  } catch (error) {
+    console.error('加载市场数据失败:', error)
+  }
+}
+
+// 初始化WebSocket连接
+function initWebSocket() {
+  try {
+    ws = marketApi.createWebSocket({
+      url: 'ws://127.0.0.1:8000/api/v1/c/market/ws',
+      reconnect: true
+    })
+    
+    if (ws) {
+      ws.onopen = () => {
+        console.log('WebSocket连接已建立')
+        // 订阅行情数据
+        marketApi.subscribeWebSocket(ws!, {
+          exchange_id: 'binance',
+          symbol: 'BTCUSDT',
+          type: 'ticker'
+        })
+      }
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'ticker') {
+            currentPrice.value = data.last_price.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            })
+            priceChange.value = `${data.price_change_percent >= 0 ? '+' : ''}${data.price_change_percent.toFixed(2)}%`
+          }
+        } catch (error) {
+          console.error('处理WebSocket消息失败:', error)
+        }
+      }
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket错误:', error)
+      }
+      
+      ws.onclose = () => {
+        console.log('WebSocket连接已关闭')
+      }
+    }
+  } catch (error) {
+    console.error('初始化WebSocket失败:', error)
+  }
+}
 
 // 计算属性
 const totalAmount = computed(() => {
-  const price = parseFloat(tradePrice.value) || 0
+  const price = parseFloat(tradePrice.value.replace(/,/g, '')) || 0
   const amount = parseFloat(tradeAmount.value) || 0
   return (price * amount).toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -444,40 +560,72 @@ function setTradeAmount(percent: number) {
   tradeAmount.value = (maxAmount * (percent / 100)).toFixed(4)
 }
 
-function placeOrder() {
+async function placeOrder() {
   if (!tradePrice.value || !tradeAmount.value) {
-    alert('请输入价格和数量')
+    MessagePlugin.warning('请输入价格和数量')
     return
   }
   
-  const newOrder = {
-    id: Date.now(),
-    pair: 'BTC/USDT',
-    type: activeTradeTab.value,
-    price: tradePrice.value,
-    amount: tradeAmount.value + ' BTC',
-    time: new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  loading.value = true
+  try {
+    const order = await tradingApi.placeOrder({
+      exchange_id: 'binance',
+      symbol: 'BTCUSDT',
+      side: activeTradeTab.value === '买入' ? 'buy' : 'sell',
+      type: 'limit',
+      quantity: parseFloat(tradeAmount.value),
+      price: parseFloat(tradePrice.value.replace(/,/g, ''))
+    })
+    
+    MessagePlugin.success(`${activeTradeTab.value}订单已提交`)
+    
+    // 重新加载订单列表
+    await loadOrders()
+    await loadHistoryOrders()
+    
+    // 重置表单
+    tradePrice.value = currentPrice.value
+    tradeAmount.value = '0.1'
+  } catch (error: any) {
+    console.error('下单失败:', error)
+    MessagePlugin.error(error.message || '下单失败，请稍后重试')
+  } finally {
+    loading.value = false
   }
-  
-  currentOrders.value.push(newOrder)
-  tradePrice.value = '91476'
-  tradeAmount.value = '0.1'
-  alert(`${activeTradeTab.value}订单已提交`)
 }
 
-function cancelOrder(orderId: number) {
-  currentOrders.value = currentOrders.value.filter(order => order.id !== orderId)
+async function cancelOrder(orderId: string) {
+  try {
+    await tradingApi.cancelOrder({
+      exchange_id: 'binance',
+      order_id: orderId
+    })
+    MessagePlugin.success('订单已撤销')
+    await loadOrders()
+    await loadHistoryOrders()
+  } catch (error: any) {
+    console.error('撤销订单失败:', error)
+    MessagePlugin.error(error.message || '撤销订单失败')
+  }
 }
 
-function cancelAllOrders() {
+async function cancelAllOrders() {
   if (currentOrders.value.length === 0) {
-    alert('没有可撤销的订单')
+    MessagePlugin.warning('没有可撤销的订单')
     return
   }
   
-  if (confirm('确定要撤销所有订单吗？')) {
-    currentOrders.value = []
-    alert('所有订单已撤销')
+  try {
+    await tradingApi.cancelAllOrders({
+      exchange_id: 'binance',
+      symbol: 'BTCUSDT'
+    })
+    MessagePlugin.success('所有订单已撤销')
+    await loadOrders()
+    await loadHistoryOrders()
+  } catch (error: any) {
+    console.error('撤销所有订单失败:', error)
+    MessagePlugin.error(error.message || '撤销所有订单失败')
   }
 }
 
@@ -502,12 +650,26 @@ function updateTime() {
 }
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
   updateTime()
   const timer = setInterval(updateTime, 1000)
   
+  // 加载初始数据
+  await Promise.all([
+    loadAccountInfo(),
+    loadMarketData(),
+    loadOrders(),
+    loadHistoryOrders()
+  ])
+  
+  // 初始化WebSocket
+  initWebSocket()
+  
   onUnmounted(() => {
     clearInterval(timer)
+    if (ws) {
+      ws.close()
+    }
   })
 })
 </script>

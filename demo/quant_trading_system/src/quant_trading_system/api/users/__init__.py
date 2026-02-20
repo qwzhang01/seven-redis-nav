@@ -13,7 +13,9 @@
 """
 
 from .api.user import router as user_router
+from .api.admin_user import router as admin_user_router
 
 __all__ = [
     "user_router",
+    "admin_user_router",
 ]

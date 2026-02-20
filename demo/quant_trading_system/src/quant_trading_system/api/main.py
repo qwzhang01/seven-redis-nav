@@ -200,7 +200,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 # 注册路由
 # C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
-#                  /api/v1/c/signal、/api/v1/c/leaderboard
+#                  /api/v1/c/signal、/api/v1/c/leaderboard、/api/v1/c/user/signal-follows
 app.include_router(c_router, prefix="/api/v1/c")
 
 # Admin 端（管理员）：/api/v1/m/strategy、/api/v1/m/system、/api/v1/m/health

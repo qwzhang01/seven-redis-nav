@@ -162,42 +162,42 @@ export interface BacktestTradesResponse {
  * 运行策略回测
  */
 export function runBacktest(data: RunBacktestRequest): Promise<BacktestResult> {
-  return post<BacktestResult>('/backtest/run', data)
+  return post<BacktestResult>('/api/v1/c/backtest/run', data)
 }
 
 /**
  * 获取回测历史列表
  */
 export function getBacktestList(params?: BacktestListParams): Promise<BacktestListResponse> {
-  return get<BacktestListResponse>('/backtest/list', params)
+  return get<BacktestListResponse>('/api/v1/c/backtest/list', params)
 }
 
 /**
  * 获取回测结果
  */
 export function getBacktestResult(backtestId: string): Promise<BacktestResult> {
-  return get<BacktestResult>(`/backtest/${backtestId}`)
+  return get<BacktestResult>(`/api/v1/c/backtest/${backtestId}`)
 }
 
 /**
  * 获取回测权益曲线
  */
 export function getEquityCurve(backtestId: string): Promise<EquityCurveResponse> {
-  return get<EquityCurveResponse>(`/backtest/${backtestId}/equity`)
+  return get<EquityCurveResponse>(`/api/v1/c/backtest/${backtestId}/equity`)
 }
 
 /**
  * 获取回测交易记录
  */
 export function getBacktestTrades(backtestId: string, params?: BacktestTradesParams): Promise<BacktestTradesResponse> {
-  return get<BacktestTradesResponse>(`/backtest/${backtestId}/trades`, params)
+  return get<BacktestTradesResponse>(`/api/v1/c/backtest/${backtestId}/trades`, params)
 }
 
 /**
  * 删除回测记录
  */
 export function deleteBacktest(backtestId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/backtest/${backtestId}`)
+  return del<{ message: string }>(`/api/v1/c/backtest/${backtestId}`)
 }
 
 // 导出所有API

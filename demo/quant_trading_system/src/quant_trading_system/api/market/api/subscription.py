@@ -20,14 +20,38 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import Subscription
+from quant_trading_system.models.database import Subscription, User
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()
+
+# 合法枚举值
+VALID_EXCHANGES = {"Binance", "OKX", "Bybit", "Bitget", "binance", "okx", "bybit", "bitget"}
+VALID_DATA_TYPES = {"kline", "ticker", "depth", "trade", "orderbook"}
+VALID_INTERVALS = {"1m", "5m", "15m", "1h", "4h", "1d"}
+
+
+def _require_admin(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    校验当前请求用户是否为管理员。
+    AuthMiddleware 已将 username 写入 request.state.username。
+    """
+    username = getattr(request.state, "username", None)
+    if not username:
+        raise HTTPException(status_code=401, detail="未提供认证凭据")
+    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    if user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="权限不足，仅管理员可操作")
+    return user
 
 
 # ── Pydantic 请求/响应模型 ────────────────────────────────────────────────────
@@ -49,6 +73,39 @@ class SubscriptionCreate(BaseModel):
     symbols: list[str]
     interval: Optional[str] = None
     config: Optional[SubscriptionConfig] = None
+
+    @field_validator("exchange")
+    @classmethod
+    def validate_exchange(cls, v: str) -> str:
+        if v not in VALID_EXCHANGES:
+            raise ValueError(f"不支持的交易所 '{v}'，合法值：{sorted(VALID_EXCHANGES)}")
+        return v
+
+    @field_validator("data_type")
+    @classmethod
+    def validate_data_type(cls, v: str) -> str:
+        if v not in VALID_DATA_TYPES:
+            raise ValueError(f"不支持的数据类型 '{v}'，合法值：{sorted(VALID_DATA_TYPES)}")
+        return v
+
+    @field_validator("interval")
+    @classmethod
+    def validate_interval(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_INTERVALS:
+            raise ValueError(f"不支持的K线周期 '{v}'，合法值：{sorted(VALID_INTERVALS)}")
+        return v
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_symbols(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("交易对列表不能为空")
+        return v
+
+    def model_post_init(self, __context: Any) -> None:
+        """跨字段校验：kline 类型必须提供 interval"""
+        if self.data_type == "kline" and not self.interval:
+            raise ValueError("data_type 为 kline 时，interval 为必填项")
 
 
 class SubscriptionUpdate(BaseModel):
@@ -86,6 +143,7 @@ def _to_dict(sub: Subscription) -> dict[str, Any]:
 async def create_subscription(
     body: SubscriptionCreate,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     创建订阅配置
@@ -121,6 +179,7 @@ async def create_subscription(
 @router.get("/statistics")
 async def get_subscription_statistics(
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     获取订阅统计信息
@@ -166,6 +225,7 @@ async def list_subscriptions(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     获取订阅列表
@@ -200,6 +260,7 @@ async def list_subscriptions(
 async def get_subscription(
     subscription_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     获取订阅详情
@@ -217,6 +278,7 @@ async def update_subscription(
     subscription_id: str,
     body: SubscriptionUpdate,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     更新订阅配置
@@ -249,6 +311,7 @@ async def update_subscription(
 async def delete_subscription(
     subscription_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     删除订阅
@@ -297,6 +360,7 @@ def _change_status(
 async def start_subscription(
     subscription_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     启动订阅
@@ -312,6 +376,7 @@ async def start_subscription(
 async def pause_subscription(
     subscription_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     暂停订阅
@@ -327,6 +392,7 @@ async def pause_subscription(
 async def stop_subscription(
     subscription_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     停止订阅

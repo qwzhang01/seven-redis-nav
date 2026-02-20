@@ -177,77 +177,77 @@ export interface SignalListResponse {
  * 获取策略列表
  */
 export function getStrategies(params?: StrategyListParams): Promise<StrategyListResponse> {
-  return get<StrategyListResponse>('/strategy/list', params)
+  return get<StrategyListResponse>('/api/v1/m/strategy/list', params)
 }
 
 /**
  * 获取可用策略类型
  */
 export function getStrategyTypes(): Promise<StrategyTypeListResponse> {
-  return get<StrategyTypeListResponse>('/strategy/types')
+  return get<StrategyTypeListResponse>('/api/v1/m/strategy/types')
 }
 
 /**
  * 创建策略
  */
 export function createStrategy(data: CreateStrategyRequest): Promise<StrategyInfo> {
-  return post<StrategyInfo>('/strategy/create', data)
+  return post<StrategyInfo>('/api/v1/m/strategy/create', data)
 }
 
 /**
  * 获取策略详情
  */
 export function getStrategy(strategyId: string): Promise<StrategyInfo> {
-  return get<StrategyInfo>(`/strategy/${strategyId}`)
+  return get<StrategyInfo>(`/api/v1/m/strategy/${strategyId}`)
 }
 
 /**
  * 更新策略参数
  */
 export function updateStrategy(strategyId: string, data: UpdateStrategyRequest): Promise<StrategyInfo> {
-  return put<StrategyInfo>(`/strategy/${strategyId}`, data)
+  return put<StrategyInfo>(`/api/v1/m/strategy/${strategyId}`, data)
 }
 
 /**
  * 删除策略
  */
 export function deleteStrategy(strategyId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/strategy/${strategyId}`)
+  return del<{ message: string }>(`/api/v1/m/strategy/${strategyId}`)
 }
 
 /**
  * 启动策略
  */
 export function startStrategy(strategyId: string): Promise<{ message: string }> {
-  return post<{ message: string }>(`/strategy/${strategyId}/start`)
+  return post<{ message: string }>(`/api/v1/m/strategy/${strategyId}/start`)
 }
 
 /**
  * 停止策略
  */
 export function stopStrategy(strategyId: string): Promise<{ message: string }> {
-  return post<{ message: string }>(`/strategy/${strategyId}/stop`)
+  return post<{ message: string }>(`/api/v1/m/strategy/${strategyId}/stop`)
 }
 
 /**
  * 暂停策略
  */
 export function pauseStrategy(strategyId: string): Promise<{ message: string }> {
-  return post<{ message: string }>(`/strategy/${strategyId}/pause`)
+  return post<{ message: string }>(`/api/v1/m/strategy/${strategyId}/pause`)
 }
 
 /**
  * 恢复策略
  */
 export function resumeStrategy(strategyId: string): Promise<{ message: string }> {
-  return post<{ message: string }>(`/strategy/${strategyId}/resume`)
+  return post<{ message: string }>(`/api/v1/m/strategy/${strategyId}/resume`)
 }
 
 /**
  * 获取策略信号历史
  */
 export function getStrategySignals(strategyId: string, params?: SignalListParams): Promise<SignalListResponse> {
-  return get<SignalListResponse>(`/strategy/${strategyId}/signals`, params)
+  return get<SignalListResponse>(`/api/v1/m/strategy/${strategyId}/signals`, params)
 }
 
 // 导出所有API

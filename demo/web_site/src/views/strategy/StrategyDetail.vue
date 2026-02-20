@@ -1,6 +1,14 @@
 <template>
   <div class="min-h-screen bg-dark-900">
-    <div class="page-container max-w-none" v-if="strategy">
+    <!-- Loading State -->
+    <div v-if="loading" class="min-h-screen flex items-center justify-center">
+      <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
+        <p class="text-dark-100">加载中...</p>
+      </div>
+    </div>
+    
+    <div class="page-container max-w-none" v-else-if="strategy">
       <!-- Breadcrumb -->
       <div class="flex items-center gap-2 text-sm text-dark-100 mb-8 px-8 pt-8">
         <router-link to="/system/strategies" class="hover:text-primary-500 transition-colors">系统策略</router-link>
@@ -491,25 +499,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Zap, ChevronRight, BookOpen, Brain, Settings, AlertTriangle, Play, Building, TrendingUp, Clock, DollarSign, Shield, Cog } from 'lucide-vue-next'
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
 import StatusDot from '@/components/common/StatusDot.vue'
 import { useAuthStore } from '@/stores/auth'
-import { strategies } from '@/utils/mockData'
+import strategyApi from '@/utils/strategyApi'
+import backtestApi from '@/utils/backtestApi'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const launching = ref(false)
+const loading = ref(false)
 
-// 添加strategy变量定义
-const strategy = computed(() => {
-  const strategyId = route.params.id
-  return strategies.find(s => s.id === strategyId)
-})
+// 策略数据
+const strategy = ref<any>(null)
+
+// 加载策略详情
+async function loadStrategyDetail() {
+  loading.value = true
+  try {
+    const strategyId = route.params.id as string
+    const response = await strategyApi.getStrategy(strategyId)
+    strategy.value = response
+  } catch (error: any) {
+    console.error('加载策略详情失败:', error)
+    MessagePlugin.error(error.message || '加载策略详情失败')
+  } finally {
+    loading.value = false
+  }
+}
 
 // 新增响应式数据
 const isSimpleMode = ref(true)
@@ -558,14 +580,24 @@ function removeFilter(filterId: number) {
 }
 
 function initConfig() {
-  const vals: Record<string, string | number | string[] | boolean> = {}
-  strategy.value?.params?.forEach((p) => {
-    vals[p.name] = p.default
-  })
-  configValues.value = { ...configValues.value, ...vals }
+  if (strategy.value?.params) {
+    const vals: Record<string, string | number | string[] | boolean> = {}
+    strategy.value.params.forEach((p: any) => {
+      vals[p.name] = p.default
+    })
+    configValues.value = { ...configValues.value, ...vals }
+  }
 }
 
-watch(() => route.params.id, initConfig, { immediate: true })
+watch(() => route.params.id, () => {
+  loadStrategyDetail()
+}, { immediate: true })
+
+watch(() => strategy.value, () => {
+  if (strategy.value) {
+    initConfig()
+  }
+})
 
 async function handleLaunch() {
   if (!authStore.isLoggedIn) {
@@ -584,11 +616,33 @@ async function handleLaunch() {
     onConfirm: async () => {
       dlg.hide()
       launching.value = true
-      await new Promise((r) => setTimeout(r, 1200))
-      launching.value = false
-      MessagePlugin.success('策略已成功启动！可在「我的」页面查看运行状态。')
+      try {
+        // 创建策略实例
+        await strategyApi.createStrategy({
+          strategy_type: strategy.value.type,
+          name: `${strategy.value.name}_${Date.now()}`,
+          exchange_id: configValues.value.platform.toLowerCase(),
+          symbol: configValues.value.currencyPair.replace('/', ''),
+          timeframe: configValues.value.timeframe,
+          parameters: configValues.value,
+          capital: configValues.value.investment
+        })
+        
+        MessagePlugin.success('策略已成功启动！可在「我的」页面查看运行状态。')
+        router.push('/user/center')
+      } catch (error: any) {
+        console.error('启动策略失败:', error)
+        MessagePlugin.error(error.message || '启动策略失败')
+      } finally {
+        launching.value = false
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
+
+// 页面加载时获取数据
+onMounted(() => {
+  loadStrategyDetail()
+})
 </script>

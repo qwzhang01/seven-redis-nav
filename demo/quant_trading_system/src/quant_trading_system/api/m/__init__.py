@@ -12,6 +12,7 @@ Admin 端（管理员）路由聚合包
 - logs              : 日志审计（系统/交易/风控/审计日志、风控告警）
 - signal_admin      : 信号审核管理
 - leaderboard_admin : 排行榜刷新管理
+- users             : 用户管理（列表、详情、编辑、状态控制）
 """
 
 from fastapi import APIRouter
@@ -25,6 +26,7 @@ from quant_trading_system.api.stats.api.stats import router as stats_router
 from quant_trading_system.api.logs.api.logs import router as logs_router
 from quant_trading_system.api.signal.api.signal_admin import router as signal_admin_router
 from quant_trading_system.api.leaderboard.api.leaderboard_admin import router as leaderboard_admin_router
+from quant_trading_system.api.users.api.admin_user import router as admin_user_router
 
 # Admin 端聚合路由
 m_router = APIRouter()
@@ -38,5 +40,6 @@ m_router.include_router(stats_router, prefix="/stats", tags=["Admin-统计分析
 m_router.include_router(logs_router, prefix="/logs", tags=["Admin-日志审计"])
 m_router.include_router(signal_admin_router, prefix="/signal", tags=["Admin-信号管理"])
 m_router.include_router(leaderboard_admin_router, prefix="/leaderboard", tags=["Admin-排行榜管理"])
+m_router.include_router(admin_user_router, prefix="/users", tags=["Admin-用户管理"])
 
 __all__ = ["m_router"]

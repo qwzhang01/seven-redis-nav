@@ -512,6 +512,121 @@ CREATE INDEX IF NOT EXISTS idx_risk_alert_severity ON risk_alerts (severity);
 CREATE INDEX IF NOT EXISTS idx_risk_alert_strategy ON risk_alerts (strategy_id);
 CREATE INDEX IF NOT EXISTS idx_risk_alert_resolved ON risk_alerts (is_resolved);
 
+-- ============================================================
+-- 新增表：信号跟单订单、跟单持仓、跟单交易记录
+-- ============================================================
+
+-- 创建信号跟单订单表（用户跟单记录主表）
+CREATE TABLE IF NOT EXISTS signal_follow_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    strategy_id VARCHAR(128) NOT NULL,              -- 跟单的策略ID
+    signal_name VARCHAR(256) NOT NULL,              -- 信号/策略名称
+    exchange VARCHAR(32) NOT NULL DEFAULT 'binance',-- 交易所
+    follow_amount DECIMAL(20, 2) NOT NULL,          -- 跟单资金（USDT）
+    current_value DECIMAL(20, 2),                   -- 当前净值（USDT）
+    follow_ratio DECIMAL(5, 4) DEFAULT 1.0,         -- 跟单比例（0~1）
+    stop_loss DECIMAL(5, 4),                        -- 止损比例（0~1）
+    total_return DECIMAL(10, 6) DEFAULT 0,          -- 总收益率
+    max_drawdown DECIMAL(10, 6) DEFAULT 0,          -- 最大回撤
+    current_drawdown DECIMAL(10, 6) DEFAULT 0,      -- 当前回撤
+    today_return DECIMAL(10, 6) DEFAULT 0,          -- 今日收益率
+    win_rate DECIMAL(10, 6) DEFAULT 0,              -- 胜率
+    total_trades INTEGER DEFAULT 0,                 -- 总交易次数
+    win_trades INTEGER DEFAULT 0,                   -- 盈利次数
+    loss_trades INTEGER DEFAULT 0,                  -- 亏损次数
+    avg_win DECIMAL(20, 8) DEFAULT 0,               -- 平均盈利（USDT）
+    avg_loss DECIMAL(20, 8) DEFAULT 0,              -- 平均亏损（USDT）
+    profit_factor DECIMAL(10, 4) DEFAULT 0,         -- 盈亏比
+    risk_level VARCHAR(16) DEFAULT 'low',           -- 风险等级: low/medium/high
+    status VARCHAR(16) DEFAULT 'following',         -- following/stopped/paused
+    start_time TIMESTAMPTZ DEFAULT NOW(),           -- 跟单开始时间
+    stop_time TIMESTAMPTZ,                          -- 跟单停止时间
+    return_curve JSONB,                             -- 收益曲线数据（JSON数组）
+    return_curve_labels JSONB,                      -- 收益曲线时间标签（JSON数组）
+    create_by VARCHAR(64),
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE signal_follow_orders IS '信号跟单订单主表';
+COMMENT ON COLUMN signal_follow_orders.follow_amount IS '跟单资金（USDT）';
+COMMENT ON COLUMN signal_follow_orders.current_value IS '当前净值（USDT）';
+COMMENT ON COLUMN signal_follow_orders.follow_ratio IS '跟单比例 0.0~1.0';
+COMMENT ON COLUMN signal_follow_orders.stop_loss IS '止损比例 0.0~1.0';
+COMMENT ON COLUMN signal_follow_orders.total_return IS '总收益率（小数，如0.1523表示15.23%）';
+COMMENT ON COLUMN signal_follow_orders.max_drawdown IS '最大回撤（小数）';
+COMMENT ON COLUMN signal_follow_orders.current_drawdown IS '当前回撤（小数）';
+COMMENT ON COLUMN signal_follow_orders.risk_level IS '风险等级: low/medium/high';
+COMMENT ON COLUMN signal_follow_orders.status IS '跟单状态: following/stopped/paused';
+COMMENT ON COLUMN signal_follow_orders.return_curve IS '收益曲线数据（JSON数组）';
+COMMENT ON COLUMN signal_follow_orders.return_curve_labels IS '收益曲线时间标签（JSON数组）';
+
+CREATE INDEX IF NOT EXISTS idx_follow_orders_user_id ON signal_follow_orders (user_id);
+CREATE INDEX IF NOT EXISTS idx_follow_orders_strategy_id ON signal_follow_orders (strategy_id);
+CREATE INDEX IF NOT EXISTS idx_follow_orders_status ON signal_follow_orders (status);
+CREATE INDEX IF NOT EXISTS idx_follow_orders_create_time ON signal_follow_orders (create_time DESC);
+
+-- 创建信号跟单持仓表（当前持仓快照）
+CREATE TABLE IF NOT EXISTS signal_follow_positions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    follow_order_id UUID NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    symbol VARCHAR(32) NOT NULL,                    -- 交易对
+    side VARCHAR(8) NOT NULL,                       -- long/short
+    amount DECIMAL(20, 8) NOT NULL,                 -- 持仓数量
+    entry_price DECIMAL(20, 8) NOT NULL,            -- 开仓价格
+    current_price DECIMAL(20, 8),                   -- 当前价格
+    pnl DECIMAL(20, 8) DEFAULT 0,                   -- 盈亏金额（USDT）
+    pnl_percent DECIMAL(10, 6) DEFAULT 0,           -- 盈亏率
+    status VARCHAR(16) DEFAULT 'open',              -- open/closed
+    open_time TIMESTAMPTZ DEFAULT NOW(),            -- 开仓时间
+    close_time TIMESTAMPTZ,                         -- 平仓时间
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_follow_positions IS '信号跟单持仓表';
+COMMENT ON COLUMN signal_follow_positions.side IS '持仓方向: long/short';
+COMMENT ON COLUMN signal_follow_positions.pnl IS '盈亏金额（USDT）';
+COMMENT ON COLUMN signal_follow_positions.pnl_percent IS '盈亏率（小数）';
+COMMENT ON COLUMN signal_follow_positions.status IS '持仓状态: open/closed';
+
+CREATE INDEX IF NOT EXISTS idx_follow_positions_order_id ON signal_follow_positions (follow_order_id);
+CREATE INDEX IF NOT EXISTS idx_follow_positions_user_id ON signal_follow_positions (user_id);
+CREATE INDEX IF NOT EXISTS idx_follow_positions_symbol ON signal_follow_positions (symbol);
+CREATE INDEX IF NOT EXISTS idx_follow_positions_status ON signal_follow_positions (status);
+
+-- 创建信号跟单交易记录表（历史成交记录）
+CREATE TABLE IF NOT EXISTS signal_follow_trades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    follow_order_id UUID NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    position_id UUID REFERENCES signal_follow_positions(id),
+    symbol VARCHAR(32) NOT NULL,                    -- 交易对
+    side VARCHAR(8) NOT NULL,                       -- buy/sell
+    price DECIMAL(20, 8) NOT NULL,                  -- 成交价格
+    amount DECIMAL(20, 8) NOT NULL,                 -- 成交数量
+    total DECIMAL(20, 8) NOT NULL,                  -- 成交额（USDT）
+    pnl DECIMAL(20, 8),                             -- 盈亏金额（已平仓时有值）
+    fee DECIMAL(20, 8) DEFAULT 0,                   -- 手续费
+    signal_record_id UUID REFERENCES signal_records(id), -- 关联的信号记录
+    trade_time TIMESTAMPTZ DEFAULT NOW(),           -- 成交时间
+    create_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_follow_trades IS '信号跟单交易记录表';
+COMMENT ON COLUMN signal_follow_trades.side IS '交易方向: buy/sell';
+COMMENT ON COLUMN signal_follow_trades.pnl IS '盈亏金额（已平仓时有值，USDT）';
+COMMENT ON COLUMN signal_follow_trades.fee IS '手续费（USDT）';
+COMMENT ON COLUMN signal_follow_trades.signal_record_id IS '触发此交易的信号记录ID';
+
+CREATE INDEX IF NOT EXISTS idx_follow_trades_order_id ON signal_follow_trades (follow_order_id);
+CREATE INDEX IF NOT EXISTS idx_follow_trades_user_id ON signal_follow_trades (user_id);
+CREATE INDEX IF NOT EXISTS idx_follow_trades_symbol ON signal_follow_trades (symbol);
+CREATE INDEX IF NOT EXISTS idx_follow_trades_trade_time ON signal_follow_trades (trade_time DESC);
+
 -- 查看表结构
 \d user_info;
 \d exchange_info;

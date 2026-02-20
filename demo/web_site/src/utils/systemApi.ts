@@ -183,70 +183,70 @@ export interface MetricsResponse {
  * 获取系统基本信息
  */
 export function getSystemInfo(): Promise<SystemInfo> {
-  return get<SystemInfo>('/system/info')
+  return get<SystemInfo>('/api/v1/m/system/info')
 }
 
 /**
  * 获取系统配置信息
  */
 export function getSystemConfig(): Promise<SystemConfig> {
-  return get<SystemConfig>('/system/config')
+  return get<SystemConfig>('/api/v1/m/system/config')
 }
 
 /**
  * 系统组件健康检查
  */
 export function getSystemHealth(): Promise<SystemHealth> {
-  return get<SystemHealth>('/system/health')
+  return get<SystemHealth>('/api/v1/m/system/health')
 }
 
 /**
  * 获取系统性能指标
  */
 export function getSystemMetrics(): Promise<SystemMetrics> {
-  return get<SystemMetrics>('/system/metrics')
+  return get<SystemMetrics>('/api/v1/m/system/metrics')
 }
 
 /**
  * 基础健康检查
  */
 export function healthCheck(): Promise<HealthCheckResponse> {
-  return get<HealthCheckResponse>('/health/')
+  return get<HealthCheckResponse>('/api/v1/m/health/')
 }
 
 /**
  * 数据库健康检查
  */
 export function healthCheckDatabase(): Promise<DatabaseHealthResponse> {
-  return get<DatabaseHealthResponse>('/health/db')
+  return get<DatabaseHealthResponse>('/api/v1/m/health/db')
 }
 
 /**
  * 完整健康检查
  */
 export function healthCheckFull(): Promise<FullHealthResponse> {
-  return get<FullHealthResponse>('/health/full')
+  return get<FullHealthResponse>('/api/v1/m/health/full')
 }
 
 /**
  * 就绪检查
  */
 export function readyCheck(): Promise<ReadyCheckResponse> {
-  return get<ReadyCheckResponse>('/health/ready')
+  return get<ReadyCheckResponse>('/api/v1/m/health/ready')
 }
 
 /**
  * 存活检查
  */
 export function liveCheck(): Promise<LiveCheckResponse> {
-  return get<LiveCheckResponse>('/health/live')
+  return get<LiveCheckResponse>('/api/v1/m/health/live')
 }
 
 /**
  * 系统资源指标
  */
 export function getHealthMetrics(): Promise<MetricsResponse> {
-  return get<MetricsResponse>('/health/metrics')
+  return get<MetricsResponse>('/api/v1/m/health/metrics')
 }
 
 // 导出所有API

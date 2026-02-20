@@ -245,70 +245,70 @@ export interface RiskInfo {
  * 下单
  */
 export function placeOrder(data: PlaceOrderRequest): Promise<OrderInfo> {
-  return post<OrderInfo>('/trading/order', data)
+  return post<OrderInfo>('/api/v1/c/trading/order', data)
 }
 
 /**
  * 取消订单
  */
 export function cancelOrder(orderId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/trading/order/${orderId}`)
+  return del<{ message: string }>(`/api/v1/c/trading/order/${orderId}`)
 }
 
 /**
  * 取消所有订单
  */
 export function cancelAllOrders(params?: { exchange_id?: string; symbol?: string }): Promise<{ message: string; cancelled_count: number }> {
-  return post<{ message: string; cancelled_count: number }>('/trading/order/cancel-all', params)
+  return post<{ message: string; cancelled_count: number }>('/api/v1/c/trading/order/cancel-all', params)
 }
 
 /**
  * 获取订单列表
  */
 export function getOrders(params?: OrderListParams): Promise<OrderListResponse> {
-  return get<OrderListResponse>('/trading/orders', params)
+  return get<OrderListResponse>('/api/v1/c/trading/orders', params)
 }
 
 /**
  * 获取订单详情
  */
 export function getOrderById(orderId: string): Promise<OrderInfo> {
-  return get<OrderInfo>(`/trading/order/${orderId}`)
+  return get<OrderInfo>(`/api/v1/c/trading/order/${orderId}`)
 }
 
 /**
  * 获取成交记录
  */
 export function getTrades(params?: TradeListParams): Promise<TradeListResponse> {
-  return get<TradeListResponse>('/trading/trades', params)
+  return get<TradeListResponse>('/api/v1/c/trading/trades', params)
 }
 
 /**
  * 获取持仓列表
  */
 export function getPositions(params?: PositionListParams): Promise<PositionListResponse> {
-  return get<PositionListResponse>('/trading/positions', params)
+  return get<PositionListResponse>('/api/v1/c/trading/positions', params)
 }
 
 /**
  * 获取单个持仓详情
  */
 export function getPositionBySymbol(symbol: string, params?: { exchange_id?: string }): Promise<PositionInfo> {
-  return get<PositionInfo>(`/trading/position/${symbol}`, params)
+  return get<PositionInfo>(`/api/v1/c/trading/position/${symbol}`, params)
 }
 
 /**
  * 获取账户信息
  */
 export function getAccount(params?: { exchange_id?: string }): Promise<AccountInfo> {
-  return get<AccountInfo>('/trading/account', params)
+  return get<AccountInfo>('/api/v1/c/trading/account', params)
 }
 
 /**
  * 获取风险信息
  */
 export function getRisk(): Promise<RiskInfo> {
-  return get<RiskInfo>('/trading/risk')
+  return get<RiskInfo>('/api/v1/c/trading/risk')
 }
 
 // 导出所有API

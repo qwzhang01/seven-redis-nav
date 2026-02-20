@@ -15,14 +15,33 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import Subscription, SyncTask
+from quant_trading_system.models.database import Subscription, SyncTask, User
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()
+
+
+def _require_admin(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    校验当前请求用户是否为管理员。
+    AuthMiddleware 已将 username 写入 request.state.username。
+    """
+    username = getattr(request.state, "username", None)
+    if not username:
+        raise HTTPException(status_code=401, detail="未提供认证凭据")
+    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    if user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="权限不足，仅管理员可操作")
+    return user
 
 
 # ── Pydantic 请求/响应模型 ────────────────────────────────────────────────────
@@ -62,6 +81,7 @@ def _to_dict(task: SyncTask, sub: Optional[Subscription] = None) -> dict[str, An
 async def create_sync_task(
     body: SyncTaskCreate,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     创建同步任务
@@ -100,6 +120,7 @@ async def list_sync_tasks(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     获取同步任务列表
@@ -135,6 +156,7 @@ async def list_sync_tasks(
 async def get_sync_task(
     task_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     获取同步任务详情
@@ -153,6 +175,7 @@ async def get_sync_task(
 async def cancel_sync_task(
     task_id: str,
     db: Session = Depends(get_db),
+    _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
     取消同步任务
