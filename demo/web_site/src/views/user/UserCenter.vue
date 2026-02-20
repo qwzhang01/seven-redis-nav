@@ -101,7 +101,8 @@
         <div
           v-for="item in filteredUserSignals"
           :key="item.id"
-          class="glass-card-hover p-6 flex items-center gap-6"
+          class="glass-card-hover p-6 flex items-center gap-6 cursor-pointer"
+          @click="$router.push(`/system/user/signal-follow/${item.id}`)"
         >
           <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-accent-blue/20 to-accent-purple/20 flex items-center justify-center shrink-0">
             <Radio :size="18" class="text-blue-400" />

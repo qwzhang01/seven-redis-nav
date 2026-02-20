@@ -7,8 +7,8 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any
-from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer, Numeric
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -136,3 +136,113 @@ class SyncTask(Base):
 
     # 关系
     subscription = relationship("Subscription", back_populates="sync_tasks")
+
+
+class SignalRecord(Base):
+    """策略信号记录模型"""
+    __tablename__ = "signal_records"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    strategy_id = Column(String(128), nullable=False)
+    strategy_name = Column(String(128))
+    symbol = Column(String(32), nullable=False)
+    exchange = Column(String(32), default="binance")
+    signal_type = Column(String(16), nullable=False)   # buy/sell/close
+    price = Column(Numeric(20, 8), nullable=False)
+    quantity = Column(Numeric(20, 8))
+    confidence = Column(Numeric(5, 4))
+    timeframe = Column(String(8))
+    reason = Column(Text)
+    indicators = Column(JSONB)
+    status = Column(String(16), default="pending")     # pending/executed/ignored/expired
+    executed_order_id = Column(String(128))
+    executed_price = Column(Numeric(20, 8))
+    executed_at = Column(DateTime)
+    is_public = Column(Boolean, default=False)
+    subscriber_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SignalSubscription(Base):
+    """用户订阅信号模型"""
+    __tablename__ = "signal_subscriptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    strategy_id = Column(String(128), nullable=False)
+    notify_type = Column(String(32), default="realtime")  # realtime/daily/weekly
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LeaderboardSnapshot(Base):
+    """排行榜快照模型"""
+    __tablename__ = "leaderboard_snapshots"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    rank_type = Column(String(32), nullable=False)     # strategy/signal/user
+    period = Column(String(16), nullable=False)        # daily/weekly/monthly/all_time
+    rank_position = Column(Integer, nullable=False)
+    entity_id = Column(String(128), nullable=False)
+    entity_name = Column(String(256))
+    entity_type = Column(String(64))
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    owner_name = Column(String(128))
+    total_return = Column(Numeric(10, 6))
+    annual_return = Column(Numeric(10, 6))
+    max_drawdown = Column(Numeric(10, 6))
+    sharpe_ratio = Column(Numeric(10, 6))
+    win_rate = Column(Numeric(10, 6))
+    total_trades = Column(Integer, default=0)
+    profit_factor = Column(Numeric(10, 4))
+    stat_start_time = Column(DateTime)
+    stat_end_time = Column(DateTime)
+    snapshot_time = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """审计日志模型（时序表，联合主键）"""
+    __tablename__ = "audit_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    log_time = Column(DateTime, primary_key=True, default=datetime.utcnow, nullable=False)
+    log_level = Column(String(16), nullable=False, default="INFO")
+    log_category = Column(String(32), nullable=False)  # system/trading/strategy/user/risk/market
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    username = Column(String(64))
+    action = Column(String(128), nullable=False)
+    resource_type = Column(String(64))
+    resource_id = Column(String(128))
+    request_ip = Column(String(64))
+    request_path = Column(String(512))
+    request_method = Column(String(16))
+    request_body = Column(JSONB)
+    response_status = Column(Integer)
+    duration_ms = Column(Integer)
+    message = Column(Text)
+    extra_data = Column(JSONB)
+
+
+class RiskAlert(Base):
+    """风控告警模型"""
+    __tablename__ = "risk_alerts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    alert_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    alert_type = Column(String(32), nullable=False)    # drawdown/position_limit/loss_limit/volatility
+    severity = Column(String(16), nullable=False, default="warning")  # info/warning/critical
+    strategy_id = Column(String(128))
+    symbol = Column(String(32))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    title = Column(String(256), nullable=False)
+    message = Column(Text, nullable=False)
+    trigger_value = Column(Numeric(20, 8))
+    threshold_value = Column(Numeric(20, 8))
+    is_resolved = Column(Boolean, default=False)
+    resolved_at = Column(DateTime)
+    resolved_by = Column(String(64))
+    extra_data = Column(JSONB)
+    created_at = Column(DateTime, default=datetime.utcnow)

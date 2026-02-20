@@ -88,6 +88,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/user/UserCenter.vue'),
         meta: { title: '我的', requiresAuth: true },
       },
+      {
+        path: 'user/signal-follow/:id',
+        name: 'SignalFollowDetail',
+        component: () => import('@/views/user/SignalFollowDetail.vue'),
+        meta: { title: '跟单详情', requiresAuth: true },
+      },
     ],
   },
   {
@@ -136,6 +142,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AdminDataSubscription',
         component: () => import('@/views/admin/AdminDataSubscription.vue'),
         meta: { title: '实时数据订阅', requiresAuth: true, requiresAdmin: true },
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/views/admin/AdminUsers.vue'),
+        meta: { title: '用户管理', requiresAuth: true, requiresAdmin: true },
       },
     ],
   },

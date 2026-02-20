@@ -340,6 +340,178 @@ INSERT INTO user_info (
 )
 ON CONFLICT (username) DO NOTHING;
 
+-- ============================================================
+-- 新增表：信号记录、排行榜快照、系统统计快照、审计日志、风控告警
+-- ============================================================
+
+-- 创建信号记录表（策略产生的交易信号）
+CREATE TABLE IF NOT EXISTS signal_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    strategy_id VARCHAR(128) NOT NULL,
+    strategy_name VARCHAR(128),
+    symbol VARCHAR(32) NOT NULL,
+    exchange VARCHAR(32) DEFAULT 'binance',
+    signal_type VARCHAR(16) NOT NULL,          -- buy/sell/close
+    price DECIMAL(20, 8) NOT NULL,
+    quantity DECIMAL(20, 8),
+    confidence DECIMAL(5, 4),                  -- 置信度 0~1
+    timeframe VARCHAR(8),
+    reason TEXT,
+    indicators JSONB,                          -- 触发时的指标值快照
+    status VARCHAR(16) DEFAULT 'pending',      -- pending/executed/ignored/expired
+    executed_order_id VARCHAR(128),
+    executed_price DECIMAL(20, 8),
+    executed_at TIMESTAMPTZ,
+    is_public BOOLEAN DEFAULT FALSE,
+    subscriber_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_records IS '策略信号记录表';
+COMMENT ON COLUMN signal_records.signal_type IS '信号类型: buy/sell/close';
+COMMENT ON COLUMN signal_records.confidence IS '信号置信度 0.0~1.0';
+COMMENT ON COLUMN signal_records.indicators IS '触发时的技术指标快照（JSON）';
+COMMENT ON COLUMN signal_records.status IS '信号状态: pending/executed/ignored/expired';
+COMMENT ON COLUMN signal_records.is_public IS '是否在信号广场公开展示';
+
+CREATE INDEX IF NOT EXISTS idx_signal_strategy_id ON signal_records (strategy_id);
+CREATE INDEX IF NOT EXISTS idx_signal_symbol ON signal_records (symbol);
+CREATE INDEX IF NOT EXISTS idx_signal_type ON signal_records (signal_type);
+CREATE INDEX IF NOT EXISTS idx_signal_status ON signal_records (status);
+CREATE INDEX IF NOT EXISTS idx_signal_is_public ON signal_records (is_public);
+CREATE INDEX IF NOT EXISTS idx_signal_created_at ON signal_records (created_at DESC);
+
+-- 创建信号订阅表
+CREATE TABLE IF NOT EXISTS signal_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    strategy_id VARCHAR(128) NOT NULL,
+    notify_type VARCHAR(32) DEFAULT 'realtime', -- realtime/daily/weekly
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, strategy_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_sub_user_id ON signal_subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_signal_sub_strategy_id ON signal_subscriptions (strategy_id);
+
+-- 创建排行榜快照表（定时计算并存储）
+CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rank_type VARCHAR(32) NOT NULL,            -- strategy/signal/user
+    period VARCHAR(16) NOT NULL,               -- daily/weekly/monthly/all_time
+    rank_position INTEGER NOT NULL,
+    entity_id VARCHAR(128) NOT NULL,
+    entity_name VARCHAR(256),
+    entity_type VARCHAR(64),
+    owner_id UUID REFERENCES user_info(id),
+    owner_name VARCHAR(128),
+    total_return DECIMAL(10, 6),
+    annual_return DECIMAL(10, 6),
+    max_drawdown DECIMAL(10, 6),
+    sharpe_ratio DECIMAL(10, 6),
+    win_rate DECIMAL(10, 6),
+    total_trades INTEGER DEFAULT 0,
+    profit_factor DECIMAL(10, 4),
+    stat_start_time TIMESTAMPTZ,
+    stat_end_time TIMESTAMPTZ,
+    snapshot_time TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE leaderboard_snapshots IS '排行榜快照表，定时计算存储';
+COMMENT ON COLUMN leaderboard_snapshots.rank_type IS '排行类型: strategy/signal/user';
+COMMENT ON COLUMN leaderboard_snapshots.period IS '统计周期: daily/weekly/monthly/all_time';
+
+CREATE INDEX IF NOT EXISTS idx_leaderboard_type_period ON leaderboard_snapshots (rank_type, period, rank_position);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_snapshot_time ON leaderboard_snapshots (snapshot_time DESC);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_entity_id ON leaderboard_snapshots (entity_id);
+
+-- 创建系统统计快照表（定时采集）
+CREATE TABLE IF NOT EXISTS system_stats_snapshots (
+    id BIGSERIAL,
+    snapshot_time TIMESTAMPTZ NOT NULL,
+    total_users INTEGER DEFAULT 0,
+    active_users_today INTEGER DEFAULT 0,
+    new_users_today INTEGER DEFAULT 0,
+    total_strategies INTEGER DEFAULT 0,
+    running_strategies INTEGER DEFAULT 0,
+    total_orders_today INTEGER DEFAULT 0,
+    total_trades_today INTEGER DEFAULT 0,
+    total_volume_today DECIMAL(30, 8) DEFAULT 0,
+    cpu_usage DECIMAL(5, 2),
+    memory_usage DECIMAL(5, 2),
+    disk_usage DECIMAL(5, 2),
+    subscribed_symbols INTEGER DEFAULT 0,
+    kline_records_total BIGINT DEFAULT 0,
+    extra_metrics JSONB,
+    PRIMARY KEY (id, snapshot_time)
+);
+
+SELECT create_hypertable('system_stats_snapshots', 'snapshot_time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_stats_snapshot_time ON system_stats_snapshots (snapshot_time DESC);
+
+-- 创建审计日志表（记录所有重要操作）
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGSERIAL,
+    log_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    log_level VARCHAR(16) NOT NULL DEFAULT 'INFO', -- DEBUG/INFO/WARNING/ERROR/CRITICAL
+    log_category VARCHAR(32) NOT NULL,              -- system/trading/strategy/user/risk/market
+    user_id UUID REFERENCES user_info(id),
+    username VARCHAR(64),
+    action VARCHAR(128) NOT NULL,
+    resource_type VARCHAR(64),
+    resource_id VARCHAR(128),
+    request_ip VARCHAR(64),
+    request_path VARCHAR(512),
+    request_method VARCHAR(16),
+    request_body JSONB,
+    response_status INTEGER,
+    duration_ms INTEGER,
+    message TEXT,
+    extra_data JSONB,
+    PRIMARY KEY (id, log_time)
+);
+
+SELECT create_hypertable('audit_logs', 'log_time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_audit_log_time ON audit_logs (log_time DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_level ON audit_logs (log_level);
+CREATE INDEX IF NOT EXISTS idx_audit_log_category ON audit_logs (log_category);
+CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs (user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
+
+-- 创建风控告警表
+CREATE TABLE IF NOT EXISTS risk_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alert_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    alert_type VARCHAR(32) NOT NULL,           -- drawdown/position_limit/loss_limit/volatility
+    severity VARCHAR(16) NOT NULL DEFAULT 'warning', -- info/warning/critical
+    strategy_id VARCHAR(128),
+    symbol VARCHAR(32),
+    user_id UUID REFERENCES user_info(id),
+    title VARCHAR(256) NOT NULL,
+    message TEXT NOT NULL,
+    trigger_value DECIMAL(20, 8),
+    threshold_value DECIMAL(20, 8),
+    is_resolved BOOLEAN DEFAULT FALSE,
+    resolved_at TIMESTAMPTZ,
+    resolved_by VARCHAR(64),
+    extra_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE risk_alerts IS '风控告警记录表';
+COMMENT ON COLUMN risk_alerts.alert_type IS '告警类型: drawdown/position_limit/loss_limit/volatility';
+COMMENT ON COLUMN risk_alerts.severity IS '严重程度: info/warning/critical';
+
+CREATE INDEX IF NOT EXISTS idx_risk_alert_time ON risk_alerts (alert_time DESC);
+CREATE INDEX IF NOT EXISTS idx_risk_alert_type ON risk_alerts (alert_type);
+CREATE INDEX IF NOT EXISTS idx_risk_alert_severity ON risk_alerts (severity);
+CREATE INDEX IF NOT EXISTS idx_risk_alert_strategy ON risk_alerts (strategy_id);
+CREATE INDEX IF NOT EXISTS idx_risk_alert_resolved ON risk_alerts (is_resolved);
+
 -- 查看表结构
 \d user_info;
 \d exchange_info;

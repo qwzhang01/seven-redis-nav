@@ -42,6 +42,10 @@ AUTH_WHITELIST: set[str] = {
     "/api/v1/m/health/",
     "/api/v1/m/health/ready",
     "/api/v1/m/health/live",
+    # WebSocket 接口（WebSocket 握手不携带 Authorization 头，由各路由自行验证）
+    "/api/v1/ws/market",
+    "/api/v1/ws/trading",
+    "/api/v1/ws/strategy",
 }
 
 

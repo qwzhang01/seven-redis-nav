@@ -36,6 +36,11 @@ from quant_trading_system.api.middlewares import (
 from .c import c_router
 from .m import m_router
 
+# 导入 WebSocket 路由
+from .websocket.market_ws import router as market_ws_router
+from .websocket.trading_ws import router as trading_ws_router
+from .websocket.strategy_ws import router as strategy_ws_router
+
 from ..services.database.database import init_database
 
 # 设置日志
@@ -195,10 +200,17 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 # 注册路由
 # C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
+#                  /api/v1/c/signal、/api/v1/c/leaderboard
 app.include_router(c_router, prefix="/api/v1/c")
 
 # Admin 端（管理员）：/api/v1/m/strategy、/api/v1/m/system、/api/v1/m/health
+#                    /api/v1/m/stats、/api/v1/m/logs、/api/v1/m/signal、/api/v1/m/leaderboard
 app.include_router(m_router, prefix="/api/v1/m")
+
+# WebSocket 路由：/api/v1/ws/market、/api/v1/ws/trading、/api/v1/ws/strategy
+app.include_router(market_ws_router, prefix="/api/v1/ws", tags=["WebSocket-行情推送"])
+app.include_router(trading_ws_router, prefix="/api/v1/ws", tags=["WebSocket-交易推送"])
+app.include_router(strategy_ws_router, prefix="/api/v1/ws", tags=["WebSocket-策略推送"])
 
 
 # 根路径

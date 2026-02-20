@@ -50,18 +50,18 @@
 
 | 接口路径 | 方法 | 功能描述 | 实现状态 |
 |---------|------|---------|---------| 
-| `/api/v1/c/market/klines` | GET | 获取K线数据 | ✅ 已实现 |
-| `/api/v1/c/market/ticker` | GET | 获取最新行情 | ✅ 已实现 |
-| `/api/v1/c/market/tickers` | GET | 获取所有交易对行情 | ✅ 已实现 |
-| `/api/v1/c/market/depth` | GET | 获取市场深度 | ✅ 已实现 |
-| `/api/v1/c/market/trades` | GET | 获取最近成交 | ✅ 已实现 |
-| `/api/v1/c/market/symbols` | GET | 获取交易对列表 | ✅ 已实现 |
-| `/api/v1/c/market/exchanges` | GET | 获取交易所列表 | ✅ 已实现 |
-| `/api/v1/c/market/ws/kline` | WebSocket | K线数据推送 | ✅ 已实现 |
-| `/api/v1/c/market/ws/ticker` | WebSocket | 行情推送 | ✅ 已实现 |
-| `/api/v1/c/market/ws/depth` | WebSocket | 深度推送 | ✅ 已实现 |
+| `/api/v1/c/market/klines` | GET | 获取K线数据 | ❌ 未实现 |
+| `/api/v1/c/market/ticker` | GET | 获取最新行情 | ❌ 未实现 |
+| `/api/v1/c/market/tickers` | GET | 获取所有交易对行情 | ❌ 未实现 |
+| `/api/v1/c/market/depth` | GET | 获取市场深度 | ❌ 未实现 |
+| `/api/v1/c/market/trades` | GET | 获取最近成交 | ❌ 未实现 |
+| `/api/v1/c/market/symbols` | GET | 获取交易对列表 | ❌ 未实现 |
+| `/api/v1/c/market/exchanges` | GET | 获取交易所列表 | ❌ 未实现 |
+| `/api/v1/c/market/ws/kline` | WebSocket | K线数据推送 | ❌ 未实现 |
+| `/api/v1/c/market/ws/ticker` | WebSocket | 行情推送 | ❌ 未实现 |
+| `/api/v1/c/market/ws/depth` | WebSocket | 深度推送 | ❌ 未实现 |
 
-**实现文件**: `src/utils/marketApi.ts` ✅
+**需要创建**: `src/utils/marketApi.ts`  
 **相关页面**: 
 - `TradingPage.vue` - 交易盘面（需要实时行情、K线、深度数据）
 - `HomePage.vue` - 首页（需要行情数据）
@@ -75,14 +75,14 @@
 
 | 接口路径 | 方法 | 功能描述 | 实现状态 |
 |---------|------|---------|---------| 
-| `/api/v1/c/backtest/run` | POST | 运行策略回测 | ✅ 已实现 |
-| `/api/v1/c/backtest/list` | GET | 获取回测历史列表 | ✅ 已实现 |
-| `/api/v1/c/backtest/{id}` | GET | 获取回测结果 | ✅ 已实现 |
-| `/api/v1/c/backtest/{id}/equity` | GET | 获取回测权益曲线 | ✅ 已实现 |
-| `/api/v1/c/backtest/{id}/trades` | GET | 获取回测交易记录 | ✅ 已实现 |
-| `/api/v1/c/backtest/{id}` | DELETE | 删除回测记录 | ✅ 已实现 |
+| `/api/v1/c/backtest/run` | POST | 运行策略回测 | ❌ 未实现 |
+| `/api/v1/c/backtest/list` | GET | 获取回测历史列表 | ❌ 未实现 |
+| `/api/v1/c/backtest/{id}` | GET | 获取回测结果 | ❌ 未实现 |
+| `/api/v1/c/backtest/{id}/equity` | GET | 获取回测权益曲线 | ❌ 未实现 |
+| `/api/v1/c/backtest/{id}/trades` | GET | 获取回测交易记录 | ❌ 未实现 |
+| `/api/v1/c/backtest/{id}` | DELETE | 删除回测记录 | ❌ 未实现 |
 
-**实现文件**: `src/utils/backtestApi.ts` ✅
+**需要创建**: `src/utils/backtestApi.ts`  
 **相关页面**: 
 - `StrategyDetail.vue` - 策略详情（需要回测功能）
 - `AdminStrategies.vue` - 策略管理（需要查看回测历史）
@@ -96,19 +96,19 @@
 
 | 接口路径 | 方法 | 功能描述 | 实现状态 |
 |---------|------|---------|---------| 
-| `/api/v1/m/strategy/list` | GET | 获取策略列表 | ✅ 已实现 |
-| `/api/v1/m/strategy/types` | GET | 获取可用策略类型 | ✅ 已实现 |
-| `/api/v1/m/strategy/create` | POST | 创建策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}` | GET | 获取策略详情 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}` | PUT | 更新策略参数 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}` | DELETE | 删除策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}/start` | POST | 启动策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}/stop` | POST | 停止策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}/pause` | POST | 暂停策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}/resume` | POST | 恢复策略 | ✅ 已实现 |
-| `/api/v1/m/strategy/{id}/signals` | GET | 获取策略信号历史 | ✅ 已实现 |
+| `/api/v1/m/strategy/list` | GET | 获取策略列表 | ❌ 未实现 |
+| `/api/v1/m/strategy/types` | GET | 获取可用策略类型 | ❌ 未实现 |
+| `/api/v1/m/strategy/create` | POST | 创建策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}` | GET | 获取策略详情 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}` | PUT | 更新策略参数 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}` | DELETE | 删除策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}/start` | POST | 启动策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}/stop` | POST | 停止策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}/pause` | POST | 暂停策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}/resume` | POST | 恢复策略 | ❌ 未实现 |
+| `/api/v1/m/strategy/{id}/signals` | GET | 获取策略信号历史 | ❌ 未实现 |
 
-**实现文件**: `src/utils/strategyApi.ts` ✅
+**需要创建**: `src/utils/strategyApi.ts`  
 **相关页面**: 
 - `StrategyList.vue` - 策略列表
 - `StrategyDetail.vue` - 策略详情
@@ -125,18 +125,18 @@
 
 | 接口路径 | 方法 | 功能描述 | 实现状态 |
 |---------|------|---------|---------| 
-| `/api/v1/c/trading/order` | POST | 下单 | ✅ 已实现 |
-| `/api/v1/c/trading/order/{id}` | DELETE | 取消订单 | ✅ 已实现 |
-| `/api/v1/c/trading/order/cancel-all` | POST | 取消所有订单 | ✅ 已实现 |
-| `/api/v1/c/trading/orders` | GET | 获取订单列表 | ✅ 已实现 |
-| `/api/v1/c/trading/order/{id}` | GET | 获取订单详情 | ✅ 已实现 |
-| `/api/v1/c/trading/trades` | GET | 获取成交记录 | ✅ 已实现 |
-| `/api/v1/c/trading/positions` | GET | 获取持仓列表 | ✅ 已实现 |
-| `/api/v1/c/trading/position/{symbol}` | GET | 获取单个持仓详情 | ✅ 已实现 |
-| `/api/v1/c/trading/account` | GET | 获取账户信息 | ✅ 已实现 |
-| `/api/v1/c/trading/risk` | GET | 获取风险信息 | ✅ 已实现 |
+| `/api/v1/c/trading/order` | POST | 下单 | ❌ 未实现 |
+| `/api/v1/c/trading/order/{id}` | DELETE | 取消订单 | ❌ 未实现 |
+| `/api/v1/c/trading/order/cancel-all` | POST | 取消所有订单 | ❌ 未实现 |
+| `/api/v1/c/trading/orders` | GET | 获取订单列表 | ❌ 未实现 |
+| `/api/v1/c/trading/order/{id}` | GET | 获取订单详情 | ❌ 未实现 |
+| `/api/v1/c/trading/trades` | GET | 获取成交记录 | ❌ 未实现 |
+| `/api/v1/c/trading/positions` | GET | 获取持仓列表 | ❌ 未实现 |
+| `/api/v1/c/trading/position/{symbol}` | GET | 获取单个持仓详情 | ❌ 未实现 |
+| `/api/v1/c/trading/account` | GET | 获取账户信息 | ❌ 未实现 |
+| `/api/v1/c/trading/risk` | GET | 获取风险信息 | ❌ 未实现 |
 
-**实现文件**: `src/utils/tradingApi.ts` ✅
+**需要创建**: `src/utils/tradingApi.ts`  
 **相关页面**: 
 - `TradingPage.vue` - 交易盘面（需要下单、订单、持仓、账户信息）
 - `RunningStrategiesPage.vue` - 策略实盘监控（需要持仓、订单信息）
@@ -152,18 +152,18 @@
 
 | 接口路径 | 方法 | 功能描述 | 实现状态 |
 |---------|------|---------|---------| 
-| `/api/v1/m/system/info` | GET | 获取系统基本信息 | ✅ 已实现 |
-| `/api/v1/m/system/config` | GET | 获取系统配置信息 | ✅ 已实现 |
-| `/api/v1/m/system/health` | GET | 系统组件健康检查 | ✅ 已实现 |
-| `/api/v1/m/system/metrics` | GET | 获取系统性能指标 | ✅ 已实现 |
-| `/api/v1/m/health/` | GET | 基础健康检查 | ✅ 已实现 |
-| `/api/v1/m/health/db` | GET | 数据库健康检查 | ✅ 已实现 |
-| `/api/v1/m/health/full` | GET | 完整健康检查 | ✅ 已实现 |
-| `/api/v1/m/health/ready` | GET | 就绪检查 | ✅ 已实现 |
-| `/api/v1/m/health/live` | GET | 存活检查 | ✅ 已实现 |
-| `/api/v1/m/health/metrics` | GET | 系统资源指标 | ✅ 已实现 |
+| `/api/v1/m/system/info` | GET | 获取系统基本信息 | ❌ 未实现 |
+| `/api/v1/m/system/config` | GET | 获取系统配置信息 | ❌ 未实现 |
+| `/api/v1/m/system/health` | GET | 系统组件健康检查 | ❌ 未实现 |
+| `/api/v1/m/system/metrics` | GET | 获取系统性能指标 | ❌ 未实现 |
+| `/api/v1/m/health/` | GET | 基础健康检查 | ❌ 未实现 |
+| `/api/v1/m/health/db` | GET | 数据库健康检查 | ❌ 未实现 |
+| `/api/v1/m/health/full` | GET | 完整健康检查 | ❌ 未实现 |
+| `/api/v1/m/health/ready` | GET | 就绪检查 | ❌ 未实现 |
+| `/api/v1/m/health/live` | GET | 存活检查 | ❌ 未实现 |
+| `/api/v1/m/health/metrics` | GET | 系统资源指标 | ❌ 未实现 |
 
-**实现文件**: `src/utils/systemApi.ts` ✅
+**需要创建**: `src/utils/systemApi.ts`  
 **相关页面**: 
 - `AdminDashboard.vue` - 管理概览（需要系统信息、健康状态）
 - `AdminLogs.vue` - 风控与日志（需要系统指标）
@@ -382,12 +382,12 @@ DELETE /api/v1/m/subscription/{id}  - 删除订阅
 | 模块 | 文档接口数 | 已实现 | 未实现 | 完成率 |
 |------|-----------|--------|--------|--------|
 | 用户管理 | 11 | 11 | 0 | 100% |
-| 市场数据 | 10 | 10 | 0 | 100% ✅ |
-| 回测管理 | 6 | 6 | 0 | 100% ✅ |
-| 策略管理 | 11 | 11 | 0 | 100% ✅ |
-| 交易管理 | 10 | 10 | 0 | 100% ✅ |
-| 系统管理 | 10 | 10 | 0 | 100% ✅ |
-| **总计** | **58** | **58** | **0** | **100%** ✅ |
+| 市场数据 | 10 | 0 | 10 | 0% |
+| 回测管理 | 6 | 0 | 6 | 0% |
+| 策略管理 | 11 | 0 | 11 | 0% |
+| 交易管理 | 10 | 0 | 10 | 0% |
+| 系统管理 | 10 | 0 | 10 | 0% |
+| **总计** | **58** | **11** | **47** | **19%** |
 
 ### 页面实现进度
 
@@ -573,11 +573,11 @@ export default {
 
 ### 需要创建的API封装文件
 
-1. ✅ `src/utils/marketApi.ts` - 市场数据API（已完成）
-2. ✅ `src/utils/backtestApi.ts` - 回测API（已完成）
-3. ✅ `src/utils/strategyApi.ts` - 策略管理API（已完成）
-4. ✅ `src/utils/tradingApi.ts` - 交易管理API（已完成）
-5. ✅ `src/utils/systemApi.ts` - 系统管理API（已完成）
+1. ❌ `src/utils/marketApi.ts` - 市场数据API
+2. ❌ `src/utils/backtestApi.ts` - 回测API
+3. ❌ `src/utils/strategyApi.ts` - 策略管理API
+4. ❌ `src/utils/tradingApi.ts` - 交易管理API
+5. ❌ `src/utils/systemApi.ts` - 系统管理API
 6. ❌ `src/utils/signalApi.ts` - 信号管理API（待文档）
 7. ❌ `src/utils/leaderboardApi.ts` - 排行榜API（待文档）
 8. ❌ `src/utils/statsApi.ts` - 统计分析API（待文档）
