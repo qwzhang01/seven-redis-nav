@@ -1,8 +1,30 @@
-node_modules
-dist
-.git
-.gitignore
-*.md
-docker-compose.yml
-.env.local
-.env.*.local
+# Docker 相关
+.env
+*.log
+deploy-*.log
+
+# Node 相关
+node_modules/
+dist/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 备份文件
+*.backup
+*.bak
+*.tar
+*.tar.gz
+
+# 临时文件
+tmp/
+temp/
+*.tmp
