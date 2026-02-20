@@ -145,13 +145,11 @@ class TimescaleDB:
 
     async def initialize_tables(self) -> None:
         """初始化数据库表结构，直接执行 schema.sql 文件"""
-        # 定位 schema.sql：相对于本文件向上 5 级到项目根，再进入 database/
-        _this_dir = os.path.dirname(os.path.abspath(__file__))
-        schema_path = os.path.normpath(
-            os.path.join(_this_dir, "..", "..", "..", "..", "..","quant_trading_system", "database", "schema.sql")
-        )
+        from pathlib import Path
+        # parents[4]: database.py -> services/database -> services -> quant_trading_system -> src -> 项目根
+        schema_path = Path(__file__).resolve().parents[4] / "database" / "schema.sql"
 
-        if not os.path.exists(schema_path):
+        if not schema_path.exists():
             raise FileNotFoundError(f"schema.sql 文件未找到: {schema_path}")
 
         with open(schema_path, "r", encoding="utf-8") as f:
