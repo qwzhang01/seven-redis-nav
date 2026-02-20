@@ -7,7 +7,7 @@
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import validator
+from pydantic import validator, root_validator
 
 
 class Settings(BaseSettings):
@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_EXPIRE_DAYS: int = 7
 
-    # CORS配置
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # CORS配置（使用str类型，避免pydantic-settings对List[str]做json.loads解析导致启动失败）
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # 密码配置
     PASSWORD_MIN_LENGTH: int = 6
@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_FILE: str = "/var/log/quant_trading.log"
 
-    # 安全配置
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
+    # 安全配置（使用str类型，避免pydantic-settings对List[str]做json.loads解析导致启动失败）
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60
 
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     # 文件上传配置
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
-    ALLOWED_FILE_TYPES: List[str] = ["jpg", "jpeg", "png", "gif"]
+    ALLOWED_FILE_TYPES: str = "jpg,jpeg,png,gif"  # 使用str类型，避免pydantic-settings对List[str]做json.loads解析导致启动失败
     UPLOAD_DIR: str = "/var/uploads"
 
     # 监控配置
@@ -136,13 +136,52 @@ class Settings(BaseSettings):
 
     @validator("CORS_ORIGINS", pre=True)
     def validate_cors_origins(cls, v):
-        """验证CORS来源，支持字符串和列表两种格式"""
+        """验证CORS来源，统一转为逗号分隔字符串"""
         if not v:
+            return "*"
+        # 如果传入的是列表（代码直接赋值时），转成逗号分隔字符串
+        if isinstance(v, list):
+            return ",".join(str(item).strip() for item in v)
+        return str(v).strip()
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """返回CORS来源列表，供中间件使用"""
+        if not self.CORS_ORIGINS or self.CORS_ORIGINS.strip() == "":
             return ["*"]
-        # 如果是字符串（来自环境变量），按逗号分割
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(",") if item.strip()]
-        return v
+        return [item.strip() for item in self.CORS_ORIGINS.split(",") if item.strip()]
+
+    @validator("ALLOWED_HOSTS", pre=True)
+    def validate_allowed_hosts(cls, v):
+        """验证允许的主机，统一转为逗号分隔字符串"""
+        if not v:
+            return "localhost,127.0.0.1"
+        if isinstance(v, list):
+            return ",".join(str(item).strip() for item in v)
+        return str(v).strip()
+
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        """返回允许的主机列表"""
+        if not self.ALLOWED_HOSTS or self.ALLOWED_HOSTS.strip() == "":
+            return ["localhost", "127.0.0.1"]
+        return [item.strip() for item in self.ALLOWED_HOSTS.split(",") if item.strip()]
+
+    @validator("ALLOWED_FILE_TYPES", pre=True)
+    def validate_allowed_file_types(cls, v):
+        """验证允许的文件类型，统一转为逗号分隔字符串"""
+        if not v:
+            return "jpg,jpeg,png,gif"
+        if isinstance(v, list):
+            return ",".join(str(item).strip() for item in v)
+        return str(v).strip()
+
+    @property
+    def allowed_file_types_list(self) -> List[str]:
+        """返回允许的文件类型列表"""
+        if not self.ALLOWED_FILE_TYPES or self.ALLOWED_FILE_TYPES.strip() == "":
+            return ["jpg", "jpeg", "png", "gif"]
+        return [item.strip() for item in self.ALLOWED_FILE_TYPES.split(",") if item.strip()]
 
     @validator("PASSWORD_MIN_LENGTH")
     def validate_password_min_length(cls, v):
@@ -212,6 +251,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # 忽略环境变量中未在 Settings 定义的额外字段
 
         @classmethod
         def customise_sources(
@@ -242,7 +282,7 @@ def get_dev_settings() -> Settings:
     return Settings(
         DEBUG=True,
         DATABASE_URL="postgresql://quant_user:quant_password@localhost:5432/quant_trading_dev",
-        CORS_ORIGINS=["*"]
+        CORS_ORIGINS="*"
     )
 
 
@@ -254,19 +294,13 @@ def get_test_settings() -> Settings:
         TEST_MODE=True,
         DATABASE_URL="sqlite:///./test.db",
         JWT_SECRET_KEY="test-secret-key-for-testing-only",
-        CORS_ORIGINS=["*"]
+        CORS_ORIGINS="*"
     )
 
 
 # 生产环境配置
 def get_prod_settings() -> Settings:
     """生产环境配置"""
-    cors_origins_env = os.getenv("CORS_ORIGINS", "")
-    if cors_origins_env:
-        cors_origins_list = [item.strip() for item in cors_origins_env.split(",") if item.strip()]
-    else:
-        cors_origins_list = ["*"]
-
     return Settings(
         DEBUG=False,
         DATABASE_URL=os.getenv("DATABASE_URL"),
@@ -276,7 +310,6 @@ def get_prod_settings() -> Settings:
         SMTP_PASSWORD=os.getenv("SMTP_PASSWORD"),
         REDIS_URL=os.getenv("REDIS_URL"),
         LOG_LEVEL="WARNING",
-        CORS_ORIGINS=cors_origins_list
     )
 
 
