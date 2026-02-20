@@ -134,11 +134,14 @@ class Settings(BaseSettings):
             raise ValueError("JWT密钥长度至少32位")
         return v
 
-    @validator("CORS_ORIGINS")
+    @validator("CORS_ORIGINS", pre=True)
     def validate_cors_origins(cls, v):
-        """验证CORS来源"""
+        """验证CORS来源，支持字符串和列表两种格式"""
         if not v:
             return ["*"]
+        # 如果是字符串（来自环境变量），按逗号分割
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
     @validator("PASSWORD_MIN_LENGTH")
@@ -262,6 +265,12 @@ def get_test_settings() -> Settings:
 # 生产环境配置
 def get_prod_settings() -> Settings:
     """生产环境配置"""
+    cors_origins_env = os.getenv("CORS_ORIGINS", "")
+    if cors_origins_env:
+        cors_origins_list = [item.strip() for item in cors_origins_env.split(",") if item.strip()]
+    else:
+        cors_origins_list = ["*"]
+
     return Settings(
         DEBUG=False,
         DATABASE_URL=os.getenv("DATABASE_URL"),
@@ -271,7 +280,7 @@ def get_prod_settings() -> Settings:
         SMTP_PASSWORD=os.getenv("SMTP_PASSWORD"),
         REDIS_URL=os.getenv("REDIS_URL"),
         LOG_LEVEL="WARNING",
-        CORS_ORIGINS=os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else []
+        CORS_ORIGINS=cors_origins_list
     )
 
 
