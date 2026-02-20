@@ -1,0 +1,70 @@
+# ============================================================
+# 量化交易系统 — 生产环境 Dockerfile（多阶段构建）
+# ============================================================
+
+# ---- 阶段1：构建依赖 ----
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# 安装编译依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ libpq-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 先复制依赖文件，利用 Docker 层缓存
+COPY requirements.txt .
+
+# 安装到独立目录，方便复制到运行阶段
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ---- 阶段2：运行时镜像 ----
+FROM python:3.11-slim AS runtime
+
+LABEL maintainer="Quant Team <quant@example.com>"
+LABEL version="1.0.0"
+LABEL description="量化交易系统生产镜像"
+
+WORKDIR /app
+
+# 仅安装运行时系统依赖（libpq5 用于 psycopg2，curl 用于健康检查）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 从构建阶段复制已安装的 Python 包
+COPY --from=builder /install /usr/local
+
+# 复制应用代码（只复制运行所需文件）
+COPY src/ ./src/
+COPY database/ ./database/
+COPY pyproject.toml .
+
+# 创建非 root 用户，提升安全性
+RUN useradd -m -u 1000 -s /bin/bash appuser \
+    && mkdir -p /app/logs \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+# 环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    ENVIRONMENT=production
+
+EXPOSE 8000
+
+# 健康检查：60s 启动宽限期，之后每 30s 检查一次
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# 生产启动命令：4 个 worker 进程
+CMD ["uvicorn", "src.quant_trading_system.api.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "4", \
+     "--log-level", "info", \
+     "--access-log", \
+     "--no-use-colors"]

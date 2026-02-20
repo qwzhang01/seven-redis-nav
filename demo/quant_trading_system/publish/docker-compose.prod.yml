@@ -1,0 +1,54 @@
+version: '3.8'
+
+# ============================================================
+# 量化交易系统 — 生产环境 Docker Compose
+# 说明：只部署应用服务，接入已有基础设施（Redis/PostgreSQL/Kafka/MinIO）
+# 使用：APP_VERSION=1.0.0 docker compose -f docker-compose.prod.yml up -d
+# ============================================================
+
+services:
+  quant_app:
+    image: quant_app:${APP_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: publish/Dockerfile.prod
+    container_name: quant_app
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      # 仅绑定本地回环地址，由 Nginx(quantmeta) 反向代理对外暴露
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # 日志持久化到宿主机
+      - ../logs:/app/logs
+    networks:
+      - prod_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+# ============================================================
+# 网络配置：加入已有生产网络，与 Redis/PostgreSQL/Kafka/MinIO 互通
+# 执行 docker network ls 查看已有网络名，填入 name 字段
+# ============================================================
+networks:
+  prod_network:
+    external: true
+    name: <已有容器所在的网络名>
