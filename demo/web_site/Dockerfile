@@ -25,6 +25,8 @@ COPY . .
 
 # 设置 NODE_ENV 并构建
 ENV NODE_ENV=production
+# 优化 Node.js 构建性能
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # 复制生产环境配置文件（如果存在）
 # 生产环境使用空的 VITE_API_BASE_URL，让前端使用相对路径 /api/
@@ -36,6 +38,7 @@ RUN if [ -f .env.production ]; then \
         echo "VITE_API_BASE_URL=" > .env.production; \
     fi
 
+# 使用并行构建加速
 RUN npm run build \
     && ls -lah dist/ \
     && echo "✓ 构建完成"
