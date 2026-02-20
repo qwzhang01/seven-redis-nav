@@ -148,7 +148,7 @@ class TimescaleDB:
         # 定位 schema.sql：相对于本文件向上 5 级到项目根，再进入 database/
         _this_dir = os.path.dirname(os.path.abspath(__file__))
         schema_path = os.path.normpath(
-            os.path.join(_this_dir, "..", "..", "..", "..", "..", "database", "schema.sql")
+            os.path.join(_this_dir, "..", "..", "..", "..", "..","quant_trading_system", "database", "schema.sql")
         )
 
         if not os.path.exists(schema_path):
