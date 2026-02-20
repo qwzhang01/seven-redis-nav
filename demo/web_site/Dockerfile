@@ -8,13 +8,15 @@ WORKDIR /app
 
 # 安装构建依赖（利用缓存层）
 COPY package.json package-lock.json ./
-RUN npm ci --prefer-offline --no-audit --progress=false \
+# 使用更快的安装选项，跳过可选依赖
+RUN npm ci --prefer-offline --no-audit --progress=false --omit=optional \
     && npm cache clean --force
 
 # 复制源代码并构建
 COPY . .
-RUN npm run build \
-    && ls -lah dist/
+# 设置 NODE_ENV 并构建，不显示详细输出
+ENV NODE_ENV=production
+RUN npm run build
 
 # ========================================
 # Production Stage - 生产环境

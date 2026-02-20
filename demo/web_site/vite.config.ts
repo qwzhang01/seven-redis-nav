@@ -16,9 +16,19 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    // 禁用 gzip 大小报告以加速构建
+    reportCompressedSize: false,
+    // 提高 chunk 大小警告阈值
+    chunkSizeWarningLimit: 1000,
+    // 启用 CSS 代码分割
+    cssCodeSplit: true,
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        // 代码分割优化
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router'],
+          'ui-vendor': ['element-plus'],
+        },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
