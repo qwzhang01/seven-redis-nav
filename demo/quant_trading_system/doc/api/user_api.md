@@ -45,6 +45,24 @@ Authorization: Bearer <token>
 }
 ```
 
+## 接口列表
+
+| 方法 | 路径 | 认证 | 描述 |
+|------|------|------|------|
+| POST | `/api/v1/c/user/register` | 否 | 用户注册 |
+| POST | `/api/v1/c/user/login` | 否 | 用户登录 |
+| POST | `/api/v1/c/user/password/change` | 是 | 修改密码 |
+| POST | `/api/v1/c/user/password/reset` | 否 | 忘记密码重置 |
+| PUT | `/api/v1/c/user/profile` | 是 | 更新用户信息 |
+| GET | `/api/v1/c/user/exchanges/{exchange_id}` | 是 | 获取交易所详情 |
+| POST | `/api/v1/c/user/api-keys` | 是 | 添加API密钥 |
+| GET | `/api/v1/c/user/api-keys` | 是 | 获取API密钥列表 |
+| GET | `/api/v1/c/user/api-keys/{api_key_id}` | 是 | 获取API密钥详情 |
+| PUT | `/api/v1/c/user/api-keys/{api_key_id}` | 是 | 更新API密钥 |
+| DELETE | `/api/v1/c/user/api-keys/{api_key_id}` | 是 | 删除API密钥 |
+
+---
+
 ## 用户管理接口
 
 ### 1. 用户注册
@@ -54,6 +72,16 @@ Authorization: Bearer <token>
 注册新用户账户。无需认证。
 
 #### 请求参数
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| username | string | 是 | 用户名（唯一） |
+| nickname | string | 否 | 昵称 |
+| email | string | 是 | 邮箱地址（唯一） |
+| password | string | 是 | 密码（至少6位） |
+| phone | string | 否 | 手机号 |
+| avatar_url | string | 否 | 头像URL |
+
 ```json
 {
     "username": "testuser",
@@ -66,6 +94,9 @@ Authorization: Bearer <token>
 ```
 
 #### 响应示例
+
+> 注册成功返回 HTTP **201 Created**。
+
 ```json
 {
     "id": "uuid",
@@ -85,7 +116,13 @@ Authorization: Bearer <token>
 }
 ```
 
-> **注意**：注册成功返回 HTTP 201 Created。
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 用户名已存在 / 邮箱地址已存在 |
+
+---
 
 ### 2. 用户登录
 
@@ -94,6 +131,12 @@ Authorization: Bearer <token>
 用户登录获取访问令牌。无需认证。
 
 #### 请求参数
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| username | string | 是 | 用户名或邮箱地址 |
+| password | string | 是 | 密码 |
+
 ```json
 {
     "username": "testuser",
@@ -104,6 +147,7 @@ Authorization: Bearer <token>
 > **说明**：`username` 字段支持用户名或邮箱地址登录。
 
 #### 响应示例
+
 ```json
 {
     "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -135,6 +179,15 @@ Authorization: Bearer <token>
 | expires_in | integer | 过期时间（秒），默认 1800 秒（30 分钟） |
 | user | object | 用户信息 |
 
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 401 | 用户名或密码错误 |
+| 403 | 账户已被禁用 |
+
+---
+
 ### 3. 修改密码
 
 **POST** `/api/v1/c/user/password/change`
@@ -142,6 +195,12 @@ Authorization: Bearer <token>
 修改当前登录用户的密码。需要认证。
 
 #### 请求参数
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| old_password | string | 是 | 旧密码 |
+| new_password | string | 是 | 新密码 |
+
 ```json
 {
     "old_password": "oldpassword123",
@@ -150,11 +209,21 @@ Authorization: Bearer <token>
 ```
 
 #### 响应示例
+
 ```json
 {
     "message": "密码修改成功"
 }
 ```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 旧密码错误 |
+| 404 | 用户不存在 |
+
+---
 
 ### 4. 忘记密码重置
 
@@ -163,6 +232,13 @@ Authorization: Bearer <token>
 通过邮箱验证码重置密码。无需认证。
 
 #### 请求参数
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| email | string | 是 | 邮箱地址 |
+| verification_code | string | 是 | 邮箱验证码 |
+| new_password | string | 是 | 新密码 |
+
 ```json
 {
     "email": "test@example.com",
@@ -172,11 +248,21 @@ Authorization: Bearer <token>
 ```
 
 #### 响应示例
+
 ```json
 {
     "message": "密码重置成功"
 }
 ```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 验证码错误 |
+| 404 | 邮箱地址不存在 |
+
+---
 
 ### 5. 更新用户信息
 
@@ -185,6 +271,16 @@ Authorization: Bearer <token>
 更新当前登录用户的个人信息。需要认证。
 
 #### 请求参数
+
+> **说明**：所有字段均为可选，仅传入需要修改的字段。
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| nickname | string | 否 | 昵称 |
+| email | string | 否 | 邮箱地址 |
+| phone | string | 否 | 手机号 |
+| avatar_url | string | 否 | 头像URL |
+
 ```json
 {
     "nickname": "新昵称",
@@ -194,9 +290,8 @@ Authorization: Bearer <token>
 }
 ```
 
-> **说明**：所有字段均为可选，仅传入需要修改的字段。
-
 #### 响应示例
+
 ```json
 {
     "id": "uuid",
@@ -216,6 +311,14 @@ Authorization: Bearer <token>
 }
 ```
 
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 用户不存在 |
+
+---
+
 ## 交易所管理接口
 
 ### 1. 获取交易所详情
@@ -231,6 +334,7 @@ Authorization: Bearer <token>
 | exchange_id | string | 是 | 交易所ID（UUID） |
 
 #### 响应示例
+
 ```json
 {
     "id": "uuid1",
@@ -247,6 +351,28 @@ Authorization: Bearer <token>
 }
 ```
 
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| id | string | 交易所ID |
+| exchange_code | string | 交易所代码（如 binance） |
+| exchange_name | string | 交易所名称 |
+| exchange_type | string | 交易所类型（spot/futures） |
+| base_url | string | API基础URL |
+| api_doc_url | string | API文档URL |
+| status | string | 状态（active/inactive） |
+| supported_pairs | array[string] | 支持的交易对列表 |
+| rate_limits | object | 频率限制配置 |
+| create_time | string | 创建时间（ISO 8601） |
+| update_time | string | 更新时间（ISO 8601） |
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 交易所不存在 |
+
+---
+
 ## API密钥管理接口
 
 ### 1. 添加API密钥
@@ -256,6 +382,16 @@ Authorization: Bearer <token>
 为用户添加交易所API密钥，需要经过后台审核。需要认证。
 
 #### 请求参数
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| exchange_id | string | 是 | 交易所ID |
+| label | string | 是 | 密钥标签 |
+| api_key | string | 是 | API密钥 |
+| secret_key | string | 是 | Secret密钥 |
+| passphrase | string | 否 | 密码短语（部分交易所需要） |
+| permissions | object | 否 | 权限配置 |
+
 ```json
 {
     "exchange_id": "uuid1",
@@ -273,6 +409,9 @@ Authorization: Bearer <token>
 ```
 
 #### 响应示例
+
+> 添加成功返回 HTTP **201 Created**，密钥初始状态为 `pending`（待审核）。
+
 ```json
 {
     "id": "api_key_uuid",
@@ -290,7 +429,28 @@ Authorization: Bearer <token>
 }
 ```
 
-> **注意**：添加成功返回 HTTP 201 Created，密钥初始状态为 `pending`（待审核）。
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| id | string | API密钥记录ID |
+| user_id | string | 所属用户ID |
+| exchange_id | string | 所属交易所ID |
+| label | string | 密钥标签 |
+| api_key | string | API密钥（明文） |
+| status | string | 审核状态：pending/approved/rejected/disabled |
+| review_reason | string\|null | 审核备注 |
+| approved_by | string\|null | 审核人 |
+| approved_time | string\|null | 审核时间 |
+| last_used_time | string\|null | 最后使用时间 |
+| create_time | string | 创建时间 |
+| update_time | string | 更新时间 |
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 用户不存在 / 交易所不存在 |
+
+---
 
 ### 2. 获取API密钥列表
 
@@ -299,9 +459,19 @@ Authorization: Bearer <token>
 获取当前用户的API密钥列表，支持按状态筛选。需要认证。
 
 #### 查询参数
-- `status` (可选): pending/approved/rejected/disabled
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| status | string | 否 | 状态筛选：pending/approved/rejected/disabled |
+
+#### 请求示例
+
+```
+GET /api/v1/c/user/api-keys?status=approved
+```
 
 #### 响应示例
+
 ```json
 {
     "total": 2,
@@ -338,13 +508,22 @@ Authorization: Bearer <token>
 }
 ```
 
+---
+
 ### 3. 获取API密钥详情
 
 **GET** `/api/v1/c/user/api-keys/{api_key_id}`
 
 根据ID获取API密钥的详细信息。需要认证，且只能查看自己的密钥。
 
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| api_key_id | string | 是 | API密钥ID（UUID） |
+
 #### 响应示例
+
 ```json
 {
     "id": "api_key_uuid1",
@@ -362,13 +541,37 @@ Authorization: Bearer <token>
 }
 ```
 
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 403 | 无权访问此API密钥 |
+| 404 | API密钥不存在 |
+
+---
+
 ### 4. 更新API密钥
 
 **PUT** `/api/v1/c/user/api-keys/{api_key_id}`
 
 更新API密钥的标签、权限或状态。需要认证，且只能修改自己的密钥。
 
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| api_key_id | string | 是 | API密钥ID（UUID） |
+
 #### 请求参数
+
+> **说明**：所有字段均为可选，仅传入需要修改的字段。
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| label | string | 否 | 密钥标签 |
+| permissions | object | 否 | 权限配置 |
+| status | string | 否 | 状态 |
+
 ```json
 {
     "label": "币安主账户-修改",
@@ -382,9 +585,8 @@ Authorization: Bearer <token>
 }
 ```
 
-> **说明**：所有字段均为可选，仅传入需要修改的字段。
-
 #### 响应示例
+
 ```json
 {
     "id": "api_key_uuid1",
@@ -402,18 +604,43 @@ Authorization: Bearer <token>
 }
 ```
 
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 403 | 无权修改此API密钥 |
+| 404 | API密钥不存在 |
+
+---
+
 ### 5. 删除API密钥
 
 **DELETE** `/api/v1/c/user/api-keys/{api_key_id}`
 
 删除指定的API密钥记录。需要认证，且只能删除自己的密钥。
 
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| api_key_id | string | 是 | API密钥ID（UUID） |
+
 #### 响应示例
+
 ```json
 {
     "message": "API密钥删除成功"
 }
 ```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 403 | 无权删除此API密钥 |
+| 404 | API密钥不存在 |
+
+---
 
 ## 错误码说明
 
@@ -517,7 +744,7 @@ if __name__ == "__main__":
 
 ## 更新日志
 
-- **v1.1.0** (2026-02-19): 路由前缀更新为 `/api/v1/c/user`，新增认证中间件，移除 `GET /profile` 和 `GET /exchanges` 列表接口
+- **v1.1.0** (2026-02-19): 路由前缀更新为 `/api/v1/c/user`，新增认证中间件，移除 `GET /profile` 和 `GET /exchanges` 列表接口，补充各接口错误响应说明
 - **v1.0.0** (2026-02-14): 初始版本，包含完整的用户管理和交易所API管理功能
 
 ---

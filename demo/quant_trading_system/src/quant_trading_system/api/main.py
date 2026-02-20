@@ -14,8 +14,14 @@ env_path = Path(__file__).parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
 
 import logging
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from typing import Dict, Any
+
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.logging import setup_logging
@@ -26,25 +32,15 @@ from quant_trading_system.api.middlewares import (
     AuthMiddleware,
 )
 
-# 设置日志
-setup_logging()
-logger = logging.getLogger(__name__)
-
-from contextlib import asynccontextmanager
-from typing import Dict, Any
-
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.openapi.utils import get_openapi
-
 # 导入 C 端（普通用户）和 Admin 端（管理员）聚合路由
 from .c import c_router
 from .m import m_router
 
 from ..services.database.database import init_database
-from ..config import settings
+
+# 设置日志
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # 全局编排器实例（仅在启动交易引擎时设置）
 _orchestrator = None
@@ -149,7 +145,7 @@ app = FastAPI(
 # 1. CORS（最内层，最后注册）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.api.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -216,55 +212,7 @@ async def root() -> Dict[str, Any]:
         "message": "欢迎使用量化交易系统 API",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/api/v1/health"
-    }
-
-
-@app.get("/health", include_in_schema=False)
-async def health_check() -> Dict[str, Any]:
-    """
-    健康检查端点
-    用于负载均衡器和监控系统
-    """
-    return {
-        "status": "healthy",
-        "timestamp": "2024-01-01T00:00:00Z",
-        "version": "1.0.0",
-        "service": "quant-trading-system"
-    }
-
-
-@app.get("/api/v1/info")
-async def system_info() -> Dict[str, Any]:
-    """
-    系统信息接口
-    返回系统配置和状态信息
-    """
-    return {
-        "success": True,
-        "data": {
-            "system": {
-                "name": "量化交易系统",
-                "version": "1.0.0",
-                "description": "用户管理和交易所API管理系统"
-            },
-            "features": {
-                "user_management": True,
-                "exchange_management": True,
-                "api_key_management": True,
-                "jwt_authentication": True,
-                "password_reset": True
-            },
-            "database": {
-                "type": "PostgreSQL",
-                "timescale_support": True
-            },
-            "security": {
-                "password_hashing": "bcrypt",
-                "jwt_algorithm": "HS256",
-                "cors_enabled": True
-            }
-        }
+        "health": "/api/v1/m/health"
     }
 
 
@@ -324,8 +272,8 @@ if __name__ == "__main__":
     # 启动开发服务器
     uvicorn.run(
         "src.quant_trading_system.api.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
+        host=settings.api.host,
+        port=settings.api.port,
+        reload=settings.debug,
         log_level="info"
     )
