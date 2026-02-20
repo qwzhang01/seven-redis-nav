@@ -46,8 +46,12 @@ cryptography==42.0.8
     # via
     #   quant-trading-system (pyproject.toml)
     #   python-jose
+dnspython==2.8.0
+    # via email-validator
 ecdsa==0.19.1
     # via python-jose
+email-validator==2.3.0
+    # via quant-trading-system (pyproject.toml)
 fastapi==0.125.0
     # via quant-trading-system (pyproject.toml)
 frozenlist==1.8.0
@@ -67,6 +71,7 @@ httpx==0.28.1
 idna==3.11
     # via
     #   anyio
+    #   email-validator
     #   httpx
     #   yarl
 kafka-python==2.3.0
