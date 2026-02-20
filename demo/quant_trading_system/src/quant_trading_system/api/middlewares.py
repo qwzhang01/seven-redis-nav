@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────
 AUTH_WHITELIST: set[str] = {
     "/",
-    "/health",
     "/docs",
     "/redoc",
     "/api/v1/openapi.json",

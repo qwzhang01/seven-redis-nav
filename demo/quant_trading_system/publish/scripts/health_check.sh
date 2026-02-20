@@ -38,12 +38,14 @@ echo ""
 # ---- 2. 检查 API 健康端点 ----
 log "【API 健康检查】"
 HTTP_CODE=$(curl -s -o /tmp/health_resp.json -w "%{http_code}" \
-    "${API_URL}/api/v1/m/health" --max-time 5 2>/dev/null || echo "000")
+    -X GET "${API_URL}/api/v1/m/health/" \
+    -H 'accept: application/json' \
+    --max-time 5 2>/dev/null || echo "000")
 if [ "$HTTP_CODE" = "200" ]; then
     RESP=$(cat /tmp/health_resp.json 2>/dev/null || echo "")
-    ok "GET /api/v1/m/health → HTTP $HTTP_CODE  $RESP"
+    ok "GET /api/v1/m/health/ → HTTP $HTTP_CODE  $RESP"
 else
-    fail "GET /api/v1/m/health → HTTP $HTTP_CODE（服务不可达或异常）"
+    fail "GET /api/v1/m/health/ → HTTP $HTTP_CODE（服务不可达或异常）"
 fi
 
 # ---- 3. 检查 API 路由可达性 ----

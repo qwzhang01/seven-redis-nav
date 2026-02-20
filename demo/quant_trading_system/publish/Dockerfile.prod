@@ -65,7 +65,7 @@ EXPOSE 8000
 
 # 健康检查：60s 启动宽限期，之后每 30s 检查一次
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/m/health || exit 1
+    CMD curl -f -s -X GET http://localhost:8000/api/v1/m/health/ -H 'accept: application/json' || exit 1
 
 # 生产启动命令：4 个 worker 进程
 CMD ["uvicorn", "quant_trading_system.api.main:app", \
