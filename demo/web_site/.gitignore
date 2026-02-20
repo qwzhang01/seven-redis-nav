@@ -20,6 +20,9 @@ dist-ssr/
 *.swo
 *~
 
+!.env
+!.env.production
+
 # OS files
 .DS_Store
 Thumbs.db

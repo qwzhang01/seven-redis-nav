@@ -187,6 +187,22 @@ main() {
     check_command docker
     check_command curl
     check_docker
+    
+    # 检查生产环境配置
+    if [ ! -f "${SCRIPT_DIR}/.env.production" ]; then
+        log_warning "未找到 .env.production 文件，将创建默认配置"
+        cat > "${SCRIPT_DIR}/.env.production" << 'EOF'
+# 生产环境配置
+NODE_ENV=production
+# API 使用相对路径，通过 NGINX 反向代理到宿主机的 8000 端口
+VITE_API_BASE_URL=
+EOF
+        log_info "已创建 .env.production 文件"
+    else
+        log_info "使用现有的 .env.production 配置："
+        cat "${SCRIPT_DIR}/.env.production" | tee -a "${LOG_FILE}"
+    fi
+    
     log_success "前置检查通过"
     echo ""
     
