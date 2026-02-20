@@ -6,7 +6,10 @@
 import { MessagePlugin } from 'tdesign-vue-next'
 
 // API基础配置
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+// 如果环境变量未定义，使用默认值；如果定义为空字符串，则使用空字符串（相对路径）
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined 
+  ? import.meta.env.VITE_API_BASE_URL 
+  : 'http://127.0.0.1:8000'
 
 // 响应接口
 interface ApiResponse<T = any> {
