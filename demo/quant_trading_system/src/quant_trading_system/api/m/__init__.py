@@ -23,7 +23,7 @@ from quant_trading_system.api.system.api.health import router as health_router
 from quant_trading_system.api.market.api.subscription import router as subscription_router
 from quant_trading_system.api.market.api.sync_task import router as sync_task_router
 from quant_trading_system.api.stats.api.stats import router as stats_router
-from quant_trading_system.api.logs.api.logs import router as logs_router
+from quant_trading_system.api.audit_logs.api.logs import router as logs_router
 from quant_trading_system.api.signal.api.signal_admin import router as signal_admin_router
 from quant_trading_system.api.leaderboard.api.leaderboard_admin import router as leaderboard_admin_router
 from quant_trading_system.api.users.api.admin_user import router as admin_user_router
