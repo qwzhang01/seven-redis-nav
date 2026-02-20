@@ -176,10 +176,9 @@ async function loadStrategies() {
     const response = await strategyApi.getStrategies({
       page: currentPage.value,
       page_size: pageSize,
-      market: filters.value.market || undefined,
-      type: filters.value.type || undefined,
-      risk_level: filters.value.risk || undefined,
-      search: filters.value.search || undefined,
+      strategy_type_id: filters.value.type || undefined,
+      status: filters.value.risk as any || undefined,
+      symbol: filters.value.search || undefined,
     })
     strategies.value = response.items
     total.value = response.total
@@ -203,7 +202,7 @@ async function loadStrategies() {
 async function loadStrategyTypes() {
   try {
     const response = await strategyApi.getStrategyTypes()
-    types.value = response.types.map((t: any) => t.name)
+    types.value = response.items.map((t: any) => t.name)
   } catch (error) {
     console.error('加载策略类型失败:', error)
   }

@@ -472,7 +472,7 @@ async function loadPositions() {
     const response = await tradingApi.getPositions({
       exchange_id: 'binance'
     })
-    positions.value = response.positions.map((pos: any) => ({
+    positions.value = response.items.map((pos: any) => ({
       id: pos.position_id,
       strategy: pos.strategy_name || '未知策略',
       pair: pos.symbol,

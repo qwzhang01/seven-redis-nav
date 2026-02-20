@@ -619,13 +619,12 @@ async function handleLaunch() {
       try {
         // 创建策略实例
         await strategyApi.createStrategy({
-          strategy_type: strategy.value.type,
+          strategy_type_id: strategy.value.type,
           name: `${strategy.value.name}_${Date.now()}`,
           exchange_id: configValues.value.platform.toLowerCase(),
           symbol: configValues.value.currencyPair.replace('/', ''),
-          timeframe: configValues.value.timeframe,
           parameters: configValues.value,
-          capital: configValues.value.investment
+          initial_capital: configValues.value.investment
         })
         
         MessagePlugin.success('策略已成功启动！可在「我的」页面查看运行状态。')

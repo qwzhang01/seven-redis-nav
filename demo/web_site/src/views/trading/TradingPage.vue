@@ -413,7 +413,7 @@ async function loadAccountInfo() {
       exchange_id: 'binance'
     })
     accountInfo.value = account
-    accountBalance.value = account.balance.toLocaleString('en-US', {
+    accountBalance.value = account.total_balance.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
@@ -482,15 +482,15 @@ async function loadMarketData() {
       maximumFractionDigits: 2
     })
     priceChange.value = `${ticker.price_change_percent >= 0 ? '+' : ''}${ticker.price_change_percent.toFixed(2)}%`
-    high24h.value = ticker.high_24h.toLocaleString('en-US', {
+    high24h.value = ticker.high_price.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
-    low24h.value = ticker.low_24h.toLocaleString('en-US', {
+    low24h.value = ticker.low_price.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
-    volume24h.value = `${ticker.volume_24h.toLocaleString('en-US')} BTC`
+    volume24h.value = `${ticker.volume.toLocaleString('en-US')} BTC`
     tradePrice.value = ticker.last_price.toFixed(2)
   } catch (error) {
     console.error('加载市场数据失败:', error)
@@ -596,10 +596,7 @@ async function placeOrder() {
 
 async function cancelOrder(orderId: string) {
   try {
-    await tradingApi.cancelOrder({
-      exchange_id: 'binance',
-      order_id: orderId
-    })
+    await tradingApi.cancelOrder(orderId)
     MessagePlugin.success('订单已撤销')
     await loadOrders()
     await loadHistoryOrders()
