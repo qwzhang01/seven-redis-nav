@@ -15,13 +15,13 @@ import logging
 from collections import defaultdict, deque
 from typing import Deque
 
-import jwt
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from quant_trading_system.config import settings
+from quant_trading_system.core.jwt_utils import JWTUtils
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +193,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
     - 校验通过后将 username 写入 request.state.username
     """
 
-    # JWT 配置与 user.py 保持一致
-    ALGORITHM = "HS256"
-
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
@@ -221,13 +218,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
         token = authorization[len("Bearer "):]
-        secret_key = getattr(settings, "JWT_SECRET_KEY", "your-secret-key-change-in-production")
 
         try:
-            payload = jwt.decode(token, secret_key, algorithms=[self.ALGORITHM])
+            jwt_utils = JWTUtils()
+            payload = jwt_utils.verify_token(token)
             username: str = payload.get("sub")
             if not username:
-                raise jwt.InvalidTokenError("sub 字段缺失")
+                raise ValueError("sub 字段缺失")
             request.state.username = username
         except jwt.ExpiredSignatureError:
             return JSONResponse(

@@ -17,10 +17,10 @@
 import logging
 from datetime import datetime
 
-import jwt
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from .manager import ws_manager
+from quant_trading_system.core.jwt_utils import JWTUtils
 
 logger = logging.getLogger(__name__)
 
@@ -49,18 +49,14 @@ async def trading_websocket(
     # 验证 token
     user_id = None
     try:
-        from quant_trading_system.config import settings
-        secret_key = getattr(settings, "JWT_SECRET_KEY", "your-secret-key-change-in-production")
-        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        jwt_utils = JWTUtils()
+        payload = jwt_utils.verify_token(token)
         user_id = payload.get("user_id") or payload.get("sub")
         if not user_id:
             await ws.close(code=4001, reason="无效的 Token")
             return
-    except jwt.ExpiredSignatureError:
-        await ws.close(code=4001, reason="Token 已过期")
-        return
-    except jwt.PyJWTError:
-        await ws.close(code=4001, reason="无效的 Token")
+    except Exception as e:
+        await ws.close(code=4001, reason=str(e))
         return
 
     await ws_manager.connect(ws, user_id=user_id)

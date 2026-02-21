@@ -21,10 +21,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-import jwt
 
 from quant_trading_system.models.database import SignalRecord, SignalSubscription, User
 from quant_trading_system.services.database.database import get_db
@@ -34,31 +33,17 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
-# JWT 配置
-SECRET_KEY = "your-secret-key-change-in-production"
-ALGORITHM = "HS256"
 
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """从拦截器验证后的request.state中获取当前用户"""
+    username = getattr(request.state, 'username', None)
+    if not username:
+        raise HTTPException(status_code=401, detail="未认证的用户")
 
-def _require_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
-    """从 JWT Token 中获取当前用户（必须认证）"""
-    if not credentials:
-        raise HTTPException(status_code=401, detail="未提供认证凭据")
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(status_code=401, detail="无效的认证凭据")
-        user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="用户不存在")
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="令牌已过期")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="无效的认证凭据")
+    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在或已被禁用")
+    return user
 
 
 def _signal_to_dict(s: SignalRecord) -> dict:
@@ -139,7 +124,7 @@ async def list_public_signals(
 
 @router.get("/subscriptions")
 async def get_my_subscriptions(
-    current_user: User = Depends(_require_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -237,7 +222,7 @@ class SubscribeSignalRequest(BaseModel):
 @router.post("/subscribe")
 async def subscribe_signal(
     request: SubscribeSignalRequest,
-    current_user: User = Depends(_require_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -303,7 +288,7 @@ async def subscribe_signal(
 @router.delete("/subscriptions/{subscription_id}")
 async def cancel_subscription(
     subscription_id: int,
-    current_user: User = Depends(_require_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """

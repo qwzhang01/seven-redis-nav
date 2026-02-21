@@ -18,6 +18,7 @@ from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from .manager import ws_manager
+from quant_trading_system.core.jwt_utils import JWTUtils
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,8 @@ async def strategy_websocket(
     user_id = None
     if token:
         try:
-            import jwt
-            from quant_trading_system.config import settings
-            secret_key = getattr(settings, "JWT_SECRET_KEY", "your-secret-key-change-in-production")
-            payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+            jwt_utils = JWTUtils()
+            payload = jwt_utils.verify_token(token)
             user_id = payload.get("user_id") or payload.get("sub")
         except Exception:
             pass

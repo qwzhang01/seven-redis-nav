@@ -1,5 +1,4 @@
 import bcrypt
-import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
@@ -12,6 +11,7 @@ from quant_trading_system.models.user import (
 )
 from quant_trading_system.models.database import User, Exchange, UserExchangeAPI
 from quant_trading_system.services.database.database import get_db as get_db_session
+from quant_trading_system.core.jwt_utils import JWTUtils
 
 
 class UserService:
@@ -19,9 +19,7 @@ class UserService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.jwt_secret = "your-secret-key-change-in-production"
-        self.jwt_algorithm = "HS256"
-        self.jwt_expire_minutes = 30
+        self.jwt_utils = JWTUtils()
 
     def hash_password(self, password: str) -> str:
         """密码哈希处理"""
@@ -38,31 +36,11 @@ class UserService:
 
     def create_jwt_token(self, user_id: int, username: str, user_type: UserType) -> str:
         """创建JWT令牌"""
-        payload = {
-            "user_id": user_id,
-            "username": username,
-            "user_type": user_type.value,
-            "exp": datetime.utcnow() + timedelta(minutes=self.jwt_expire_minutes),
-            "iat": datetime.utcnow()
-        }
-        token = jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
-        return token
+        return self.jwt_utils.create_user_token(user_id, username, user_type.value)
 
     def verify_jwt_token(self, token: str) -> Dict[str, Any]:
         """验证JWT令牌"""
-        try:
-            payload = jwt.decode(token, self.jwt_secret, algorithms=[self.jwt_algorithm])
-            return payload
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token已过期"
-            )
-        except jwt.InvalidTokenError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的Token"
-            )
+        return self.jwt_utils.verify_user_token(token)
 
     def register_user(self, user_data: UserCreate) -> UserResponse:
         """用户注册"""
@@ -101,6 +79,7 @@ class UserService:
             status=UserStatus.ACTIVE.value,
             create_by="system",
             create_time=datetime.utcnow(),
+            update_time=datetime.utcnow(),
             enable_flag=True
         )
 
@@ -150,7 +129,7 @@ class UserService:
         return LoginResponse(
             access_token=token,
             token_type="bearer",
-            expires_in=self.jwt_expire_minutes * 60,
+            expires_in=self.jwt_utils.expire_minutes * 60,
             user=self._user_to_response(user)
         )
 
