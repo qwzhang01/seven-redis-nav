@@ -244,6 +244,7 @@
     <t-dialog
       v-model:visible="showAddDialog"
       :header="currentEditId ? '编辑订阅' : '新增订阅'"
+      :dialogStyle="{'background-color': 'rgb(8 10 15)'}"
       width="600px"
       :footer="false"
       @close="resetAddDialog"
@@ -306,6 +307,7 @@
       v-model:visible="showSyncDialog"
       header="手动同步数据"
       width="500px"
+      :dialogStyle="{'background-color': 'rgb(8 10 15)'}"
       :footer="false"
     >
       <div class="space-y-4 py-4">
@@ -337,6 +339,7 @@
       v-model:visible="showHistorySyncDialog"
       header="历史数据同步"
       width="600px"
+      :dialogStyle="{'background-color': 'rgb(8 10 15)'}"
       :footer="false"
     >
       <div class="space-y-4 py-4">
