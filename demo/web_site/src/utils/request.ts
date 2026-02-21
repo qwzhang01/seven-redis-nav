@@ -152,32 +152,32 @@ async function getMockData<T>(url: string): Promise<T | null> {
   try {
     // 动态导入mockData模块
     const mockModule = await import('./mockData')
-    const mockData = mockModule.default || mockModule
+    const mockData = mockModule
     
     // 根据URL匹配mock数据
     if (url.includes('/strategy/list') || url.includes('/strategies')) {
-      return mockData.mockStrategies as T
+      return mockData.strategies as T
     }
     if (url.includes('/signal/list') || url.includes('/signals')) {
-      return mockData.mockSignals as T
+      return mockData.signals as T
     }
     if (url.includes('/leaderboard')) {
-      return mockData.mockLeaderboard as T
+      return null // mockLeaderboard 未定义
     }
     if (url.includes('/backtest')) {
-      return mockData.mockBacktestResults as T
+      return null // mockBacktestResults 未定义
     }
     if (url.includes('/market/kline')) {
-      return mockData.mockKlineData as T
+      return null // mockKlineData 未定义
     }
     if (url.includes('/trading/orders')) {
-      return mockData.mockOrders as T
+      return null // mockOrders 未定义
     }
     if (url.includes('/trading/positions')) {
-      return mockData.mockPositions as T
+      return null // mockPositions 未定义
     }
     if (url.includes('/stats/overview')) {
-      return mockData.mockSystemOverview as T
+      return null // mockSystemOverview 未定义
     }
     
     return null

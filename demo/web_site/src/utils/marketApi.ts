@@ -3,7 +3,7 @@
  * 对接量化交易系统的市场数据接口
  */
 
-import { get } from './request'
+import { get, post, put, del } from './request'
 
 // ==================== 类型定义 ====================
 
