@@ -585,13 +585,19 @@ const stats = computed(() => {
 
 // 过滤列表
 const filteredList = computed(() => {
-  return subscriptions.value.filter((s) => {
+  console.log('Computing filteredList, subscriptions:', subscriptions.value)
+  console.log('Filters:', { search: search.value, filterStatus: filterStatus.value, filterExchange: filterExchange.value, filterDataType: filterDataType.value })
+  
+  const result = subscriptions.value.filter((s) => {
     if (search.value && !s.name.toLowerCase().includes(search.value.toLowerCase())) return false
     if (filterStatus.value && s.status !== filterStatus.value) return false
     if (filterExchange.value && s.exchange !== filterExchange.value) return false
     if (filterDataType.value && s.dataType !== filterDataType.value) return false
     return true
   })
+  
+  console.log('Filtered result:', result)
+  return result
 })
 
 // 工具函数
@@ -671,11 +677,6 @@ onMounted(() => {
   loadSyncTasks()
 })
 
-// 监听筛选条件变化
-watch([search, filterStatus, filterExchange, filterDataType], () => {
-  loadSubscriptions()
-}, {deep: true})
-
 // 加载订阅列表
 async function loadSubscriptions() {
   try {
@@ -684,30 +685,30 @@ async function loadSubscriptions() {
       page: 1,
       page_size: 100
     }
-    if (filterStatus.value) params.status = filterStatus.value
-    if (filterExchange.value) params.exchange = filterExchange.value
-    if (filterDataType.value) params.data_type = filterDataType.value
-    if (search.value) params.search = search.value
 
     const response = await marketApi.getSubscriptions(params)
-    if (response.success && response.data) {
+    if (response) {
       // 转换API数据格式到前端数据格式
-      subscriptions.value = response.data.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        exchange: item.exchange,
-        dataType: item.data_type,
-        symbols: item.symbols,
-        interval: item.interval,
-        status: item.status,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-        lastSyncTime: item.last_sync_time,
-        totalRecords: item.total_records,
-        errorCount: item.error_count,
-        lastError: item.last_error,
-        config: item.config
-      }))
+      subscriptions.value = response.items.map(item => {
+        console.log('Mapping item:', item)
+        return {
+          id: item.id,
+          name: item.name,
+          exchange: item.exchange,
+          dataType: item.data_type,
+          symbols: item.symbols,
+          interval: item.interval,
+          status: item.status,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at,
+          lastSyncTime: item.last_sync_time,
+          totalRecords: item.total_records,
+          errorCount: item.error_count,
+          lastError: item.last_error,
+          config: item.config
+        }
+      })
+      console.log('Mapped subscriptions:', subscriptions.value)
     }
   } catch (error: any) {
     console.error('加载订阅列表失败:', error)
@@ -832,27 +833,24 @@ function editSubscription(sub: DataSubscription) {
 }
 
 async function deleteSubscription(id: string) {
-  const confirmDialog = await DialogPlugin.confirm({
+  const confirmDialog = DialogPlugin.confirm({
     header: '确认删除',
     body: '确定要删除这个订阅吗？删除后将无法恢复。',
     confirmBtn: '确定',
-    cancelBtn: '取消'
-  })
-
-  confirmDialog.then(async () => {
-    try {
-      const response = await marketApi.deleteSubscription(id)
-      if (response.success) {
-        MessagePlugin.success(response.message || '订阅已删除')
-        await loadSubscriptions()
-        await loadStatistics()
+    cancelBtn: '取消',
+    onConfirm: async () => {
+      try {
+        const response = await marketApi.deleteSubscription(id)
+        if (response.success) {
+          MessagePlugin.success(response.message || '订阅已删除')
+          await loadSubscriptions()
+          await loadStatistics()
+        }
+      } catch (error: any) {
+        console.error('删除订阅失败:', error)
+        MessagePlugin.error(error.message || '删除订阅失败')
       }
-    } catch (error: any) {
-      console.error('删除订阅失败:', error)
-      MessagePlugin.error(error.message || '删除订阅失败')
     }
-  }).catch(() => {
-    // 用户取消删除
   })
 }
 

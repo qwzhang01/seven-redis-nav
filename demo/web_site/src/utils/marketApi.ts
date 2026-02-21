@@ -429,13 +429,10 @@ export interface GetSubscriptionsParams {
 }
 
 export interface GetSubscriptionsResponse {
-  success: boolean
-  data: {
-    items: SubscriptionConfig[]
-    total: number
-    page: number
-    page_size: number
-  }
+  items: SubscriptionConfig[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export function getSubscriptions(params?: GetSubscriptionsParams): Promise<GetSubscriptionsResponse> {
