@@ -243,9 +243,10 @@
     <!-- 新增/编辑订阅对话框 -->
     <t-dialog
       v-model:visible="showAddDialog"
-      header="新增订阅"
+      :header="currentEditId ? '编辑订阅' : '新增订阅'"
       width="600px"
       :footer="false"
+      @close="resetAddDialog"
     >
       <div class="space-y-4 py-4">
         <div>
@@ -403,106 +404,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, Search, Play, Pause, Square, RefreshCw, Pencil, Trash2, Database } from 'lucide-vue-next'
 import type { DataSubscription, SyncTask } from '@/types'
-import { MessagePlugin } from 'tdesign-vue-next'
+import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
+import * as marketApi from '@/utils/marketApi'
 
-// 模拟数据
-const subscriptions = ref<DataSubscription[]>([
-  {
-    id: '1',
-    name: 'Binance BTC/USDT K线',
-    exchange: 'Binance',
-    dataType: 'kline',
-    symbols: ['BTC/USDT', 'ETH/USDT'],
-    interval: '1h',
-    status: 'running',
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-02-19T05:30:00Z',
-    lastSyncTime: '2024-02-19T05:30:00Z',
-    totalRecords: 1250000,
-    errorCount: 3,
-    config: {
-      autoRestart: true,
-      maxRetries: 3,
-      batchSize: 1000,
-      syncInterval: 60
-    }
-  },
-  {
-    id: '2',
-    name: 'OKX 主流币Ticker',
-    exchange: 'OKX',
-    dataType: 'ticker',
-    symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT'],
-    status: 'paused',
-    createdAt: '2024-01-20T14:00:00Z',
-    updatedAt: '2024-02-18T12:00:00Z',
-    lastSyncTime: '2024-02-18T12:00:00Z',
-    totalRecords: 850000,
-    errorCount: 0,
-    config: {
-      autoRestart: false,
-      maxRetries: 5,
-      batchSize: 500,
-      syncInterval: 30
-    }
-  },
-  {
-    id: '3',
-    name: 'Bybit 深度数据',
-    exchange: 'Bybit',
-    dataType: 'depth',
-    symbols: ['BTC/USDT'],
-    status: 'stopped',
-    createdAt: '2024-02-01T08:00:00Z',
-    updatedAt: '2024-02-10T16:00:00Z',
-    lastSyncTime: '2024-02-10T16:00:00Z',
-    totalRecords: 320000,
-    errorCount: 15,
-    config: {
-      autoRestart: true,
-      maxRetries: 3,
-      batchSize: 200,
-      syncInterval: 10
-    }
-  }
-])
-
-const syncTasks = ref<SyncTask[]>([
-  {
-    id: 't1',
-    subscriptionId: '1',
-    subscriptionName: 'Binance BTC/USDT K线',
-    exchange: 'Binance',
-    symbols: ['BTC/USDT'],
-    dataType: 'kline',
-    startTime: '2024-02-01T00:00:00Z',
-    endTime: '2024-02-19T00:00:00Z',
-    status: 'running',
-    progress: 65,
-    totalRecords: 10000,
-    syncedRecords: 6500,
-    createdAt: '2024-02-19T04:00:00Z'
-  },
-  {
-    id: 't2',
-    subscriptionId: '2',
-    subscriptionName: 'OKX 主流币Ticker',
-    exchange: 'OKX',
-    symbols: ['BTC/USDT', 'ETH/USDT'],
-    dataType: 'ticker',
-    startTime: '2024-02-15T00:00:00Z',
-    endTime: '2024-02-18T00:00:00Z',
-    status: 'completed',
-    progress: 100,
-    totalRecords: 5000,
-    syncedRecords: 5000,
-    createdAt: '2024-02-18T10:00:00Z',
-    completedAt: '2024-02-18T12:00:00Z'
-  }
-])
+// 数据状态
+const subscriptions = ref<DataSubscription[]>([])
+const syncTasks = ref<any[]>([])
+const loading = ref(false)
+const currentEditId = ref<string | null>(null)
 
 const search = ref('')
 const filterStatus = ref('')
@@ -540,7 +452,16 @@ const historySyncFormData = ref({
 })
 
 // 统计数据
+const statisticsData = ref<any>(null)
 const stats = computed(() => {
+  if (statisticsData.value) {
+    return {
+      running: statisticsData.value.running_subscriptions || 0,
+      paused: statisticsData.value.paused_subscriptions || 0,
+      stopped: statisticsData.value.stopped_subscriptions || 0,
+      totalRecords: statisticsData.value.total_records || 0
+    }
+  }
   return {
     running: subscriptions.value.filter(s => s.status === 'running').length,
     paused: subscriptions.value.filter(s => s.status === 'paused').length,
@@ -630,31 +551,123 @@ function getTaskStatusClass(status: string): string {
   return classes[status] || 'bg-gray-500/10 text-gray-400'
 }
 
+// 初始化数据
+onMounted(() => {
+  loadSubscriptions()
+  loadStatistics()
+  loadSyncTasks()
+})
+
+// 监听筛选条件变化
+watch([search, filterStatus, filterExchange, filterDataType], () => {
+  loadSubscriptions()
+}, { deep: true })
+
+// 加载订阅列表
+async function loadSubscriptions() {
+  try {
+    loading.value = true
+    const params: marketApi.GetSubscriptionsParams = {
+      page: 1,
+      page_size: 100
+    }
+    if (filterStatus.value) params.status = filterStatus.value
+    if (filterExchange.value) params.exchange = filterExchange.value
+    if (filterDataType.value) params.data_type = filterDataType.value
+    if (search.value) params.search = search.value
+    
+    const response = await marketApi.getSubscriptions(params)
+    if (response.success && response.data) {
+      // 转换API数据格式到前端数据格式
+      subscriptions.value = response.data.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        exchange: item.exchange,
+        dataType: item.data_type,
+        symbols: item.symbols,
+        interval: item.interval,
+        status: item.status,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+        lastSyncTime: item.last_sync_time,
+        totalRecords: item.total_records,
+        errorCount: item.error_count,
+        lastError: item.last_error,
+        config: item.config
+      }))
+    }
+  } catch (error: any) {
+    console.error('加载订阅列表失败:', error)
+    MessagePlugin.error(error.message || '加载订阅列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载统计信息
+async function loadStatistics() {
+  try {
+    const response = await marketApi.getSubscriptionStatistics()
+    if (response.success && response.data) {
+      statisticsData.value = response.data
+    }
+  } catch (error: any) {
+    console.error('加载统计信息失败:', error)
+  }
+}
+
+// 加载同步任务列表
+async function loadSyncTasks() {
+  try {
+    const response = await marketApi.getSyncTasks({ page: 1, page_size: 20 })
+    if (response.success && response.data) {
+      syncTasks.value = response.data.items
+    }
+  } catch (error: any) {
+    console.error('加载同步任务失败:', error)
+  }
+}
+
 // 操作函数
-function startSubscription(id: string) {
-  const sub = subscriptions.value.find(s => s.id === id)
-  if (sub) {
-    sub.status = 'running'
-    sub.updatedAt = new Date().toISOString()
-    MessagePlugin.success('订阅已启动')
+async function startSubscription(id: string) {
+  try {
+    const response = await marketApi.startSubscription(id)
+    if (response.success) {
+      MessagePlugin.success(response.message || '订阅已启动')
+      await loadSubscriptions()
+      await loadStatistics()
+    }
+  } catch (error: any) {
+    console.error('启动订阅失败:', error)
+    MessagePlugin.error(error.message || '启动订阅失败')
   }
 }
 
-function pauseSubscription(id: string) {
-  const sub = subscriptions.value.find(s => s.id === id)
-  if (sub) {
-    sub.status = 'paused'
-    sub.updatedAt = new Date().toISOString()
-    MessagePlugin.success('订阅已暂停')
+async function pauseSubscription(id: string) {
+  try {
+    const response = await marketApi.pauseSubscription(id)
+    if (response.success) {
+      MessagePlugin.success(response.message || '订阅已暂停')
+      await loadSubscriptions()
+      await loadStatistics()
+    }
+  } catch (error: any) {
+    console.error('暂停订阅失败:', error)
+    MessagePlugin.error(error.message || '暂停订阅失败')
   }
 }
 
-function stopSubscription(id: string) {
-  const sub = subscriptions.value.find(s => s.id === id)
-  if (sub) {
-    sub.status = 'stopped'
-    sub.updatedAt = new Date().toISOString()
-    MessagePlugin.success('订阅已停止')
+async function stopSubscription(id: string) {
+  try {
+    const response = await marketApi.stopSubscription(id)
+    if (response.success) {
+      MessagePlugin.success(response.message || '订阅已停止')
+      await loadSubscriptions()
+      await loadStatistics()
+    }
+  } catch (error: any) {
+    console.error('停止订阅失败:', error)
+    MessagePlugin.error(error.message || '停止订阅失败')
   }
 }
 
@@ -668,40 +681,32 @@ function openSyncDialog(sub: DataSubscription) {
   showSyncDialog.value = true
 }
 
-function startManualSync() {
+async function startManualSync() {
   if (!syncFormData.value.startTime || !syncFormData.value.endTime) {
     MessagePlugin.warning('请选择时间范围')
     return
   }
   
-  const newTask: SyncTask = {
-    id: 't' + Date.now(),
-    subscriptionId: syncFormData.value.subscriptionId,
-    subscriptionName: syncFormData.value.subscriptionName,
-    exchange: subscriptions.value.find(s => s.id === syncFormData.value.subscriptionId)?.exchange || '',
-    symbols: subscriptions.value.find(s => s.id === syncFormData.value.subscriptionId)?.symbols || [],
-    dataType: subscriptions.value.find(s => s.id === syncFormData.value.subscriptionId)?.dataType || '',
-    startTime: syncFormData.value.startTime,
-    endTime: syncFormData.value.endTime,
-    status: 'pending',
-    progress: 0,
-    totalRecords: 0,
-    syncedRecords: 0,
-    createdAt: new Date().toISOString()
+  try {
+    const response = await marketApi.createSyncTask({
+      subscription_id: syncFormData.value.subscriptionId,
+      start_time: syncFormData.value.startTime,
+      end_time: syncFormData.value.endTime
+    })
+    
+    if (response.success) {
+      MessagePlugin.success(response.message || '同步任务已创建')
+      showSyncDialog.value = false
+      await loadSyncTasks()
+    }
+  } catch (error: any) {
+    console.error('创建同步任务失败:', error)
+    MessagePlugin.error(error.message || '创建同步任务失败')
   }
-  
-  syncTasks.value.unshift(newTask)
-  showSyncDialog.value = false
-  MessagePlugin.success('同步任务已创建')
-  
-  // 模拟任务执行
-  setTimeout(() => {
-    newTask.status = 'running'
-    newTask.totalRecords = 1000
-  }, 1000)
 }
 
 function editSubscription(sub: DataSubscription) {
+  currentEditId.value = sub.id
   formData.value = {
     name: sub.name,
     exchange: sub.exchange,
@@ -713,45 +718,111 @@ function editSubscription(sub: DataSubscription) {
   showAddDialog.value = true
 }
 
-function deleteSubscription(id: string) {
-  const index = subscriptions.value.findIndex(s => s.id === id)
-  if (index > -1) {
-    subscriptions.value.splice(index, 1)
-    MessagePlugin.success('订阅已删除')
-  }
+async function deleteSubscription(id: string) {
+  const confirmDialog = await DialogPlugin.confirm({
+    header: '确认删除',
+    body: '确定要删除这个订阅吗？删除后将无法恢复。',
+    confirmBtn: '确定',
+    cancelBtn: '取消'
+  })
+  
+  confirmDialog.then(async () => {
+    try {
+      const response = await marketApi.deleteSubscription(id)
+      if (response.success) {
+        MessagePlugin.success(response.message || '订阅已删除')
+        await loadSubscriptions()
+        await loadStatistics()
+      }
+    } catch (error: any) {
+      console.error('删除订阅失败:', error)
+      MessagePlugin.error(error.message || '删除订阅失败')
+    }
+  }).catch(() => {
+    // 用户取消删除
+  })
 }
 
-function saveSubscription() {
+async function saveSubscription() {
   if (!formData.value.name || !formData.value.exchange || !formData.value.dataType || !formData.value.symbols) {
     MessagePlugin.warning('请填写完整信息')
     return
   }
   
-  const newSub: DataSubscription = {
-    id: Date.now().toString(),
-    name: formData.value.name,
-    exchange: formData.value.exchange,
-    dataType: formData.value.dataType as any,
-    symbols: formData.value.symbols.split(',').map(s => s.trim()),
-    interval: formData.value.interval,
-    status: 'stopped',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    totalRecords: 0,
-    errorCount: 0,
-    config: {
-      autoRestart: formData.value.autoRestart,
-      maxRetries: 3,
-      batchSize: 1000,
-      syncInterval: 60
-    }
+  if (formData.value.dataType === 'kline' && !formData.value.interval) {
+    MessagePlugin.warning('K线数据类型需要选择周期')
+    return
   }
   
-  subscriptions.value.unshift(newSub)
-  showAddDialog.value = false
-  MessagePlugin.success('订阅已创建')
-  
-  // 重置表单
+  try {
+    const symbols = formData.value.symbols.split(',').map(s => s.trim())
+    
+    if (currentEditId.value) {
+      // 更新订阅
+      const response = await marketApi.updateSubscription(currentEditId.value, {
+        name: formData.value.name,
+        symbols: symbols,
+        interval: formData.value.interval || undefined,
+        config: {
+          auto_restart: formData.value.autoRestart,
+          max_retries: 3,
+          batch_size: 1000,
+          sync_interval: 60
+        }
+      })
+      
+      if (response.success) {
+        MessagePlugin.success(response.message || '订阅已更新')
+        showAddDialog.value = false
+        currentEditId.value = null
+        await loadSubscriptions()
+      }
+    } else {
+      // 创建订阅
+      const response = await marketApi.createSubscription({
+        name: formData.value.name,
+        exchange: formData.value.exchange,
+        data_type: formData.value.dataType,
+        symbols: symbols,
+        interval: formData.value.interval || undefined,
+        config: {
+          auto_restart: formData.value.autoRestart,
+          max_retries: 3,
+          batch_size: 1000,
+          sync_interval: 60
+        }
+      })
+      
+      if (response.success) {
+        MessagePlugin.success(response.message || '订阅已创建')
+        showAddDialog.value = false
+        await loadSubscriptions()
+        await loadStatistics()
+      }
+    }
+    
+    // 重置表单
+    formData.value = {
+      name: '',
+      exchange: '',
+      dataType: '',
+      symbols: '',
+      interval: '',
+      autoRestart: true
+    }
+  } catch (error: any) {
+    console.error('保存订阅失败:', error)
+    MessagePlugin.error(error.message || '保存订阅失败')
+  }
+}
+
+async function refreshTasks() {
+  await loadSyncTasks()
+  MessagePlugin.success('任务列表已刷新')
+}
+
+function resetAddDialog() {
+  currentEditId.value = null
   formData.value = {
     name: '',
     exchange: '',
@@ -762,11 +833,7 @@ function saveSubscription() {
   }
 }
 
-function refreshTasks() {
-  MessagePlugin.success('任务列表已刷新')
-}
-
-function startHistorySync() {
+async function startHistorySync() {
   if (!historySyncFormData.value.name || !historySyncFormData.value.exchange || 
       !historySyncFormData.value.dataType || !historySyncFormData.value.symbols ||
       !historySyncFormData.value.startTime || !historySyncFormData.value.endTime) {
@@ -779,57 +846,40 @@ function startHistorySync() {
     return
   }
   
-  // 创建历史数据同步任务
-  const newTask: SyncTask = {
-    id: 'h' + Date.now(),
-    subscriptionId: 'history',
-    subscriptionName: historySyncFormData.value.name,
-    exchange: historySyncFormData.value.exchange,
-    symbols: historySyncFormData.value.symbols.split(',').map(s => s.trim()),
-    dataType: historySyncFormData.value.dataType,
-    startTime: historySyncFormData.value.startTime,
-    endTime: historySyncFormData.value.endTime,
-    status: 'pending',
-    progress: 0,
-    totalRecords: 0,
-    syncedRecords: 0,
-    createdAt: new Date().toISOString()
-  }
-  
-  syncTasks.value.unshift(newTask)
-  showHistorySyncDialog.value = false
-  MessagePlugin.success('历史数据同步任务已创建')
-  
-  // 模拟调用RESTful API进行历史数据同步
-  setTimeout(() => {
-    newTask.status = 'running'
-    newTask.totalRecords = Math.floor(Math.random() * 50000) + 10000
+  try {
+    const symbols = historySyncFormData.value.symbols.split(',').map(s => s.trim())
     
-    // 模拟同步进度
-    const progressInterval = setInterval(() => {
-      if (newTask.progress < 100) {
-        newTask.progress += Math.floor(Math.random() * 10) + 5
-        if (newTask.progress > 100) newTask.progress = 100
-        newTask.syncedRecords = Math.floor((newTask.progress / 100) * newTask.totalRecords)
-      } else {
-        newTask.status = 'completed'
-        newTask.completedAt = new Date().toISOString()
-        clearInterval(progressInterval)
-        MessagePlugin.success(`历史数据同步任务 "${newTask.subscriptionName}" 已完成`)
-      }
-    }, 1500)
-  }, 1000)
-  
-  // 重置表单
-  historySyncFormData.value = {
-    name: '',
-    exchange: '',
-    dataType: '',
-    symbols: '',
-    interval: '',
-    startTime: '',
-    endTime: '',
-    batchSize: 1000
+    const response = await marketApi.createHistoricalSync({
+      name: historySyncFormData.value.name,
+      exchange: historySyncFormData.value.exchange,
+      data_type: historySyncFormData.value.dataType,
+      symbols: symbols,
+      interval: historySyncFormData.value.interval || undefined,
+      start_time: historySyncFormData.value.startTime,
+      end_time: historySyncFormData.value.endTime,
+      batch_size: historySyncFormData.value.batchSize || 1000
+    })
+    
+    if (response.success) {
+      MessagePlugin.success(response.message || '历史数据同步任务已创建')
+      showHistorySyncDialog.value = false
+      await loadSyncTasks()
+    }
+    
+    // 重置表单
+    historySyncFormData.value = {
+      name: '',
+      exchange: '',
+      dataType: '',
+      symbols: '',
+      interval: '',
+      startTime: '',
+      endTime: '',
+      batchSize: 1000
+    }
+  } catch (error: any) {
+    console.error('创建历史同步任务失败:', error)
+    MessagePlugin.error(error.message || '创建历史同步任务失败')
   }
 }
 </script>

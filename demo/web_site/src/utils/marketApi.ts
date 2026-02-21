@@ -589,6 +589,88 @@ export function cancelSyncTask(taskId: string): Promise<{ success: boolean; mess
   return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/sync-tasks/${taskId}/cancel`)
 }
 
+// ==================== Admin端历史数据同步接口 ====================
+
+/**
+ * 历史同步任务
+ */
+export interface HistoricalSyncTask {
+  id: string
+  name: string
+  exchange: string
+  data_type: string
+  symbols: string[]
+  interval?: string
+  start_time: string
+  end_time: string
+  batch_size: number
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  progress: number
+  total_records: number
+  synced_records: number
+  error_message?: string
+  created_at: string
+  updated_at: string
+  completed_at?: string
+}
+
+/**
+ * 创建历史数据同步任务
+ */
+export interface CreateHistoricalSyncRequest {
+  name: string
+  exchange: string
+  data_type: string
+  symbols: string[]
+  interval?: string
+  start_time: string
+  end_time: string
+  batch_size?: number
+}
+
+export function createHistoricalSync(data: CreateHistoricalSyncRequest): Promise<{ success: boolean; message: string; data: HistoricalSyncTask }> {
+  return post<{ success: boolean; message: string; data: HistoricalSyncTask }>('/api/v1/m/market/historical-sync', data)
+}
+
+/**
+ * 获取历史同步任务列表
+ */
+export interface GetHistoricalSyncParams {
+  exchange?: string
+  data_type?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+export interface GetHistoricalSyncResponse {
+  success: boolean
+  data: {
+    items: HistoricalSyncTask[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export function getHistoricalSyncTasks(params?: GetHistoricalSyncParams): Promise<GetHistoricalSyncResponse> {
+  return get<GetHistoricalSyncResponse>('/api/v1/m/market/historical-sync', params)
+}
+
+/**
+ * 获取历史同步任务详情
+ */
+export function getHistoricalSyncDetail(taskId: string): Promise<{ success: boolean; data: HistoricalSyncTask }> {
+  return get<{ success: boolean; data: HistoricalSyncTask }>(`/api/v1/m/market/historical-sync/${taskId}`)
+}
+
+/**
+ * 取消历史同步任务
+ */
+export function cancelHistoricalSync(taskId: string): Promise<{ success: boolean; message: string; data: any }> {
+  return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/historical-sync/${taskId}/cancel`)
+}
+
 // ==================== WebSocket相关 ====================
 
 /**
@@ -698,6 +780,11 @@ export default {
   getSyncTasks,
   getSyncTaskDetail,
   cancelSyncTask,
+  // Admin端历史数据同步接口
+  createHistoricalSync,
+  getHistoricalSyncTasks,
+  getHistoricalSyncDetail,
+  cancelHistoricalSync,
   // WebSocket相关
   createWebSocket,
   subscribeWebSocket,
