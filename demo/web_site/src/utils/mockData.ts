@@ -1,4 +1,4 @@
-import type { Strategy, Signal, Position } from '@/types'
+import type { Strategy, UISignal, Position } from '@/types'
 
 const marketTypes = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT']
 const strategyTypes = ['网格交易', '趋势跟踪', '均值回归', '动量突破', '套利策略', '马丁格尔', 'DCA定投', '波段交易']
@@ -97,7 +97,7 @@ export function generateStrategies(count = 12): Strategy[] {
   })
 }
 
-export function generateSignals(count = 20): Signal[] {
+export function generateSignals(count = 20): UISignal[] {
   return Array.from({ length: count }, (_, i) => {
     const risk = randomPick(riskLevels)
     const cumulativeReturn = risk === 'high' ? randomFloat(-20, 200) : risk === 'medium' ? randomFloat(-10, 80) : risk === 'low' ? randomFloat(0, 30) : 0

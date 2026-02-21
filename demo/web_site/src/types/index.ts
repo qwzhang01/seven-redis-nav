@@ -5,6 +5,9 @@ export * from './api/strategy'
 export * from './api/signal'
 export * from './common'
 
+// 导入需要在UI层使用的API类型
+import type { SubscriptionConfig } from './api/market'
+
 // ==================== UI层类型定义 ====================
 
 /**
@@ -112,6 +115,11 @@ export interface UISignal {
     maxConsecutiveLosses: number
   }
 }
+
+/**
+ * UI层持仓类型
+ */
+export interface Position {
   symbol: string
   side: 'long' | 'short'
   amount: number
@@ -165,4 +173,16 @@ export interface UIApiKey {
   userName: string
 }
 
-// DataSubscription 和 SyncTask 已在 api/market.ts 中定义，直接使用 SubscriptionConfig 和 SyncTask
+/**
+ * API密钥类型别名（向后兼容）
+ */
+export type ApiKey = UIApiKey
+
+// ==================== 数据订阅类型别名 ====================
+
+/**
+ * UI层数据订阅类型（映射到API的SubscriptionConfig）
+ */
+export type DataSubscription = SubscriptionConfig
+
+// SyncTask 已在 api/market.ts 中定义，直接使用

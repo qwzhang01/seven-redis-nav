@@ -25,9 +25,9 @@ function transformUserProfile(profile: UserProfile): UserInfo {
     id: profile.id,
     username: profile.username,
     email: profile.email,
-    avatar: profile.avatar_url,
+    avatar: profile.avatar_url || '',
     role: profile.user_type === 'admin' ? 'admin' : 'user',
-    createdAt: profile.create_time,
+    createdAt: profile.create_time || profile.registration_time,
   }
 }
 

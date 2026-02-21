@@ -292,7 +292,7 @@ import {
   Users, User, UserCheck, UserPlus, UserX, Search, Eye, Edit, 
   Lock, Unlock, Shield, X, Activity 
 } from 'lucide-vue-next'
-import type { UserProfile } from '@/utils/userApi'
+import type { UserProfile, UserResponse } from '@/utils/userApi'
 
 const searchQuery = ref('')
 const statusFilter = ref('')
@@ -388,13 +388,13 @@ const users = ref<UserProfile[]>([
 // Statistics
 const statistics = computed(() => {
   const total = users.value.length
-  const active = users.value.filter(u => u.status === 'active').length
-  const locked = users.value.filter(u => u.status === 'locked').length
+  const active = users.value.filter((u: UserResponse) => u.status === 'active').length
+  const locked = users.value.filter((u: UserResponse) => u.status === 'locked').length
   
   // Calculate new users today
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const newToday = users.value.filter(u => {
+  const newToday = users.value.filter((u: UserResponse) => {
     const regDate = new Date(u.registration_time)
     regDate.setHours(0, 0, 0, 0)
     return regDate.getTime() === today.getTime()
@@ -405,7 +405,7 @@ const statistics = computed(() => {
 
 // Filtered users
 const filteredUsers = computed(() => {
-  return users.value.filter(user => {
+  return users.value.filter((user: UserResponse) => {
     // Search filter
     if (searchQuery.value) {
       const query = searchQuery.value.toLowerCase()
@@ -430,7 +430,7 @@ const filteredUsers = computed(() => {
   })
 })
 
-const getStatusClass = (status: string) => {
+const getStatusClass = (status?: string) => {
   switch (status) {
     case 'active': return 'bg-emerald-500/20 text-emerald-400'
     case 'inactive': return 'bg-amber-500/20 text-amber-400'
@@ -439,7 +439,7 @@ const getStatusClass = (status: string) => {
   }
 }
 
-const getStatusDotClass = (status: string) => {
+const getStatusDotClass = (status?: string) => {
   switch (status) {
     case 'active': return 'bg-emerald-400'
     case 'inactive': return 'bg-amber-400'
@@ -448,12 +448,12 @@ const getStatusDotClass = (status: string) => {
   }
 }
 
-const getStatusText = (status: string) => {
+const getStatusText = (status?: string) => {
   switch (status) {
     case 'active': return '活跃'
     case 'inactive': return '未激活'
     case 'locked': return '已锁定'
-    default: return status
+    default: return status || '未知'
   }
 }
 
@@ -486,7 +486,7 @@ const editUser = (user: UserProfile) => {
 
 const toggleUserStatus = (user: UserProfile, newStatus: 'active' | 'locked') => {
   // TODO: 调用API更新用户状态
-  const index = users.value.findIndex(u => u.id === user.id)
+  const index = users.value.findIndex((u: UserResponse) => u.id === user.id)
   if (index !== -1) {
     users.value[index].status = newStatus
   }

@@ -207,13 +207,6 @@ export function getUserStrategies(params?: UserStrategyListParams): Promise<User
 /**
  * 创建实盘策略
  */
-export interface CreateUserStrategyRequest {
-  name: string
-  strategy_type: string
-  symbols: string[]
-  params?: Record<string, any>
-}
-
 export interface CreateUserStrategyResponse {
   success: boolean
   strategy_id: string
@@ -227,13 +220,6 @@ export function createUserStrategy(data: CreateUserStrategyRequest): Promise<Cre
 /**
  * 创建模拟交易策略
  */
-export interface CreateSimulateStrategyRequest {
-  strategy_type: string
-  symbols: string[]
-  params?: Record<string, any>
-  initial_capital?: number
-}
-
 export interface CreateSimulateStrategyResponse {
   success: boolean
   strategy_id: string

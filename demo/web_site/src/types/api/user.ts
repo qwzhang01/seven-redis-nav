@@ -45,6 +45,14 @@ export interface UserResponse {
   phone?: string | null
   user_type: 'customer' | 'admin'
   registration_time: string
+  // 扩展字段（用于前端展示）
+  avatar_url?: string
+  status?: 'active' | 'inactive' | 'locked'
+  email_verified?: boolean
+  phone_verified?: boolean
+  last_login_time?: string
+  create_time?: string
+  update_time?: string
 }
 
 /**

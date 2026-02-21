@@ -27,6 +27,20 @@ import type {
   UpdateUserStatusRequest,
 } from '../types'
 
+// ==================== 类型别名 ====================
+
+/**
+ * UserProfile 类型别名（向后兼容）
+ */
+export type UserProfile = UserResponse
+
+// ==================== 导出类型 ====================
+export type {
+  RegisterRequest,
+  LoginRequest,
+  UserResponse,
+}
+
 // ==================== API方法 ====================
 
 /**

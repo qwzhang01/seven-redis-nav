@@ -121,10 +121,28 @@ async def lifespan(app: FastAPI):
         print(f"❌ 编排器初始化失败: {e}")
         raise
 
+    # 启动订阅监听器
+    try:
+        from quant_trading_system.services.market.subscription_monitor import init_subscription_monitor
+        await init_subscription_monitor()
+        print("✅ 订阅监听器启动完成")
+    except Exception as e:
+        print(f"❌ 订阅监听器启动失败: {e}")
+        raise
+
     yield
 
     # 关闭时执行
     print("🛑 停止量化交易系统...")
+
+    # 关闭订阅监听器
+    try:
+        from quant_trading_system.services.market.subscription_monitor import close_subscription_monitor
+        await close_subscription_monitor()
+        print("✅ 订阅监听器已停止")
+    except Exception as e:
+        print(f"❌ 订阅监听器停止失败: {e}")
+
     orch = get_orchestrator()
     if orch is not None:
         await orch.stop()

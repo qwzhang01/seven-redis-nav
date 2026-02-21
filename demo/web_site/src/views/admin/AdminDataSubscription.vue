@@ -151,8 +151,8 @@
             <td class="py-3.5 px-5 text-dark-100">{{ sub.exchange }}</td>
             <td class="py-3.5 px-5">
                 <span class="px-2 py-1 rounded text-xs font-medium"
-                      :class="getDataTypeClass(sub.dataType)">
-                  {{ getDataTypeLabel(sub.dataType) }}
+                      :class="getDataTypeClass(sub.data_type)">
+                  {{ getDataTypeLabel(sub.data_type) }}
                 </span>
             </td>
             <td class="py-3.5 px-5 text-dark-100">
@@ -169,14 +169,14 @@
             </td>
             <td class="py-3.5 px-5 text-dark-100">{{ sub.interval || '-' }}</td>
             <td class="py-3.5 px-5 text-right text-white font-medium">
-              {{ formatNumber(sub.totalRecords) }}
+              {{ formatNumber(sub.total_records) }}
             </td>
             <td class="py-3.5 px-5 text-right"
-                :class="sub.errorCount > 0 ? 'text-red-400' : 'text-dark-100'">
-              {{ sub.errorCount }}
+                :class="sub.error_count > 0 ? 'text-red-400' : 'text-dark-100'">
+              {{ sub.error_count }}
             </td>
             <td class="py-3.5 px-5 text-dark-100 text-xs">
-              {{ formatTime(sub.lastSyncTime) }}
+              {{ formatTime(sub.last_sync_time) }}
             </td>
             <td class="py-3.5 px-5 text-center">
                 <span class="px-2 py-1 rounded text-xs font-medium"
@@ -519,7 +519,7 @@ import {
   Trash2,
   Database
 } from 'lucide-vue-next'
-import type {DataSubscription, SyncTask} from '@/types'
+import type {DataSubscription, SyncTask, SubscriptionConfig} from '@/types'
 import {MessagePlugin, DialogPlugin} from 'tdesign-vue-next'
 import * as marketApi from '@/utils/marketApi'
 
@@ -576,10 +576,10 @@ const stats = computed(() => {
     }
   }
   return {
-    running: subscriptions.value.filter(s => s.status === 'running').length,
-    paused: subscriptions.value.filter(s => s.status === 'paused').length,
-    stopped: subscriptions.value.filter(s => s.status === 'stopped').length,
-    totalRecords: subscriptions.value.reduce((sum, s) => sum + s.totalRecords, 0)
+    running: subscriptions.value.filter((s: SubscriptionConfig) => s.status === 'running').length,
+    paused: subscriptions.value.filter((s: SubscriptionConfig) => s.status === 'paused').length,
+    stopped: subscriptions.value.filter((s: SubscriptionConfig) => s.status === 'stopped').length,
+    totalRecords: subscriptions.value.reduce((sum: number, s: SubscriptionConfig) => sum + s.total_records, 0)
   }
 })
 
@@ -588,11 +588,11 @@ const filteredList = computed(() => {
   console.log('Computing filteredList, subscriptions:', subscriptions.value)
   console.log('Filters:', { search: search.value, filterStatus: filterStatus.value, filterExchange: filterExchange.value, filterDataType: filterDataType.value })
   
-  const result = subscriptions.value.filter((s) => {
+  const result = subscriptions.value.filter((s: SubscriptionConfig) => {
     if (search.value && !s.name.toLowerCase().includes(search.value.toLowerCase())) return false
     if (filterStatus.value && s.status !== filterStatus.value) return false
     if (filterExchange.value && s.exchange !== filterExchange.value) return false
-    if (filterDataType.value && s.dataType !== filterDataType.value) return false
+    if (filterDataType.value && s.data_type !== filterDataType.value) return false
     return true
   })
   
@@ -688,27 +688,9 @@ async function loadSubscriptions() {
 
     const response = await marketApi.getSubscriptions(params)
     if (response) {
-      // 转换API数据格式到前端数据格式
-      subscriptions.value = response.items.map(item => {
-        console.log('Mapping item:', item)
-        return {
-          id: item.id,
-          name: item.name,
-          exchange: item.exchange,
-          dataType: item.data_type,
-          symbols: item.symbols,
-          interval: item.interval,
-          status: item.status,
-          createdAt: item.created_at,
-          updatedAt: item.updated_at,
-          lastSyncTime: item.last_sync_time,
-          totalRecords: item.total_records,
-          errorCount: item.error_count,
-          lastError: item.last_error,
-          config: item.config
-        }
-      })
-      console.log('Mapped subscriptions:', subscriptions.value)
+      // 直接使用API返回的数据格式（下划线命名）
+      subscriptions.value = response.items
+      console.log('Loaded subscriptions:', subscriptions.value)
     }
   } catch (error: any) {
     console.error('加载订阅列表失败:', error)
@@ -824,10 +806,10 @@ function editSubscription(sub: DataSubscription) {
   formData.value = {
     name: sub.name,
     exchange: sub.exchange,
-    dataType: sub.dataType,
+    dataType: sub.data_type,
     symbols: sub.symbols.join(','),
     interval: sub.interval || '',
-    autoRestart: sub.config.autoRestart
+    autoRestart: sub.config.auto_restart
   }
   showAddDialog.value = true
 }
