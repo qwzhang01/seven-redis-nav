@@ -38,23 +38,6 @@ SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 
 
-def _get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> Optional[User]:
-    """从 JWT Token 中获取当前用户（可选认证）"""
-    if not credentials:
-        return None
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if not username:
-            return None
-        return db.query(User).filter(User.username == username, User.enable_flag == True).first()
-    except Exception:
-        return None
-
-
 def _require_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),

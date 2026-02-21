@@ -3,7 +3,6 @@
 量化交易系统 API 主入口
 """
 
-import os
 from pathlib import Path
 
 # 在导入其他模块之前加载.env文件

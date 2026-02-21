@@ -12,13 +12,12 @@
 - 交易所信息查询
 """
 
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime, timedelta
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
 # 导入数据库模型和配置
@@ -28,10 +27,9 @@ from quant_trading_system.models.user import (
     LoginRequest, LoginResponse,
     PasswordChangeRequest, PasswordResetRequest,
     APIKeyCreate, APIKeyUpdate, APIKeyResponse, APIKeyListResponse,
-    ExchangeInfo, ExchangeListResponse, UserListResponse,
+    ExchangeInfo,
     UserType, APIKeyStatus
 )
-from quant_trading_system.core.config import settings
 from quant_trading_system.services.database.database import get_db
 
 # 创建用户路由实例
@@ -294,7 +292,6 @@ async def change_password(
 
 @router.post("/password/reset")
 async def reset_password(
-    background_tasks: BackgroundTasks,
     reset_data: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):

@@ -4,8 +4,7 @@
 为回测引擎提供从TimescaleDB获取数据的功能
 """
 
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Union
 import structlog
 import numpy as np

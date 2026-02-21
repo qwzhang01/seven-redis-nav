@@ -13,13 +13,12 @@ WebSocket 连接管理器
 - trading/{user_id}         : 交易事件（私有）
 """
 
-import asyncio
 import json
 import logging
 from collections import defaultdict
 from typing import Dict, Set, Optional
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 

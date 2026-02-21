@@ -5,7 +5,6 @@
 定义交易所网关的抽象接口和 Binance 实现。
 """
 
-import asyncio
 import hashlib
 import hmac
 import time

@@ -18,7 +18,7 @@ import logging
 from datetime import datetime
 
 import jwt
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from .manager import ws_manager
 

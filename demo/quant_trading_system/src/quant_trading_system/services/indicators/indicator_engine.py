@@ -10,7 +10,6 @@
 """
 
 import asyncio
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 

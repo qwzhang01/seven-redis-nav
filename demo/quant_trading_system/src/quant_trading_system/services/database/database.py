@@ -4,12 +4,8 @@ TimescaleDB 数据库连接和表结构定义
 提供实时行情数据存储和回测数据查询功能
 """
 
-import asyncio
 import structlog
-from typing import Optional, List, Dict, Any, Generator
-from datetime import datetime, timedelta
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from typing import Optional, Any, Generator
 from contextlib import contextmanager
 import os
 from urllib.parse import urlparse, quote_plus

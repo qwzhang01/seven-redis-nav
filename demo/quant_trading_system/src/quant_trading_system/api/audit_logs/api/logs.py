@@ -13,8 +13,7 @@ M 端接口（管理员）：
 - PUT /risk/alerts/{id}/resolve : 标记告警已处理
 """
 
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends

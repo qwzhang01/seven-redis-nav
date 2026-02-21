@@ -6,7 +6,6 @@
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any
 from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer, Numeric
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base

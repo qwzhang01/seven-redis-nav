@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from quant_trading_system.models.user import (
     UserCreate, UserUpdate, UserResponse, LoginRequest, LoginResponse,
     PasswordChangeRequest, PasswordResetRequest, APIKeyCreate, APIKeyUpdate,
-    UserType, UserStatus, APIKeyStatus, ExchangeType, ExchangeStatus
+    UserType, UserStatus, APIKeyStatus
 )
 from quant_trading_system.services.database.database import (
     User, Exchange, UserExchangeAPI, get_db_session

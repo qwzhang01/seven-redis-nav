@@ -7,7 +7,7 @@
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import validator, root_validator
+from pydantic import validator
 
 
 class Settings(BaseSettings):

@@ -15,7 +15,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Coroutine, TypeVar
-from weakref import WeakSet
 
 import structlog
 

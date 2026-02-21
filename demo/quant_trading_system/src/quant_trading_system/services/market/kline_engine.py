@@ -10,7 +10,6 @@ K线合成引擎
 """
 
 import asyncio
-import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine

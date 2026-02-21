@@ -4,7 +4,6 @@
 集成数据收集器和数据存储服务，实现实时数据采集和存储
 """
 
-import asyncio
 from typing import List, Dict, Any, Optional
 import structlog
 

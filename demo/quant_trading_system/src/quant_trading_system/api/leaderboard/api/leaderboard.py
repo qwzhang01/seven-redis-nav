@@ -13,14 +13,14 @@ M 端接口（管理员）：
 - POST /refresh      : 手动刷新排行榜快照
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from quant_trading_system.models.database import LeaderboardSnapshot, SignalRecord
+from quant_trading_system.models.database import LeaderboardSnapshot
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()

@@ -12,7 +12,6 @@
 import time
 from dataclasses import dataclass, field
 from typing import Any
-import uuid
 from datetime import datetime
 
 import numpy as np
@@ -25,14 +24,12 @@ from quant_trading_system.models.trading import (
     OrderStatus,
     OrderType,
     Position,
-    PositionSide,
     Trade,
 )
 from quant_trading_system.models.account import Account, AccountType, Balance
 from quant_trading_system.services.strategy.base import Strategy, StrategyContext, StrategyState
-from quant_trading_system.services.strategy.signal import Signal, SignalType
+from quant_trading_system.services.strategy.signal import Signal
 from quant_trading_system.services.indicators.indicator_engine import (
-    IndicatorEngine,
     get_indicator_engine,
 )
 from quant_trading_system.services.database.data_query import get_data_query_service

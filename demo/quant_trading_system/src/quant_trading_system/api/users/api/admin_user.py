@@ -12,13 +12,13 @@
 from datetime import datetime, date
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import User
-from quant_trading_system.models.user import UserResponse, UserType, UserStatus
+from quant_trading_system.models.user import UserType, UserStatus
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()

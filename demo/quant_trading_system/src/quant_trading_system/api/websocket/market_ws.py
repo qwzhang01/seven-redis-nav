@@ -22,7 +22,6 @@
     {"type": "error",   "message": "..."}
 """
 
-import asyncio
 import logging
 from datetime import datetime
 

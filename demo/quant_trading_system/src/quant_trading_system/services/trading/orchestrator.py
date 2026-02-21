@@ -15,10 +15,9 @@ import structlog
 
 from quant_trading_system.core.events import EventEngine, EventType, Event
 from quant_trading_system.models.account import Account, AccountType, Balance
-from quant_trading_system.models.market import TimeFrame
 from quant_trading_system.services.market.market_service import MarketService
 from quant_trading_system.services.strategy.strategy_engine import StrategyEngine
-from quant_trading_system.services.strategy.base import Strategy, get_strategy_class
+from quant_trading_system.services.strategy.base import Strategy
 from quant_trading_system.services.trading.trading_engine import TradingEngine
 from quant_trading_system.services.risk.risk_manager import RiskManager, RiskConfig
 

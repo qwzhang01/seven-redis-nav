@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 
 from quant_trading_system.models.market import Bar, TimeFrame
 from quant_trading_system.services.strategy.base import Strategy, register_strategy
-from quant_trading_system.services.strategy.signal import Signal, SignalType
+from quant_trading_system.services.strategy.signal import Signal
 
 
 @register_strategy

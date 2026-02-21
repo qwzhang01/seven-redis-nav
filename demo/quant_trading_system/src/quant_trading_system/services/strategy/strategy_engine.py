@@ -13,7 +13,7 @@ import structlog
 
 from quant_trading_system.core.events import Event, EventEngine, EventType
 from quant_trading_system.models.market import Bar, Depth, Tick, TimeFrame, BarArray
-from quant_trading_system.models.trading import Order, Position, Trade
+from quant_trading_system.models.trading import Order, Position
 from quant_trading_system.models.account import Account
 from quant_trading_system.services.strategy.base import (
     Strategy,

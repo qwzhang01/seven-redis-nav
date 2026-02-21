@@ -13,15 +13,14 @@ M 端接口（管理员）：
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Query, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
+from sqlalchemy import func
 
 from quant_trading_system.models.database import (
-    User, SignalRecord, LeaderboardSnapshot,
-    Subscription, SyncTask,
+    User, SignalRecord, Subscription,
 )
 from quant_trading_system.services.database.database import get_db
 

@@ -13,7 +13,7 @@ import httpx
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, BarArray, TimeFrame
+from quant_trading_system.models.market import BarArray, TimeFrame
 
 logger = structlog.get_logger(__name__)
 
