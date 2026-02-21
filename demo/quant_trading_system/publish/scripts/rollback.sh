@@ -14,7 +14,19 @@ IMAGE_NAME="quant_app"
 CONTAINER_NAME="quant_app"
 
 log()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO]  $*"; }
+warn()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN]  $*"; }
 error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $*"; exit 1; }
+
+# ---- 检测生产网络 ----
+PROD_NETWORK=$(docker inspect redis --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null | awk '{print $1}' || true)
+if [ -z "$PROD_NETWORK" ]; then
+    warn "无法自动检测生产网络（redis 容器未运行？），使用默认网络 script_default"
+    PROD_NETWORK="script_default"
+fi
+if ! docker network inspect "$PROD_NETWORK" > /dev/null 2>&1; then
+    error "网络 $PROD_NETWORK 不存在，请确认基础服务已正常运行"
+fi
+log "生产网络: $PROD_NETWORK"
 
 # ---- 参数检查 ----
 if [ -z "$TARGET_VERSION" ]; then
@@ -55,7 +67,7 @@ log "已将 ${IMAGE_NAME}:${TARGET_VERSION} 标记为 latest"
 # ---- 启动回滚版本 ----
 log "启动回滚版本..."
 cd "$PUBLISH_DIR"
-APP_VERSION="$TARGET_VERSION" docker compose -f docker-compose.prod.yml up -d --no-build
+APP_VERSION="$TARGET_VERSION" PROD_NETWORK="$PROD_NETWORK" docker compose -f docker-compose.prod.yml up -d --no-build
 
 # ---- 等待健康检查 ----
 MAX_WAIT=120

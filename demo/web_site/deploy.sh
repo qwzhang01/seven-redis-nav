@@ -16,7 +16,7 @@ readonly IMAGE_TAG="${IMAGE_TAG:-latest}"
 readonly CONTAINER_NAME="${CONTAINER_NAME:-quantmeta}"
 readonly HOST_PORT="${HOST_PORT:-80}"
 readonly CONTAINER_PORT="8080"
-readonly DOCKER_NETWORK="${DOCKER_NETWORK:-quant_network}"
+readonly DOCKER_NETWORK="${DOCKER_NETWORK:-script_default}"
 readonly BACKEND_CONTAINER="${BACKEND_CONTAINER:-quant_app}"
 readonly BACKUP_TAG="${IMAGE_NAME}:backup-$(date +%Y%m%d-%H%M%S)"
 readonly LOG_FILE="${SCRIPT_DIR}/deploy-$(date +%Y%m%d).log"
@@ -86,12 +86,30 @@ ensure_docker_network() {
     if docker network inspect "${DOCKER_NETWORK}" &> /dev/null; then
         log_info "Docker 网络 '${DOCKER_NETWORK}' 已存在"
     else
+        log_warning "Docker 网络 '${DOCKER_NETWORK}' 不存在"
         log_info "创建 Docker 网络 '${DOCKER_NETWORK}'..."
         if docker network create "${DOCKER_NETWORK}" &> /dev/null; then
             log_success "Docker 网络创建成功"
         else
             error_exit "Docker 网络创建失败"
         fi
+    fi
+    
+    # 检查后端容器是否在同一网络中
+    if docker ps -q -f name="^${BACKEND_CONTAINER}$" | grep -q .; then
+        log_info "检查后端容器 '${BACKEND_CONTAINER}' 网络连接..."
+        if docker inspect "${BACKEND_CONTAINER}" --format '{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}' | grep -q "${DOCKER_NETWORK}"; then
+            log_success "后端容器已连接到网络 '${DOCKER_NETWORK}'"
+        else
+            log_warning "后端容器未连接到网络 '${DOCKER_NETWORK}'，尝试连接..."
+            if docker network connect "${DOCKER_NETWORK}" "${BACKEND_CONTAINER}" &> /dev/null; then
+                log_success "后端容器已连接到网络 '${DOCKER_NETWORK}'"
+            else
+                log_warning "无法连接后端容器到网络，请手动检查"
+            fi
+        fi
+    else
+        log_warning "后端容器 '${BACKEND_CONTAINER}' 未运行"
     fi
 }
 

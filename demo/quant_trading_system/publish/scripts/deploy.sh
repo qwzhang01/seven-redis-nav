@@ -82,7 +82,7 @@ docker images "${IMAGE_NAME}" --format "{{.ID}} {{.Tag}}" \
 # ---- 9. 启动新容器 ----
 log "启动新容器..."
 cd "$PUBLISH_DIR"
-APP_VERSION="$APP_VERSION" docker compose -f docker-compose.prod.yml up -d --no-build
+APP_VERSION="$APP_VERSION" PROD_NETWORK="$PROD_NETWORK" docker compose -f docker-compose.prod.yml up -d --no-build
 log "容器已启动，等待健康检查..."
 
 # ---- 10. 等待健康检查通过 ----

@@ -57,15 +57,12 @@ services:
     
     # 网络配置
     networks:
-      - quantmeta-network
+      - script_default
 
-# 网络定义
+# 网络定义 - 使用生产环境已有的网络
 networks:
-  quantmeta-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+  script_default:
+    external: true
 
 # 数据卷定义
 volumes:
