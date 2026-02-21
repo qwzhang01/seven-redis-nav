@@ -6,9 +6,14 @@
         <h2 class="text-xl font-bold text-white">实时数据订阅管理</h2>
         <p class="text-sm text-dark-100 mt-1">管理实时数据订阅状态、启动、暂停、恢复和手动同步</p>
       </div>
-      <button @click="showAddDialog = true" class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5">
-        <Plus :size="14" /> 新增订阅
-      </button>
+      <div class="flex items-center gap-3">
+        <button @click="showHistorySyncDialog = true" class="btn-secondary !py-2 !px-4 text-sm flex items-center gap-1.5">
+          <Database :size="14" /> 历史数据同步
+        </button>
+        <button @click="showAddDialog = true" class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5">
+          <Plus :size="14" /> 新增订阅
+        </button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -325,6 +330,75 @@
         </div>
       </div>
     </t-dialog>
+
+    <!-- 历史数据同步对话框 -->
+    <t-dialog
+      v-model:visible="showHistorySyncDialog"
+      header="历史数据同步"
+      width="600px"
+      :footer="false"
+    >
+      <div class="space-y-4 py-4">
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">同步名称</label>
+          <t-input v-model="historySyncFormData.name" placeholder="请输入同步任务名称" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">交易所</label>
+          <t-select v-model="historySyncFormData.exchange" placeholder="选择交易所" style="width: 100%">
+            <t-option label="Binance" value="Binance" />
+            <t-option label="OKX" value="OKX" />
+            <t-option label="Bybit" value="Bybit" />
+            <t-option label="Bitget" value="Bitget" />
+          </t-select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">数据类型</label>
+          <t-select v-model="historySyncFormData.dataType" placeholder="选择数据类型" style="width: 100%">
+            <t-option label="K线" value="kline" />
+            <t-option label="Ticker" value="ticker" />
+            <t-option label="深度" value="depth" />
+            <t-option label="成交" value="trade" />
+            <t-option label="订单簿" value="orderbook" />
+          </t-select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">交易对（多个用逗号分隔）</label>
+          <t-input v-model="historySyncFormData.symbols" placeholder="例如：BTC/USDT,ETH/USDT" />
+        </div>
+        <div v-if="historySyncFormData.dataType === 'kline'">
+          <label class="block text-sm font-medium text-white mb-2">K线周期</label>
+          <t-select v-model="historySyncFormData.interval" placeholder="选择周期" style="width: 100%">
+            <t-option label="1分钟" value="1m" />
+            <t-option label="5分钟" value="5m" />
+            <t-option label="15分钟" value="15m" />
+            <t-option label="1小时" value="1h" />
+            <t-option label="4小时" value="4h" />
+            <t-option label="日线" value="1d" />
+          </t-select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">开始时间</label>
+          <t-date-picker v-model="historySyncFormData.startTime" enable-time-picker style="width: 100%" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">结束时间</label>
+          <t-date-picker v-model="historySyncFormData.endTime" enable-time-picker style="width: 100%" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-2">批次大小</label>
+          <t-input v-model.number="historySyncFormData.batchSize" type="number" placeholder="每次请求的数据量，默认1000" />
+        </div>
+        <div class="flex justify-end gap-2 pt-4">
+          <button @click="showHistorySyncDialog = false" class="px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
+            取消
+          </button>
+          <button @click="startHistorySync" class="btn-primary !py-2 !px-4 text-sm">
+            开始同步
+          </button>
+        </div>
+      </div>
+    </t-dialog>
   </div>
 </template>
 
@@ -436,6 +510,7 @@ const filterExchange = ref('')
 const filterDataType = ref('')
 const showAddDialog = ref(false)
 const showSyncDialog = ref(false)
+const showHistorySyncDialog = ref(false)
 
 const formData = ref({
   name: '',
@@ -451,6 +526,17 @@ const syncFormData = ref({
   subscriptionName: '',
   startTime: '',
   endTime: ''
+})
+
+const historySyncFormData = ref({
+  name: '',
+  exchange: '',
+  dataType: '',
+  symbols: '',
+  interval: '',
+  startTime: '',
+  endTime: '',
+  batchSize: 1000
 })
 
 // 统计数据
@@ -678,6 +764,73 @@ function saveSubscription() {
 
 function refreshTasks() {
   MessagePlugin.success('任务列表已刷新')
+}
+
+function startHistorySync() {
+  if (!historySyncFormData.value.name || !historySyncFormData.value.exchange || 
+      !historySyncFormData.value.dataType || !historySyncFormData.value.symbols ||
+      !historySyncFormData.value.startTime || !historySyncFormData.value.endTime) {
+    MessagePlugin.warning('请填写完整信息')
+    return
+  }
+  
+  if (historySyncFormData.value.dataType === 'kline' && !historySyncFormData.value.interval) {
+    MessagePlugin.warning('K线数据类型需要选择周期')
+    return
+  }
+  
+  // 创建历史数据同步任务
+  const newTask: SyncTask = {
+    id: 'h' + Date.now(),
+    subscriptionId: 'history',
+    subscriptionName: historySyncFormData.value.name,
+    exchange: historySyncFormData.value.exchange,
+    symbols: historySyncFormData.value.symbols.split(',').map(s => s.trim()),
+    dataType: historySyncFormData.value.dataType,
+    startTime: historySyncFormData.value.startTime,
+    endTime: historySyncFormData.value.endTime,
+    status: 'pending',
+    progress: 0,
+    totalRecords: 0,
+    syncedRecords: 0,
+    createdAt: new Date().toISOString()
+  }
+  
+  syncTasks.value.unshift(newTask)
+  showHistorySyncDialog.value = false
+  MessagePlugin.success('历史数据同步任务已创建')
+  
+  // 模拟调用RESTful API进行历史数据同步
+  setTimeout(() => {
+    newTask.status = 'running'
+    newTask.totalRecords = Math.floor(Math.random() * 50000) + 10000
+    
+    // 模拟同步进度
+    const progressInterval = setInterval(() => {
+      if (newTask.progress < 100) {
+        newTask.progress += Math.floor(Math.random() * 10) + 5
+        if (newTask.progress > 100) newTask.progress = 100
+        newTask.syncedRecords = Math.floor((newTask.progress / 100) * newTask.totalRecords)
+      } else {
+        newTask.status = 'completed'
+        newTask.completedAt = new Date().toISOString()
+        clearInterval(progressInterval)
+        MessagePlugin.success(`历史数据同步任务 "${newTask.subscriptionName}" 已完成`)
+      }
+    }, 1500)
+  }, 1000)
+  
+  // 重置表单
+  historySyncFormData.value = {
+    name: '',
+    exchange: '',
+    dataType: '',
+    symbols: '',
+    interval: '',
+    startTime: '',
+    endTime: '',
+    batchSize: 1000
+  }
 }
 </script>
 

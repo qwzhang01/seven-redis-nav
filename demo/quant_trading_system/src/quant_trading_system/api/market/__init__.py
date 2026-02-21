@@ -16,9 +16,11 @@ Admin 端行情管理（订阅配置、手动同步任务）也归属本域。
 from .api.market import router as market_router
 from .api.subscription import router as subscription_router
 from .api.sync_task import router as sync_task_router
+from .api.historical_sync import router as historical_sync_router
 
 __all__ = [
     "market_router",
     "subscription_router",
     "sync_task_router",
+    "historical_sync_router",
 ]

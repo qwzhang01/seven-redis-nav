@@ -34,6 +34,7 @@ router = APIRouter()
 VALID_EXCHANGES = {"Binance", "OKX", "Bybit", "Bitget", "binance", "okx", "bybit", "bitget"}
 VALID_DATA_TYPES = {"kline", "ticker", "depth", "trade", "orderbook"}
 VALID_INTERVALS = {"1m", "5m", "15m", "1h", "4h", "1d"}
+VALID_STATUSES = {"running", "paused", "stopped"}
 
 
 def _require_admin(
@@ -87,6 +88,40 @@ class SubscriptionCreate(BaseModel):
     def validate_data_type(cls, v: str) -> str:
         if v not in VALID_DATA_TYPES:
             raise ValueError(f"不支持的数据类型 '{v}'，合法值：{sorted(VALID_DATA_TYPES)}")
+        return v
+
+    @field_validator("interval")
+    @classmethod
+    def validate_interval(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_INTERVALS:
+            raise ValueError(f"不支持的K线周期 '{v}'，合法值：{sorted(VALID_INTERVALS)}")
+        return v
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_symbols(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("交易对列表不能为空")
+        return v
+
+    def model_post_init(self, __context: Any) -> None:
+        """跨字段校验：kline 类型必须提供 interval"""
+        if self.data_type == "kline" and not self.interval:
+            raise ValueError("data_type 为 kline 时，interval 为必填项")
+
+
+class SubscriptionUpdate(BaseModel):
+    """更新订阅请求体（所有字段可选）"""
+    name: Optional[str] = None
+    symbols: Optional[list[str]] = None
+    interval: Optional[str] = None
+    config: Optional[SubscriptionConfig] = None
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_symbols(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        if v is not None and not v:
+            raise ValueError("交易对列表不能为空")
         return v
 
     @field_validator("interval")

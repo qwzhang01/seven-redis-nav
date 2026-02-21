@@ -23,8 +23,24 @@ from quant_trading_system.models.market import TimeFrame
 # 创建行情路由实例
 router = APIRouter()
 
+# 时间周期映射表，将字符串时间周期映射为TimeFrame枚举
+TIMEFRAME_MAP = {
+    "1m": TimeFrame.M1,
+    "5m": TimeFrame.M5,
+    "15m": TimeFrame.M15,
+    "30m": TimeFrame.M30,
+    "1h": TimeFrame.H1,
+    "4h": TimeFrame.H4,
+    "1d": TimeFrame.D1,
+    "1w": TimeFrame.W1,
+}
 
-def _get_engines():
+# 合法枚举值
+VALID_EXCHANGES = {"binance", "okx", "bybit", "bitget"}
+VALID_MARKET_TYPES = {"spot", "futures", "margin"}
+
+
+def _get_orchestrator():
     """
     获取编排器中的引擎实例
 
@@ -37,21 +53,8 @@ def _get_engines():
 
     orch = get_orchestrator()
     if orch is None:
-        raise HTTPException(status_code=503, detail="Trading system not started")
+        raise HTTPException(status_code=503, detail="交易系统未启动")
     return orch
-
-
-# 时间周期映射表，将字符串时间周期映射为TimeFrame枚举
-TIMEFRAME_MAP = {
-    "1m": TimeFrame.M1,
-    "5m": TimeFrame.M5,
-    "15m": TimeFrame.M15,
-    "30m": TimeFrame.M30,
-    "1h": TimeFrame.H1,
-    "4h": TimeFrame.H4,
-    "1d": TimeFrame.D1,
-    "1w": TimeFrame.W1,
-}
 
 
 class SubscribeRequest(BaseModel):
@@ -66,6 +69,15 @@ class SubscribeRequest(BaseModel):
     symbols: list[str]
     exchange: str = "binance"
     market_type: str = "spot"
+
+    def validate(self) -> None:
+        """验证请求参数"""
+        if not self.symbols:
+            raise ValueError("交易对列表不能为空")
+        if self.exchange.lower() not in VALID_EXCHANGES:
+            raise ValueError(f"不支持的交易所: {self.exchange}")
+        if self.market_type.lower() not in VALID_MARKET_TYPES:
+            raise ValueError(f"不支持的市场类型: {self.market_type}")
 
 
 @router.post("/subscribe")
@@ -83,7 +95,12 @@ async def subscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     - message: 操作结果描述
     - symbols: 已订阅的交易对列表
     """
-    orch = _get_engines()
+    try:
+        request.validate()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    orch = _get_orchestrator()
     await orch.market_service.subscribe(
         symbols=request.symbols,
         exchange=request.exchange,
@@ -91,7 +108,7 @@ async def subscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     )
     return {
         "success": True,
-        "message": f"Subscribed to {len(request.symbols)} symbols",
+        "message": f"已订阅 {len(request.symbols)} 个交易对",
         "symbols": request.symbols,
     }
 
@@ -111,7 +128,12 @@ async def unsubscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     - message: 操作结果描述
     - symbols: 已取消订阅的交易对列表
     """
-    orch = _get_engines()
+    try:
+        request.validate()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    orch = _get_orchestrator()
     await orch.market_service.unsubscribe(
         symbols=request.symbols,
         exchange=request.exchange,
@@ -119,7 +141,7 @@ async def unsubscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     )
     return {
         "success": True,
-        "message": f"Unsubscribed from {len(request.symbols)} symbols",
+        "message": f"已取消订阅 {len(request.symbols)} 个交易对",
         "symbols": request.symbols,
     }
 
@@ -146,7 +168,7 @@ async def get_kline(
     - data: K线数据列表
     - count: 返回的K线数量
     """
-    orch = _get_engines()
+    orch = _get_orchestrator()
     tf = TIMEFRAME_MAP.get(timeframe)
     if not tf:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
@@ -184,7 +206,7 @@ async def get_latest_tick(symbol: str) -> dict[str, Any]:
     - volume: 成交量
     - timestamp: 时间戳
     """
-    orch = _get_engines()
+    orch = _get_orchestrator()
     tick = orch.strategy_engine._latest_ticks.get(symbol)
     if not tick:
         return {
@@ -225,7 +247,7 @@ async def get_depth(
     - asks: 卖盘深度列表（价格从低到高）
     - timestamp: 时间戳
     """
-    orch = _get_engines()
+    orch = _get_orchestrator()
     depth = orch.strategy_engine._latest_depths.get(symbol)
     if not depth:
         return {"symbol": symbol, "bids": [], "asks": [], "timestamp": 0}
@@ -256,7 +278,7 @@ async def get_symbols(
     - market_type: 市场类型
     - symbols: 已订阅的交易对列表
     """
-    orch = _get_engines()
+    orch = _get_orchestrator()
     collector_key = f"{exchange}_{market_type}"
     collector = orch.market_service._collectors.get(collector_key)
     symbols = list(collector.subscriptions) if collector else []
@@ -273,5 +295,5 @@ async def get_market_stats() -> dict[str, Any]:
     返回：
     - 市场服务的统计信息字典
     """
-    orch = _get_engines()
+    orch = _get_orchestrator()
     return orch.market_service.stats

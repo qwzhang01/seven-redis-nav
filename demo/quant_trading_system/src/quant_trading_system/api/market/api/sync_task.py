@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import Subscription, SyncTask, User
@@ -24,6 +24,9 @@ from quant_trading_system.services.database.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
+
+# 合法状态值
+VALID_SYNC_STATUSES = {"pending", "running", "completed", "failed", "cancelled"}
 
 
 def _require_admin(
@@ -53,6 +56,14 @@ class SyncTaskCreate(BaseModel):
     start_time: datetime
     end_time: datetime
 
+    @field_validator("end_time")
+    @classmethod
+    def validate_time_range(cls, v: datetime, values: dict[str, Any]) -> datetime:
+        start_time = values.get("start_time")
+        if start_time and v <= start_time:
+            raise ValueError("结束时间必须晚于开始时间")
+        return v
+
 
 def _to_dict(task: SyncTask, sub: Optional[Subscription] = None) -> dict[str, Any]:
     """将 ORM 对象转换为响应字典"""
@@ -63,6 +74,7 @@ def _to_dict(task: SyncTask, sub: Optional[Subscription] = None) -> dict[str, An
         "exchange": sub.exchange if sub else None,
         "symbols": sub.symbols if sub else None,
         "data_type": sub.data_type if sub else None,
+        "interval": sub.interval if sub else None,
         "start_time": task.start_time.isoformat() if task.start_time else None,
         "end_time": task.end_time.isoformat() if task.end_time else None,
         "status": task.status,

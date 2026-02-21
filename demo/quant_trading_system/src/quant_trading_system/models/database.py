@@ -117,6 +117,29 @@ class Subscription(Base):
     sync_tasks = relationship("SyncTask", back_populates="subscription", cascade="all, delete-orphan")
 
 
+class HistoricalSyncTask(Base):
+    """历史数据同步任务模型（独立于订阅）"""
+    __tablename__ = "historical_sync_tasks"
+
+    id = Column(String(50), primary_key=True)
+    name = Column(String(200), nullable=False)
+    exchange = Column(String(50), nullable=False)
+    data_type = Column(String(20), nullable=False)
+    symbols = Column(JSON, nullable=False)
+    interval = Column(String(10))
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    batch_size = Column(Integer, default=1000)
+    status = Column(String(20), default="pending")  # pending/running/completed/failed/cancelled
+    progress = Column(Integer, default=0)
+    total_records = Column(BigInteger, default=0)
+    synced_records = Column(BigInteger, default=0)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+
 class SyncTask(Base):
     """手动同步任务模型"""
     __tablename__ = "sync_tasks"
