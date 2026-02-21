@@ -47,7 +47,7 @@
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| id | string | 信号ID（UUID） |
+| id | integer | 信号ID（Snowflake ID） |
 | strategy_id | string | 所属策略ID |
 | strategy_name | string\|null | 策略名称 |
 | symbol | string | 交易对（大写，如 BTCUSDT） |
@@ -150,12 +150,12 @@ GET /api/v1/c/signal/list?symbol=BTCUSDT&signal_type=buy&page=1&page_size=20
 
 | 参数 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| signal_id | string | 是 | 信号ID（UUID） |
+| signal_id | integer | 是 | 信号ID（Snowflake ID） |
 
 #### 请求示例
 
 ```
-GET /api/v1/c/signal/signal_uuid
+GET /api/v1/c/signal/123456789
 ```
 
 #### 响应示例
@@ -320,7 +320,7 @@ GET /api/v1/c/signal/strategy/strategy_uuid/history?page=1&page_size=50
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| id | string | 订阅记录ID |
+| id | integer | 订阅记录ID（Snowflake ID） |
 | strategy_id | string | 订阅的策略ID |
 | notify_type | string | 通知方式 |
 | is_active | boolean | 订阅是否激活 |
@@ -362,7 +362,7 @@ GET /api/v1/c/signal/strategy/strategy_uuid/history?page=1&page_size=50
 | 字段 | 类型 | 描述 |
 |------|------|------|
 | items | array[object] | 订阅列表 |
-| items[].id | string | 订阅记录ID |
+| items[].id | integer | 订阅记录ID（Snowflake ID） |
 | items[].strategy_id | string | 订阅的策略ID |
 | items[].notify_type | string | 通知方式 |
 | items[].is_active | boolean | 订阅是否激活 |
@@ -387,7 +387,7 @@ GET /api/v1/c/signal/strategy/strategy_uuid/history?page=1&page_size=50
 
 | 参数 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| subscription_id | string | 是 | 订阅记录ID（UUID） |
+| subscription_id | integer | 是 | 订阅记录ID（Snowflake ID） |
 
 #### 响应示例
 
@@ -475,7 +475,7 @@ GET /api/v1/m/signal/pending?page=1&page_size=20
 
 | 参数 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| signal_id | string | 是 | 信号ID（UUID） |
+| signal_id | integer | 是 | 信号ID（Snowflake ID） |
 
 #### 请求体
 
