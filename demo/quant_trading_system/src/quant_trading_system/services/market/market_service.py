@@ -22,11 +22,16 @@ from quant_trading_system.services.market.kline_engine import KLineEngine
 
 logger = structlog.get_logger(__name__)
 
+# 回调类型定义
+TickCallback = Callable[[Tick], Coroutine[Any, Any, None]]
+BarCallback = Callable[[Bar], Coroutine[Any, Any, None]]
+DepthCallback = Callable[[Depth], Coroutine[Any, Any, None]]
+
 # 全局MarketService实例
-_market_service: MarketService | None = None
+_market_service: "MarketService | None" = None
 
 
-def get_market_service(event_engine: EventEngine | None = None) -> MarketService:
+def get_market_service(event_engine: EventEngine | None = None) -> "MarketService":
     """
     获取MarketService单例实例
 

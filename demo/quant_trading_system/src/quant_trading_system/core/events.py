@@ -21,14 +21,14 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 # 全局EventEngine实例
-_event_engine: EventEngine | None = None
+_event_engine: "EventEngine | None" = None
 
 
 def get_event_engine(
     queue_size: int = 100000,
     num_workers: int = 4,
     name: str = "MainEventEngine"
-) -> EventEngine:
+) -> "EventEngine":
     """
     获取EventEngine单例实例
 
@@ -484,3 +484,7 @@ class EventEmitter:
         if self._event_engine:
             return self._event_engine.put_nowait(event)
         return False
+
+
+# 全局EventEngine实例
+_event_engine: EventEngine | None = None
