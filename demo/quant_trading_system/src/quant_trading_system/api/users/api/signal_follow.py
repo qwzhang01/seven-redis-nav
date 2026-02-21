@@ -29,6 +29,7 @@ from quant_trading_system.models.database import (
     SignalFollowTrade,
 )
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
 
@@ -78,8 +79,8 @@ def _follow_order_to_dict(order: SignalFollowOrder) -> dict[str, Any]:
         follow_days = (datetime.utcnow() - start_time).days
 
     return {
-        "id": str(order.id),
-        "user_id": str(order.user_id),
+        "id": order.id,
+        "user_id": order.user_id,
         "strategy_id": order.strategy_id,
         "signal_name": order.signal_name,
         "exchange": order.exchange,
@@ -113,7 +114,7 @@ def _follow_order_to_dict(order: SignalFollowOrder) -> dict[str, Any]:
 def _position_to_dict(pos: SignalFollowPosition) -> dict[str, Any]:
     """将 SignalFollowPosition ORM 对象转换为响应字典"""
     return {
-        "id": str(pos.id),
+        "id": pos.id,
         "follow_order_id": str(pos.follow_order_id),
         "symbol": pos.symbol,
         "side": pos.side,
@@ -131,7 +132,7 @@ def _position_to_dict(pos: SignalFollowPosition) -> dict[str, Any]:
 def _trade_to_dict(trade: SignalFollowTrade) -> dict[str, Any]:
     """将 SignalFollowTrade ORM 对象转换为响应字典"""
     return {
-        "id": str(trade.id),
+        "id": trade.id,
         "follow_order_id": str(trade.follow_order_id),
         "position_id": str(trade.position_id) if trade.position_id else None,
         "symbol": trade.symbol,
@@ -243,7 +244,7 @@ async def create_follow(
 
     now = datetime.utcnow()
     order = SignalFollowOrder(
-        id=str(uuid.uuid4()),
+        id=generate_snowflake_id(),
         user_id=current_user.id,
         strategy_id=body.strategy_id,
         signal_name=body.signal_name,
@@ -286,7 +287,7 @@ async def create_follow(
 
 @router.get("/{follow_id}")
 async def get_follow_detail(
-    follow_id: str,
+    follow_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(_require_user),
 ) -> dict[str, Any]:
@@ -311,7 +312,7 @@ async def get_follow_detail(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="跟单记录不存在")
-    if str(order.user_id) != str(current_user.id):
+    if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此跟单记录")
 
     return {"success": True, "data": _follow_order_to_dict(order)}
@@ -319,7 +320,7 @@ async def get_follow_detail(
 
 @router.put("/{follow_id}/config")
 async def update_follow_config(
-    follow_id: str,
+    follow_id: int,
     body: UpdateFollowConfigRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(_require_user),
@@ -349,7 +350,7 @@ async def update_follow_config(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="跟单记录不存在")
-    if str(order.user_id) != str(current_user.id):
+    if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权操作此跟单记录")
     if order.status == "stopped":
         raise HTTPException(status_code=400, detail="跟单已停止，无法修改配置")
@@ -380,7 +381,7 @@ async def update_follow_config(
 
 @router.post("/{follow_id}/stop")
 async def stop_follow(
-    follow_id: str,
+    follow_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(_require_user),
 ) -> dict[str, Any]:
@@ -406,7 +407,7 @@ async def stop_follow(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="跟单记录不存在")
-    if str(order.user_id) != str(current_user.id):
+    if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权操作此跟单记录")
     if order.status == "stopped":
         raise HTTPException(status_code=400, detail="跟单已停止")
@@ -434,7 +435,7 @@ async def stop_follow(
 
 @router.get("/{follow_id}/positions")
 async def get_follow_positions(
-    follow_id: str,
+    follow_id: int,
     position_status: Optional[str] = Query(None, alias="status", description="持仓状态: open/closed"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -466,7 +467,7 @@ async def get_follow_positions(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="跟单记录不存在")
-    if str(order.user_id) != str(current_user.id):
+    if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此跟单记录")
 
     query = db.query(SignalFollowPosition).filter(
@@ -496,7 +497,7 @@ async def get_follow_positions(
 
 @router.get("/{follow_id}/trades")
 async def get_follow_trades(
-    follow_id: str,
+    follow_id: int,
     symbol: Optional[str] = Query(None, description="交易对过滤"),
     side: Optional[str] = Query(None, description="方向过滤: buy/sell"),
     page: int = Query(1, ge=1, description="页码"),
@@ -530,7 +531,7 @@ async def get_follow_trades(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="跟单记录不存在")
-    if str(order.user_id) != str(current_user.id):
+    if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此跟单记录")
 
     query = db.query(SignalFollowTrade).filter(

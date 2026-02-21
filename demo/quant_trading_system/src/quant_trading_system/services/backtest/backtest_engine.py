@@ -592,9 +592,10 @@ class BacktestEngine:
         # 创建订单
         import uuid
         from datetime import datetime
+        from quant_trading_system.core.snowflake import generate_snowflake_id
 
         order = Order(
-            id=str(uuid.uuid4()),
+            id=str(generate_snowflake_id()),
             symbol=symbol,
             side=OrderSide.BUY if signal.is_buy else OrderSide.SELL,
             type=OrderType.MARKET,
@@ -608,7 +609,7 @@ class BacktestEngine:
 
         # 创建成交记录
         trade = Trade(
-            id=str(uuid.uuid4()),  # 添加Trade ID
+            id=str(generate_snowflake_id()),  # 添加Trade ID
             symbol=symbol,
             exchange="backtest",
             order_id=order.id,

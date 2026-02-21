@@ -10,9 +10,8 @@ from quant_trading_system.models.user import (
     PasswordChangeRequest, PasswordResetRequest, APIKeyCreate, APIKeyUpdate,
     UserType, UserStatus, APIKeyStatus
 )
-from quant_trading_system.services.database.database import (
-    User, Exchange, UserExchangeAPI, get_db_session
-)
+from quant_trading_system.models.database import User, Exchange, UserExchangeAPI
+from quant_trading_system.services.database.database import get_db as get_db_session
 
 
 class UserService:
@@ -37,7 +36,7 @@ class UserService:
             hashed_password.encode('utf-8')
         )
 
-    def create_jwt_token(self, user_id: str, username: str, user_type: UserType) -> str:
+    def create_jwt_token(self, user_id: int, username: str, user_type: UserType) -> str:
         """创建JWT令牌"""
         payload = {
             "user_id": user_id,
@@ -143,7 +142,7 @@ class UserService:
 
         # 生成JWT令牌
         token = self.create_jwt_token(
-            str(user.id),
+            user.id,
             user.username,
             UserType(user.user_type)
         )
@@ -155,7 +154,7 @@ class UserService:
             user=self._user_to_response(user)
         )
 
-    def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
+    def get_user_by_id(self, user_id: int) -> Optional[UserResponse]:
         """根据ID获取用户信息"""
         user = self.db.query(User).filter(
             User.id == user_id,
@@ -179,7 +178,7 @@ class UserService:
 
         return self._user_to_response(user)
 
-    def update_user_profile(self, user_id: str, update_data: UserUpdate) -> UserResponse:
+    def update_user_profile(self, user_id: int, update_data: UserUpdate) -> UserResponse:
         """更新用户信息"""
         user = self.db.query(User).filter(
             User.id == user_id,
@@ -210,7 +209,7 @@ class UserService:
 
         return self._user_to_response(user)
 
-    def change_password(self, user_id: str, password_data: PasswordChangeRequest) -> bool:
+    def change_password(self, user_id: int, password_data: PasswordChangeRequest) -> bool:
         """修改密码"""
         user = self.db.query(User).filter(
             User.id == user_id,
@@ -274,7 +273,7 @@ class UserService:
 
         return [
             {
-                "id": str(exchange.id),
+                "id": exchange.id,
                 "exchange_code": exchange.exchange_code,
                 "exchange_name": exchange.exchange_name,
                 "exchange_type": exchange.exchange_type,
@@ -289,7 +288,7 @@ class UserService:
             for exchange in exchanges
         ]
 
-    def get_exchange_by_id(self, exchange_id: str) -> Optional[Dict[str, Any]]:
+    def get_exchange_by_id(self, exchange_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取交易所信息"""
         exchange = self.db.query(Exchange).filter(
             Exchange.id == exchange_id,
@@ -300,7 +299,7 @@ class UserService:
             return None
 
         return {
-            "id": str(exchange.id),
+            "id": exchange.id,
             "exchange_code": exchange.exchange_code,
             "exchange_name": exchange.exchange_name,
             "exchange_type": exchange.exchange_type,
@@ -313,7 +312,7 @@ class UserService:
             "update_time": exchange.update_time
         }
 
-    def add_api_key(self, user_id: str, api_key_data: APIKeyCreate) -> Dict[str, Any]:
+    def add_api_key(self, user_id: int, api_key_data: APIKeyCreate) -> Dict[str, Any]:
         """添加API密钥"""
         # 检查交易所是否存在
         exchange = self.db.query(Exchange).filter(
@@ -361,7 +360,7 @@ class UserService:
 
         return self._api_key_to_response(new_api_key)
 
-    def get_user_api_keys(self, user_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_user_api_keys(self, user_id: int, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取用户的API密钥列表"""
         query = self.db.query(UserExchangeAPI).filter(
             UserExchangeAPI.user_id == user_id,
@@ -375,7 +374,7 @@ class UserService:
 
         return [self._api_key_to_response(api_key) for api_key in api_keys]
 
-    def get_api_key_by_id(self, api_key_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_api_key_by_id(self, api_key_id: int, user_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """根据ID获取API密钥信息"""
         query = self.db.query(UserExchangeAPI).filter(
             UserExchangeAPI.id == api_key_id,
@@ -392,7 +391,7 @@ class UserService:
 
         return self._api_key_to_response(api_key)
 
-    def update_api_key(self, api_key_id: str, user_id: str,
+    def update_api_key(self, api_key_id: int, user_id: int,
                       update_data: APIKeyUpdate) -> Dict[str, Any]:
         """更新API密钥"""
         api_key = self.db.query(UserExchangeAPI).filter(
@@ -421,7 +420,7 @@ class UserService:
 
         return self._api_key_to_response(api_key)
 
-    def delete_api_key(self, api_key_id: str, user_id: str) -> bool:
+    def delete_api_key(self, api_key_id: int, user_id: int) -> bool:
         """删除API密钥"""
         api_key = self.db.query(UserExchangeAPI).filter(
             UserExchangeAPI.id == api_key_id,
@@ -445,7 +444,7 @@ class UserService:
     def _user_to_response(self, user: User) -> UserResponse:
         """将User对象转换为UserResponse"""
         return UserResponse(
-            id=str(user.id),
+            id=user.id,
             username=user.username,
             nickname=user.nickname,
             email=user.email,
@@ -464,9 +463,9 @@ class UserService:
     def _api_key_to_response(self, api_key: UserExchangeAPI) -> Dict[str, Any]:
         """将API密钥对象转换为响应格式"""
         return {
-            "id": str(api_key.id),
-            "user_id": str(api_key.user_id),
-            "exchange_id": str(api_key.exchange_id),
+            "id": api_key.id,
+            "user_id": api_key.user_id,
+            "exchange_id": api_key.exchange_id,
             "label": api_key.label,
             "api_key": api_key.api_key,
             "status": api_key.status,

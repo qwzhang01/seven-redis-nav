@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import Subscription, User
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
 
@@ -151,7 +152,7 @@ async def create_subscription(
     创建新的数据订阅配置并持久化保存，初始状态为 stopped。
     """
     sub = Subscription(
-        id=str(uuid.uuid4()),
+        id=str(generate_snowflake_id()),
         name=body.name,
         exchange=body.exchange,
         market_type=body.market_type,

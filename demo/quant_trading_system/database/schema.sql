@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- 创建用户信息表
 CREATE TABLE IF NOT EXISTS user_info (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     username VARCHAR(64) UNIQUE NOT NULL,
     nickname VARCHAR(128) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS user_info (
 
 -- 创建交易所信息表
 CREATE TABLE IF NOT EXISTS exchange_info (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     exchange_code VARCHAR(32) UNIQUE NOT NULL, -- binance/okx/huobi
     exchange_name VARCHAR(128) NOT NULL,
     exchange_type VARCHAR(32) DEFAULT 'spot', -- spot/futures/margin
@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS exchange_info (
 
 -- 创建用户交易所API表
 CREATE TABLE IF NOT EXISTS user_exchange_api (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES user_info(id),
-    exchange_id UUID NOT NULL REFERENCES exchange_info(id),
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES user_info(id),
+    exchange_id BIGINT NOT NULL REFERENCES exchange_info(id),
     label VARCHAR(128) NOT NULL,
     api_key VARCHAR(512) NOT NULL,
     secret_key VARCHAR(512) NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS user_exchange_api (
 
 -- 创建K线数据表（时序表）
 CREATE TABLE IF NOT EXISTS kline_data (
-    id BIGSERIAL,
+    id BIGINT,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timeframe VARCHAR(8) NOT NULL,
@@ -112,7 +112,7 @@ SELECT create_hypertable('kline_data', 'timestamp', if_not_exists => TRUE);
 
 -- 创建实时行情数据表
 CREATE TABLE IF NOT EXISTS tick_data (
-    id BIGSERIAL,
+    id BIGINT,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
@@ -145,7 +145,7 @@ SELECT create_hypertable('tick_data', 'timestamp', if_not_exists => TRUE);
 
 -- 创建深度数据表
 CREATE TABLE IF NOT EXISTS depth_data (
-    id BIGSERIAL,
+    id BIGINT,
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
@@ -170,7 +170,7 @@ SELECT create_hypertable('depth_data', 'timestamp', if_not_exists => TRUE);
 
 -- 创建回测结果表
 CREATE TABLE IF NOT EXISTS backtest_results (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     strategy_name VARCHAR(128) NOT NULL,
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
@@ -301,23 +301,23 @@ CREATE INDEX IF NOT EXISTS idx_sync_tasks_created_at ON sync_tasks (created_at D
 -- 插入示例数据
 -- 插入示例交易所
 INSERT INTO exchange_info (
-    exchange_code, exchange_name, exchange_type, base_url, api_doc_url,
+    id, exchange_code, exchange_name, exchange_type, base_url, api_doc_url,
     supported_pairs, rate_limits
 ) VALUES
 (
-    'binance', '币安', 'spot', 'https://api.binance.com',
+    1000000000000000001, 'binance', '币安', 'spot', 'https://api.binance.com',
     'https://binance-docs.github.io/apidocs/',
     '["BTCUSDT", "ETHUSDT", "BNBUSDT"]'::JSONB,
     '{"requests_per_minute": 1200}'::JSONB
 ),
 (
-    'okx', '欧易', 'spot', 'https://www.okx.com',
+    1000000000000000002, 'okx', '欧易', 'spot', 'https://www.okx.com',
     'https://www.okx.com/docs/',
     '["BTC-USDT", "ETH-USDT", "OKB-USDT"]'::JSONB,
     '{"requests_per_minute": 300}'::JSONB
 ),
 (
-    'huobi', '火币', 'spot', 'https://api.huobi.pro',
+    1000000000000000003, 'huobi', '火币', 'spot', 'https://api.huobi.pro',
     'https://huobiapi.github.io/docs/',
     '["btcusdt", "ethusdt", "htusdt"]'::JSONB,
     '{"requests_per_minute": 100}'::JSONB
@@ -326,15 +326,15 @@ ON CONFLICT (exchange_code) DO NOTHING;
 
 -- 插入示例用户（密码为password123的哈希值）
 INSERT INTO user_info (
-    username, nickname, password_hash, email, user_type
+    id, username, nickname, password_hash, email, user_type
 ) VALUES
 (
-    'admin', '系统管理员',
+    1000000000000000101, 'admin', '系统管理员',
     '$2b$12$LQv3c1yqBWV3pC7tb8H8CeZP3C3JZJQ9W8tYQYbY8YtY8YtY8YtY',
     'admin@quant.com', 'admin'
 ),
 (
-    'user1', '测试用户1',
+    1000000000000000102, 'user1', '测试用户1',
     '$2b$12$LQv3c1yqBWV3pC7tb8H8CeZP3C3JZJQ9W8tYQYbY8YtY8YtY8YtY',
     'user1@quant.com', 'customer'
 )
@@ -346,7 +346,7 @@ ON CONFLICT (username) DO NOTHING;
 
 -- 创建信号记录表（策略产生的交易信号）
 CREATE TABLE IF NOT EXISTS signal_records (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     strategy_id VARCHAR(128) NOT NULL,
     strategy_name VARCHAR(128),
     symbol VARCHAR(32) NOT NULL,
@@ -384,8 +384,8 @@ CREATE INDEX IF NOT EXISTS idx_signal_created_at ON signal_records (created_at D
 
 -- 创建信号订阅表
 CREATE TABLE IF NOT EXISTS signal_subscriptions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
     strategy_id VARCHAR(128) NOT NULL,
     notify_type VARCHAR(32) DEFAULT 'realtime', -- realtime/daily/weekly
     is_active BOOLEAN DEFAULT TRUE,
@@ -399,14 +399,14 @@ CREATE INDEX IF NOT EXISTS idx_signal_sub_strategy_id ON signal_subscriptions (s
 
 -- 创建排行榜快照表（定时计算并存储）
 CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     rank_type VARCHAR(32) NOT NULL,            -- strategy/signal/user
     period VARCHAR(16) NOT NULL,               -- daily/weekly/monthly/all_time
     rank_position INTEGER NOT NULL,
     entity_id VARCHAR(128) NOT NULL,
     entity_name VARCHAR(256),
     entity_type VARCHAR(64),
-    owner_id UUID REFERENCES user_info(id),
+    owner_id BIGINT REFERENCES user_info(id),
     owner_name VARCHAR(128),
     total_return DECIMAL(10, 6),
     annual_return DECIMAL(10, 6),
@@ -431,7 +431,7 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_entity_id ON leaderboard_snapshots (e
 
 -- 创建系统统计快照表（定时采集）
 CREATE TABLE IF NOT EXISTS system_stats_snapshots (
-    id BIGSERIAL,
+    id BIGINT,
     snapshot_time TIMESTAMPTZ NOT NULL,
     total_users INTEGER DEFAULT 0,
     active_users_today INTEGER DEFAULT 0,
@@ -455,11 +455,11 @@ CREATE INDEX IF NOT EXISTS idx_stats_snapshot_time ON system_stats_snapshots (sn
 
 -- 创建审计日志表（记录所有重要操作）
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id BIGSERIAL,
+    id BIGINT,
     log_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     log_level VARCHAR(16) NOT NULL DEFAULT 'INFO', -- DEBUG/INFO/WARNING/ERROR/CRITICAL
     log_category VARCHAR(32) NOT NULL,              -- system/trading/strategy/user/risk/market
-    user_id UUID REFERENCES user_info(id),
+    user_id BIGINT REFERENCES user_info(id),
     username VARCHAR(64),
     action VARCHAR(128) NOT NULL,
     resource_type VARCHAR(64),
@@ -484,13 +484,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
 
 -- 创建风控告警表
 CREATE TABLE IF NOT EXISTS risk_alerts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGINT PRIMARY KEY,
     alert_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     alert_type VARCHAR(32) NOT NULL,           -- drawdown/position_limit/loss_limit/volatility
     severity VARCHAR(16) NOT NULL DEFAULT 'warning', -- info/warning/critical
     strategy_id VARCHAR(128),
     symbol VARCHAR(32),
-    user_id UUID REFERENCES user_info(id),
+    user_id BIGINT REFERENCES user_info(id),
     title VARCHAR(256) NOT NULL,
     message TEXT NOT NULL,
     trigger_value DECIMAL(20, 8),
@@ -518,8 +518,8 @@ CREATE INDEX IF NOT EXISTS idx_risk_alert_resolved ON risk_alerts (is_resolved);
 
 -- 创建信号跟单订单表（用户跟单记录主表）
 CREATE TABLE IF NOT EXISTS signal_follow_orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
     strategy_id VARCHAR(128) NOT NULL,              -- 跟单的策略ID
     signal_name VARCHAR(256) NOT NULL,              -- 信号/策略名称
     exchange VARCHAR(32) NOT NULL DEFAULT 'binance',-- 交易所
@@ -570,9 +570,9 @@ CREATE INDEX IF NOT EXISTS idx_follow_orders_create_time ON signal_follow_orders
 
 -- 创建信号跟单持仓表（当前持仓快照）
 CREATE TABLE IF NOT EXISTS signal_follow_positions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    follow_order_id UUID NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    id BIGINT PRIMARY KEY,
+    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
     symbol VARCHAR(32) NOT NULL,                    -- 交易对
     side VARCHAR(8) NOT NULL,                       -- long/short
     amount DECIMAL(20, 8) NOT NULL,                 -- 持仓数量
@@ -600,10 +600,10 @@ CREATE INDEX IF NOT EXISTS idx_follow_positions_status ON signal_follow_position
 
 -- 创建信号跟单交易记录表（历史成交记录）
 CREATE TABLE IF NOT EXISTS signal_follow_trades (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    follow_order_id UUID NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
-    position_id UUID REFERENCES signal_follow_positions(id),
+    id BIGINT PRIMARY KEY,
+    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    position_id BIGINT REFERENCES signal_follow_positions(id),
     symbol VARCHAR(32) NOT NULL,                    -- 交易对
     side VARCHAR(8) NOT NULL,                       -- buy/sell
     price DECIMAL(20, 8) NOT NULL,                  -- 成交价格
@@ -611,7 +611,7 @@ CREATE TABLE IF NOT EXISTS signal_follow_trades (
     total DECIMAL(20, 8) NOT NULL,                  -- 成交额（USDT）
     pnl DECIMAL(20, 8),                             -- 盈亏金额（已平仓时有值）
     fee DECIMAL(20, 8) DEFAULT 0,                   -- 手续费
-    signal_record_id UUID REFERENCES signal_records(id), -- 关联的信号记录
+    signal_record_id BIGINT REFERENCES signal_records(id), -- 关联的信号记录
     trade_time TIMESTAMPTZ DEFAULT NOW(),           -- 成交时间
     create_time TIMESTAMPTZ DEFAULT NOW()
 );

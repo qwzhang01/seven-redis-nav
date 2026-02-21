@@ -31,6 +31,7 @@ from quant_trading_system.models.user import (
     UserType, APIKeyStatus
 )
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 # 创建用户路由实例
 router = APIRouter()
@@ -112,8 +113,7 @@ async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
         )
 
     # 创建用户（实际项目中应对密码进行哈希处理）
-    import uuid
-    user_id = str(uuid.uuid4())
+    user_id = generate_snowflake_id()
 
     # 密码哈希处理
     salt = bcrypt.gensalt()
@@ -213,7 +213,7 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     # 创建访问令牌
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "user_id": str(user.id)}, expires_delta=access_token_expires
+        data={"sub": user.username, "user_id": user.id}, expires_delta=access_token_expires
     )
 
     # 转换为响应模型
@@ -390,7 +390,7 @@ async def update_user_profile(
 
 @router.get("/exchanges/{exchange_id}", response_model=ExchangeInfo)
 async def get_exchange(
-    exchange_id: str,
+    exchange_id: int,
     db: Session = Depends(get_db)
 ):
     """
@@ -463,9 +463,8 @@ async def create_api_key(
             detail="交易所不存在"
         )
 
-    # 创建API密钥记录
-    import uuid
-    api_key_id = str(uuid.uuid4())
+    # 创建 API 密钥记录
+    api_key_id = generate_snowflake_id()
 
     new_api_key = UserExchangeAPI(
         id=api_key_id,
@@ -556,7 +555,7 @@ async def get_api_keys(
 
 @router.get("/api-keys/{api_key_id}", response_model=APIKeyResponse)
 async def get_api_key(
-    api_key_id: str,
+    api_key_id: int,
     username: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
@@ -610,7 +609,7 @@ async def get_api_key(
 
 @router.put("/api-keys/{api_key_id}", response_model=APIKeyResponse)
 async def update_api_key(
-    api_key_id: str,
+    api_key_id: int,
     api_key_update: APIKeyUpdate,
     username: str = Depends(verify_token),
     db: Session = Depends(get_db)
@@ -679,7 +678,7 @@ async def update_api_key(
 
 @router.delete("/api-keys/{api_key_id}")
 async def delete_api_key(
-    api_key_id: str,
+    api_key_id: int,
     username: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import Subscription, SyncTask, User
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
 
@@ -96,7 +97,7 @@ async def create_sync_task(
         raise HTTPException(status_code=400, detail="结束时间必须晚于开始时间")
 
     task = SyncTask(
-        id=str(uuid.uuid4()),
+        id=str(generate_snowflake_id()),
         subscription_id=body.subscription_id,
         start_time=body.start_time,
         end_time=body.end_time,

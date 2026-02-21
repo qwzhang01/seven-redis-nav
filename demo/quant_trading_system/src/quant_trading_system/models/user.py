@@ -1,6 +1,5 @@
 from enum import Enum
-from uuid import UUID
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -64,7 +63,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """用户响应模型"""
-    id: Union[str, UUID]
+    id: int
     email_verified: bool
     phone_verified: bool
     user_type: UserType
@@ -73,11 +72,6 @@ class UserResponse(UserBase):
     status: UserStatus
     create_time: datetime
     update_time: datetime
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def coerce_id_to_str(cls, v):
-        return str(v)
 
     class Config:
         from_attributes = True
@@ -112,7 +106,7 @@ class PasswordResetRequest(BaseModel):
 
 class ExchangeInfo(BaseModel):
     """交易所信息模型"""
-    id: Union[str, UUID]
+    id: int
     exchange_code: str
     exchange_name: str
     exchange_type: ExchangeType
@@ -124,18 +118,13 @@ class ExchangeInfo(BaseModel):
     create_time: datetime
     update_time: datetime
 
-    @field_validator("id", mode="before")
-    @classmethod
-    def coerce_id_to_str(cls, v):
-        return str(v)
-
     class Config:
         from_attributes = True
 
 
 class APIKeyCreate(BaseModel):
-    """API密钥创建模型"""
-    exchange_id: str = Field(..., description="交易所ID")
+    """密钥创建模型"""
+    exchange_id: int = Field(..., description="交易所ID")
     label: str = Field(..., min_length=1, max_length=128, description="标签")
     api_key: str = Field(..., min_length=1, max_length=512, description="API密钥")
     secret_key: str = Field(..., min_length=1, max_length=512, description="Secret密钥")
@@ -151,10 +140,10 @@ class APIKeyUpdate(BaseModel):
 
 
 class APIKeyResponse(BaseModel):
-    """API密钥响应模型"""
-    id: Union[str, UUID]
-    user_id: Union[str, UUID]
-    exchange_id: Union[str, UUID]
+    """密钥响应模型"""
+    id: int
+    user_id: int
+    exchange_id: int
     label: str
     api_key: str
     status: APIKeyStatus
@@ -164,11 +153,6 @@ class APIKeyResponse(BaseModel):
     last_used_time: Optional[datetime]
     create_time: datetime
     update_time: datetime
-
-    @field_validator("id", "user_id", "exchange_id", mode="before")
-    @classmethod
-    def coerce_uuid_to_str(cls, v):
-        return str(v)
 
     class Config:
         from_attributes = True

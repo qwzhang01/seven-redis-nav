@@ -16,6 +16,8 @@ readonly IMAGE_TAG="${IMAGE_TAG:-latest}"
 readonly CONTAINER_NAME="${CONTAINER_NAME:-quantmeta}"
 readonly HOST_PORT="${HOST_PORT:-80}"
 readonly CONTAINER_PORT="8080"
+readonly DOCKER_NETWORK="${DOCKER_NETWORK:-quant_network}"
+readonly BACKEND_CONTAINER="${BACKEND_CONTAINER:-quant_app}"
 readonly BACKUP_TAG="${IMAGE_NAME}:backup-$(date +%Y%m%d-%H%M%S)"
 readonly LOG_FILE="${SCRIPT_DIR}/deploy-$(date +%Y%m%d).log"
 readonly MAX_HEALTH_CHECK_ATTEMPTS=30
@@ -79,6 +81,20 @@ check_docker() {
     fi
 }
 
+# 创建或检查 Docker 网络
+ensure_docker_network() {
+    if docker network inspect "${DOCKER_NETWORK}" &> /dev/null; then
+        log_info "Docker 网络 '${DOCKER_NETWORK}' 已存在"
+    else
+        log_info "创建 Docker 网络 '${DOCKER_NETWORK}'..."
+        if docker network create "${DOCKER_NETWORK}" &> /dev/null; then
+            log_success "Docker 网络创建成功"
+        else
+            error_exit "Docker 网络创建失败"
+        fi
+    fi
+}
+
 # 健康检查
 health_check() {
     local container_name="$1"
@@ -132,7 +148,7 @@ rollback() {
         docker run -d \
             --name "${CONTAINER_NAME}" \
             -p "${HOST_PORT}:${CONTAINER_PORT}" \
-            --add-host=host.docker.internal:host-gateway \
+            --network "${DOCKER_NETWORK}" \
             --restart unless-stopped \
             --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
             --health-interval=30s \
@@ -187,6 +203,7 @@ main() {
     check_command docker
     check_command curl
     check_docker
+    ensure_docker_network
     
     # 检查生产环境配置
     if [ ! -f "${SCRIPT_DIR}/.env.production" ]; then
@@ -241,7 +258,7 @@ EOF
     if docker run -d \
         --name "${temp_container}" \
         -p "${temp_port}:${CONTAINER_PORT}" \
-        --add-host=host.docker.internal:host-gateway \
+        --network "${DOCKER_NETWORK}" \
         --restart unless-stopped \
         --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
         --health-interval=30s \
@@ -284,7 +301,7 @@ EOF
     if docker run -d \
         --name "${CONTAINER_NAME}" \
         -p "${HOST_PORT}:${CONTAINER_PORT}" \
-        --add-host=host.docker.internal:host-gateway \
+        --network "${DOCKER_NETWORK}" \
         --restart unless-stopped \
         --health-cmd="curl -f http://localhost:${CONTAINER_PORT}/ || exit 1" \
         --health-interval=30s \

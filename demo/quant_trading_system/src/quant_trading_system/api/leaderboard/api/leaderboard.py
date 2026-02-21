@@ -29,7 +29,7 @@ router = APIRouter()
 def _snapshot_to_dict(s: LeaderboardSnapshot) -> dict:
     """将 LeaderboardSnapshot ORM 对象转换为字典"""
     return {
-        "id": str(s.id),
+        "id": s.id,
         "rank_type": s.rank_type,
         "period": s.period,
         "rank_position": s.rank_position,

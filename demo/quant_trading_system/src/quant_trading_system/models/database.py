@@ -7,9 +7,10 @@
 
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer, Numeric
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 Base = declarative_base()
 
@@ -18,7 +19,7 @@ class User(Base):
     """用户信息模型"""
     __tablename__ = "user_info"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     username = Column(String(64), nullable=False, unique=True)
     nickname = Column(String(128), nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -45,7 +46,7 @@ class Exchange(Base):
     """交易所信息模型"""
     __tablename__ = "exchange_info"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     exchange_code = Column(String(32), nullable=False)
     exchange_name = Column(String(128), nullable=False)
     exchange_type = Column(String(32), default="spot")
@@ -68,9 +69,9 @@ class UserExchangeAPI(Base):
     """用户交易所API密钥模型"""
     __tablename__ = "user_exchange_api"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"), nullable=False)
-    exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchange_info.id"), nullable=False)
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, ForeignKey("user_info.id"), nullable=False)
+    exchange_id = Column(BigInteger, ForeignKey("exchange_info.id"), nullable=False)
     label = Column(String(128), nullable=False)
     api_key = Column(String(512), nullable=False)
     secret_key = Column(String(512), nullable=False)
@@ -141,7 +142,7 @@ class SignalRecord(Base):
     """策略信号记录模型"""
     __tablename__ = "signal_records"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     strategy_id = Column(String(128), nullable=False)
     strategy_name = Column(String(128))
     symbol = Column(String(32), nullable=False)
@@ -167,8 +168,8 @@ class SignalSubscription(Base):
     """用户订阅信号模型"""
     __tablename__ = "signal_subscriptions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
     strategy_id = Column(String(128), nullable=False)
     notify_type = Column(String(32), default="realtime")  # realtime/daily/weekly
     is_active = Column(Boolean, default=True)
@@ -180,14 +181,14 @@ class LeaderboardSnapshot(Base):
     """排行榜快照模型"""
     __tablename__ = "leaderboard_snapshots"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     rank_type = Column(String(32), nullable=False)     # strategy/signal/user
     period = Column(String(16), nullable=False)        # daily/weekly/monthly/all_time
     rank_position = Column(Integer, nullable=False)
     entity_id = Column(String(128), nullable=False)
     entity_name = Column(String(256))
     entity_type = Column(String(64))
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    owner_id = Column(BigInteger, ForeignKey("user_info.id"))
     owner_name = Column(String(128))
     total_return = Column(Numeric(10, 6))
     annual_return = Column(Numeric(10, 6))
@@ -210,7 +211,7 @@ class AuditLog(Base):
     log_time = Column(DateTime, primary_key=True, default=datetime.utcnow, nullable=False)
     log_level = Column(String(16), nullable=False, default="INFO")
     log_category = Column(String(32), nullable=False)  # system/trading/strategy/user/risk/market
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    user_id = Column(BigInteger, ForeignKey("user_info.id"))
     username = Column(String(64))
     action = Column(String(128), nullable=False)
     resource_type = Column(String(64))
@@ -229,13 +230,13 @@ class RiskAlert(Base):
     """风控告警模型"""
     __tablename__ = "risk_alerts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     alert_time = Column(DateTime, nullable=False, default=datetime.utcnow)
     alert_type = Column(String(32), nullable=False)    # drawdown/position_limit/loss_limit/volatility
     severity = Column(String(16), nullable=False, default="warning")  # info/warning/critical
     strategy_id = Column(String(128))
     symbol = Column(String(32))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id"))
+    user_id = Column(BigInteger, ForeignKey("user_info.id"))
     title = Column(String(256), nullable=False)
     message = Column(Text, nullable=False)
     trigger_value = Column(Numeric(20, 8))
@@ -251,8 +252,8 @@ class SignalFollowOrder(Base):
     """信号跟单订单主表模型"""
     __tablename__ = "signal_follow_orders"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
     strategy_id = Column(String(128), nullable=False)
     signal_name = Column(String(256), nullable=False)
     exchange = Column(String(32), nullable=False, default="binance")
@@ -291,9 +292,9 @@ class SignalFollowPosition(Base):
     """信号跟单持仓模型"""
     __tablename__ = "signal_follow_positions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    follow_order_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
     symbol = Column(String(32), nullable=False)
     side = Column(String(8), nullable=False)                     # long/short
     amount = Column(Numeric(20, 8), nullable=False)              # 持仓数量
@@ -315,10 +316,10 @@ class SignalFollowTrade(Base):
     """信号跟单交易记录模型"""
     __tablename__ = "signal_follow_trades"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default="gen_random_uuid()")
-    follow_order_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
-    position_id = Column(UUID(as_uuid=True), ForeignKey("signal_follow_positions.id"))
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    position_id = Column(BigInteger, ForeignKey("signal_follow_positions.id"))
     symbol = Column(String(32), nullable=False)
     side = Column(String(8), nullable=False)                     # buy/sell
     price = Column(Numeric(20, 8), nullable=False)               # 成交价格
@@ -326,7 +327,7 @@ class SignalFollowTrade(Base):
     total = Column(Numeric(20, 8), nullable=False)               # 成交额（USDT）
     pnl = Column(Numeric(20, 8))                                 # 盈亏金额（已平仓时有值）
     fee = Column(Numeric(20, 8), default=0)                      # 手续费
-    signal_record_id = Column(UUID(as_uuid=True), ForeignKey("signal_records.id"))
+    signal_record_id = Column(BigInteger, ForeignKey("signal_records.id"))
     trade_time = Column(DateTime, default=datetime.utcnow)
     create_time = Column(DateTime, default=datetime.utcnow)
 

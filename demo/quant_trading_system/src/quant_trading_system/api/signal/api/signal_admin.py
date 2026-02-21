@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import SignalRecord
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 from .signal import _signal_to_dict
 
 router = APIRouter()
@@ -64,7 +65,7 @@ class ApproveSignalRequest(BaseModel):
 
 @router.put("/{signal_id}/approve")
 async def approve_signal(
-    signal_id: str,
+    signal_id: int,
     request: ApproveSignalRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -134,7 +135,7 @@ async def create_signal(
     - 创建的信号信息
     """
     signal = SignalRecord(
-        id=str(uuid.uuid4()),
+        id=generate_snowflake_id(),
         strategy_id=request.strategy_id,
         strategy_name=request.strategy_name,
         symbol=request.symbol.upper(),

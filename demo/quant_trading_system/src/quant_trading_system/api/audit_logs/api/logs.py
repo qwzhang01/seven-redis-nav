@@ -52,7 +52,7 @@ def _audit_to_dict(log: AuditLog) -> dict:
 def _alert_to_dict(alert: RiskAlert) -> dict:
     """将 RiskAlert ORM 对象转换为字典"""
     return {
-        "id": str(alert.id),
+        "id": alert.id,
         "alert_time": alert.alert_time.isoformat() if alert.alert_time else None,
         "alert_type": alert.alert_type,
         "severity": alert.severity,
@@ -330,7 +330,7 @@ class ResolveAlertRequest(BaseModel):
 
 @router.put("/risk/alerts/{alert_id}/resolve")
 async def resolve_risk_alert(
-    alert_id: str,
+    alert_id: int,
     request: ResolveAlertRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:

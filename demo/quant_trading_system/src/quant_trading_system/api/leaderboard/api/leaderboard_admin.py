@@ -15,6 +15,7 @@ from sqlalchemy import func
 
 from quant_trading_system.models.database import LeaderboardSnapshot, SignalRecord
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
 
@@ -89,7 +90,7 @@ def _compute_and_save_snapshots(db: Session, snapshot_time: datetime) -> None:
             avg_conf = float(row.avg_confidence or 0)
 
             snapshot = LeaderboardSnapshot(
-                id=str(uuid.uuid4()),
+                id=generate_snowflake_id(),
                 rank_type="signal",
                 period=period,
                 rank_position=rank,

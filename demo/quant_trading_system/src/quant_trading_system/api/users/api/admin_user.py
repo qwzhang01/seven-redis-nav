@@ -65,7 +65,7 @@ class UserStatusUpdate(BaseModel):
 def _user_to_response(user: User) -> dict[str, Any]:
     """将 User ORM 对象转换为响应字典"""
     return {
-        "id": str(user.id),
+        "id": user.id,
         "username": user.username,
         "nickname": user.nickname,
         "email": user.email,
@@ -158,7 +158,7 @@ async def list_users(
 
 @router.get("/{user_id}")
 async def get_user(
-    user_id: str,
+    user_id: int,
     db: Session = Depends(get_db),
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
@@ -176,7 +176,7 @@ async def get_user(
 
 @router.put("/{user_id}")
 async def update_user(
-    user_id: str,
+    user_id: int,
     body: AdminUserUpdate,
     db: Session = Depends(get_db),
     _admin: User = Depends(_require_admin),
@@ -217,7 +217,7 @@ async def update_user(
 
 @router.put("/{user_id}/status")
 async def update_user_status(
-    user_id: str,
+    user_id: int,
     body: UserStatusUpdate,
     db: Session = Depends(get_db),
     admin: User = Depends(_require_admin),
@@ -233,7 +233,7 @@ async def update_user_status(
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # 防止管理员锁定自己
-    if str(user.id) == str(admin.id) and body.status == UserStatus.LOCKED:
+    if user.id == admin.id and body.status == UserStatus.LOCKED:
         raise HTTPException(status_code=400, detail="不能锁定自己的账户")
 
     user.status = body.status.value

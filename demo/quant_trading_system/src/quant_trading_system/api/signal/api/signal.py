@@ -28,6 +28,7 @@ import jwt
 
 from quant_trading_system.models.database import SignalRecord, SignalSubscription, User
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.snowflake import generate_snowflake_id
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -63,7 +64,7 @@ def _require_user(
 def _signal_to_dict(s: SignalRecord) -> dict:
     """将 SignalRecord ORM 对象转换为字典"""
     return {
-        "id": str(s.id),
+        "id": s.id,
         "strategy_id": s.strategy_id,
         "strategy_name": s.strategy_name,
         "symbol": s.symbol,
@@ -157,7 +158,7 @@ async def get_my_subscriptions(
 
     items = [
         {
-            "id": str(s.id),
+            "id": s.id,
             "strategy_id": s.strategy_id,
             "notify_type": s.notify_type,
             "is_active": s.is_active,
@@ -204,7 +205,7 @@ async def get_strategy_signal_history(
 
 @router.get("/{signal_id}")
 async def get_signal_detail(
-    signal_id: str,
+    signal_id: int,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -264,7 +265,7 @@ async def subscribe_signal(
             existing.updated_at = datetime.utcnow()
             db.commit()
         return {
-            "id": str(existing.id),
+            "id": existing.id,
             "strategy_id": existing.strategy_id,
             "notify_type": existing.notify_type,
             "is_active": existing.is_active,
@@ -272,7 +273,7 @@ async def subscribe_signal(
         }
 
     sub = SignalSubscription(
-        id=str(uuid.uuid4()),
+        id=generate_snowflake_id(),
         user_id=current_user.id,
         strategy_id=request.strategy_id,
         notify_type=request.notify_type,
@@ -291,7 +292,7 @@ async def subscribe_signal(
     db.refresh(sub)
 
     return {
-        "id": str(sub.id),
+        "id": sub.id,
         "strategy_id": sub.strategy_id,
         "notify_type": sub.notify_type,
         "is_active": sub.is_active,
@@ -301,7 +302,7 @@ async def subscribe_signal(
 
 @router.delete("/subscriptions/{subscription_id}")
 async def cancel_subscription(
-    subscription_id: str,
+    subscription_id: int,
     current_user: User = Depends(_require_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -323,7 +324,7 @@ async def cancel_subscription(
     sub = db.query(SignalSubscription).filter(SignalSubscription.id == subscription_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
-    if str(sub.user_id) != str(current_user.id):
+    if sub.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权操作此订阅")
 
     sub.is_active = False
