@@ -4,171 +4,36 @@
  */
 
 import { get, post, put, del } from './request'
-
-// ==================== 类型定义 ====================
-
-/**
- * 用户注册请求
- */
-export interface RegisterRequest {
-  username: string
-  nickname: string
-  email: string
-  password: string
-  phone?: string
-  avatar_url?: string
-}
-
-/**
- * 用户登录请求
- */
-export interface LoginRequest {
-  username: string
-  password: string
-}
-
-/**
- * 用户登录响应
- */
-export interface LoginResponse {
-  access_token: string
-  token_type: string
-  expires_in: number
-  user: UserProfile
-}
-
-/**
- * 用户信息
- */
-export interface UserProfile {
-  id: string
-  username: string
-  nickname: string
-  email: string
-  email_verified: boolean
-  phone?: string
-  phone_verified: boolean
-  avatar_url?: string
-  user_type: 'customer' | 'admin'
-  registration_time: string
-  last_login_time?: string
-  status: 'active' | 'inactive' | 'locked'
-  create_time: string
-  update_time?: string
-}
-
-/**
- * 更新用户信息请求
- */
-export interface UpdateProfileRequest {
-  nickname?: string
-  email?: string
-  phone?: string
-  avatar_url?: string
-}
-
-/**
- * 修改密码请求
- */
-export interface ChangePasswordRequest {
-  old_password: string
-  new_password: string
-}
-
-/**
- * 忘记密码重置请求
- */
-export interface ResetPasswordRequest {
-  email: string
-  verification_code: string
-  new_password: string
-}
-
-/**
- * 交易所信息
- */
-export interface ExchangeInfo {
-  id: string
-  exchange_code: string
-  exchange_name: string
-  exchange_type: 'spot' | 'futures' | 'margin'
-  base_url: string
-  api_doc_url?: string
-  status: 'active' | 'inactive'
-  supported_pairs?: string[]
-  rate_limits?: Record<string, any>
-  create_time: string
-  update_time?: string
-}
-
-/**
- * API密钥权限
- */
-export interface ApiKeyPermissions {
-  spot_trading?: boolean
-  margin_trading?: boolean
-  futures_trading?: boolean
-  withdraw?: boolean
-}
-
-/**
- * 添加API密钥请求
- */
-export interface AddApiKeyRequest {
-  exchange_id: string
-  label: string
-  api_key: string
-  secret_key: string
-  passphrase?: string
-  permissions?: ApiKeyPermissions
-}
-
-/**
- * 更新API密钥请求
- */
-export interface UpdateApiKeyRequest {
-  label?: string
-  permissions?: ApiKeyPermissions
-  status?: 'pending' | 'approved' | 'rejected' | 'disabled'
-}
-
-/**
- * API密钥信息
- */
-export interface ApiKeyInfo {
-  id: string
-  user_id: string
-  exchange_id: string
-  exchange_name?: string
-  exchange_code?: string
-  label: string
-  api_key: string
-  secret_key_masked?: string
-  status: 'pending' | 'approved' | 'rejected' | 'disabled'
-  review_reason?: string
-  approved_by?: string
-  approved_time?: string
-  last_used_time?: string
-  permissions?: ApiKeyPermissions
-  create_time: string
-  update_time?: string
-}
-
-/**
- * API密钥列表响应
- */
-export interface ApiKeyListResponse {
-  total: number
-  items: ApiKeyInfo[]
-}
+import type {
+  RegisterRequest,
+  LoginRequest,
+  LoginResponse,
+  UserResponse,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  ResetPasswordRequest,
+  ExchangeInfo,
+  CreateAPIKeyRequest,
+  UpdateAPIKeyRequest,
+  APIKeyResponse,
+  APIKeyListResponse,
+  SignalFollow,
+  CreateFollowRequest,
+  UpdateFollowConfigRequest,
+  SignalFollowPosition,
+  SignalFollowTrade,
+  UserStatistics,
+  UpdateUserRequest,
+  UpdateUserStatusRequest,
+} from '../types'
 
 // ==================== API方法 ====================
 
 /**
  * 用户注册
  */
-export function register(data: RegisterRequest): Promise<UserProfile> {
-  return post<UserProfile>('/api/v1/c/user/register', data, { skipAuth: true })
+export function register(data: RegisterRequest): Promise<UserResponse> {
+  return post<UserResponse>('/api/v1/c/user/register', data, { skipAuth: true })
 }
 
 /**
@@ -181,8 +46,8 @@ export function login(data: LoginRequest): Promise<LoginResponse> {
 /**
  * 更新用户信息
  */
-export function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
-  return put<UserProfile>('/api/v1/c/user/profile', data)
+export function updateProfile(data: UpdateProfileRequest): Promise<UserResponse> {
+  return put<UserResponse>('/api/v1/c/user/profile', data)
 }
 
 /**
@@ -209,30 +74,30 @@ export function getExchangeById(exchangeId: string): Promise<ExchangeInfo> {
 /**
  * 添加API密钥
  */
-export function addApiKey(data: AddApiKeyRequest): Promise<ApiKeyInfo> {
-  return post<ApiKeyInfo>('/api/v1/c/user/api-keys', data)
+export function addApiKey(data: CreateAPIKeyRequest): Promise<APIKeyResponse> {
+  return post<APIKeyResponse>('/api/v1/c/user/api-keys', data)
 }
 
 /**
  * 获取API密钥列表
  */
-export function getApiKeys(status?: 'pending' | 'approved' | 'rejected' | 'disabled'): Promise<ApiKeyListResponse> {
+export function getApiKeys(status?: 'pending' | 'approved' | 'rejected' | 'disabled'): Promise<APIKeyListResponse> {
   const params = status ? { status } : undefined
-  return get<ApiKeyListResponse>('/api/v1/c/user/api-keys', params)
+  return get<APIKeyListResponse>('/api/v1/c/user/api-keys', params)
 }
 
 /**
  * 获取API密钥详情
  */
-export function getApiKeyById(keyId: string): Promise<ApiKeyInfo> {
-  return get<ApiKeyInfo>(`/api/v1/c/user/api-keys/${keyId}`)
+export function getApiKeyById(keyId: string): Promise<APIKeyResponse> {
+  return get<APIKeyResponse>(`/api/v1/c/user/api-keys/${keyId}`)
 }
 
 /**
  * 更新API密钥
  */
-export function updateApiKey(keyId: string, data: UpdateApiKeyRequest): Promise<ApiKeyInfo> {
-  return put<ApiKeyInfo>(`/api/v1/c/user/api-keys/${keyId}`, data)
+export function updateApiKey(keyId: string, data: UpdateAPIKeyRequest): Promise<APIKeyResponse> {
+  return put<APIKeyResponse>(`/api/v1/c/user/api-keys/${keyId}`, data)
 }
 
 /**
@@ -245,44 +110,10 @@ export function deleteApiKey(keyId: string): Promise<{ message: string }> {
 // ==================== 信号跟单接口 ====================
 
 /**
- * 跟单记录
- */
-export interface SignalFollow {
-  id: number
-  user_id: number
-  strategy_id: string
-  signal_name: string
-  exchange: string
-  follow_amount: number
-  current_value: number
-  follow_ratio: number
-  stop_loss: number | null
-  total_return: number
-  max_drawdown: number
-  current_drawdown: number
-  today_return: number
-  win_rate: number
-  total_trades: number
-  win_trades: number
-  loss_trades: number
-  avg_win: number
-  avg_loss: number
-  profit_factor: number
-  risk_level: string
-  status: 'following' | 'stopped' | 'paused'
-  follow_days: number
-  start_time: string | null
-  stop_time: string | null
-  return_curve: number[]
-  return_curve_labels: string[]
-  create_time: string
-  update_time: string
-}
-
-/**
- * 获取我的跟单列表
+ * 获取我的跟单列表参数
  */
 export interface GetSignalFollowsParams {
+
   status?: 'following' | 'stopped' | 'paused'
   page?: number
   page_size?: number
@@ -302,25 +133,13 @@ export function getSignalFollows(params?: GetSignalFollowsParams): Promise<GetSi
   return get<GetSignalFollowsResponse>('/api/v1/c/user/signal-follows', params)
 }
 
-/**
- * 创建跟单
- */
-export interface CreateSignalFollowRequest {
-  strategy_id: string
-  signal_name: string
-  exchange?: string
-  follow_amount: number
-  follow_ratio?: number
-  stop_loss?: number
-}
-
 export interface CreateSignalFollowResponse {
   success: boolean
   data: SignalFollow
   message: string
 }
 
-export function createSignalFollow(data: CreateSignalFollowRequest): Promise<CreateSignalFollowResponse> {
+export function createSignalFollow(data: CreateFollowRequest): Promise<CreateSignalFollowResponse> {
   return post<CreateSignalFollowResponse>('/api/v1/c/user/signal-follows', data)
 }
 
@@ -336,22 +155,13 @@ export function getSignalFollowDetail(followId: number): Promise<GetSignalFollow
   return get<GetSignalFollowDetailResponse>(`/api/v1/c/user/signal-follows/${followId}`)
 }
 
-/**
- * 更新跟单配置
- */
-export interface UpdateSignalFollowConfigRequest {
-  follow_amount?: number
-  follow_ratio?: number
-  stop_loss?: number
-}
-
 export interface UpdateSignalFollowConfigResponse {
   success: boolean
   data: SignalFollow
   message: string
 }
 
-export function updateSignalFollowConfig(followId: number, data: UpdateSignalFollowConfigRequest): Promise<UpdateSignalFollowConfigResponse> {
+export function updateSignalFollowConfig(followId: number, data: UpdateFollowConfigRequest): Promise<UpdateSignalFollowConfigResponse> {
   return put<UpdateSignalFollowConfigResponse>(`/api/v1/c/user/signal-follows/${followId}/config`, data)
 }
 
@@ -369,25 +179,7 @@ export function stopSignalFollow(followId: number): Promise<StopSignalFollowResp
 }
 
 /**
- * 跟单持仓
- */
-export interface SignalFollowPosition {
-  id: number
-  follow_order_id: string
-  symbol: string
-  side: 'buy' | 'sell'
-  amount: number
-  entry_price: number
-  current_price: number
-  pnl: number
-  pnl_percent: number
-  status: 'open' | 'closed'
-  open_time: string
-  close_time: string | null
-}
-
-/**
- * 获取跟单持仓列表
+ * 获取跟单持仓列表参数
  */
 export interface GetSignalFollowPositionsParams {
   status?: 'open' | 'closed'
@@ -410,25 +202,7 @@ export function getSignalFollowPositions(followId: number, params?: GetSignalFol
 }
 
 /**
- * 跟单交易记录
- */
-export interface SignalFollowTrade {
-  id: number
-  follow_order_id: string
-  position_id: string | null
-  symbol: string
-  side: 'buy' | 'sell'
-  price: number
-  amount: number
-  total: number
-  pnl: number | null
-  fee: number
-  signal_record_id: string | null
-  trade_time: string
-}
-
-/**
- * 获取跟单交易记录
+ * 获取跟单交易记录参数
  */
 export interface GetSignalFollowTradesParams {
   symbol?: string
@@ -454,17 +228,7 @@ export function getSignalFollowTrades(followId: number, params?: GetSignalFollow
 // ==================== Admin端用户管理接口 ====================
 
 /**
- * 用户统计信息
- */
-export interface UserStatistics {
-  total_users: number
-  active_users: number
-  today_new: number
-  locked_users: number
-}
-
-/**
- * 获取用户列表
+ * 获取用户列表参数
  */
 export interface GetUsersParams {
   search?: string
@@ -480,7 +244,7 @@ export interface GetUsersResponse {
     total: number
     page: number
     page_size: number
-    items: UserProfile[]
+    items: UserResponse[]
     statistics: UserStatistics
   }
 }
@@ -494,26 +258,16 @@ export function getUsers(params?: GetUsersParams): Promise<GetUsersResponse> {
  */
 export interface GetUserDetailResponse {
   success: boolean
-  data: UserProfile
+  data: UserResponse
 }
 
 export function getUserDetail(userId: number): Promise<GetUserDetailResponse> {
   return get<GetUserDetailResponse>(`/api/v1/m/users/${userId}`)
 }
 
-/**
- * 更新用户信息（Admin）
- */
-export interface UpdateUserRequest {
-  nickname?: string
-  email?: string
-  phone?: string
-  user_type?: 'customer' | 'admin'
-}
-
 export interface UpdateUserResponse {
   success: boolean
-  data: UserProfile
+  data: UserResponse
   message: string
 }
 
@@ -521,16 +275,9 @@ export function updateUser(userId: number, data: UpdateUserRequest): Promise<Upd
   return put<UpdateUserResponse>(`/api/v1/m/users/${userId}`, data)
 }
 
-/**
- * 更新用户状态（Admin）
- */
-export interface UpdateUserStatusRequest {
-  status: 'active' | 'inactive' | 'locked'
-}
-
 export interface UpdateUserStatusResponse {
   success: boolean
-  data: UserProfile
+  data: UserResponse
   message: string
 }
 

@@ -1,3 +1,15 @@
+// ==================== 导出API类型 ====================
+export * from './api/user'
+export * from './api/market'
+export * from './api/strategy'
+export * from './api/signal'
+export * from './common'
+
+// ==================== UI层类型定义 ====================
+
+/**
+ * UI层策略类型（用于前端展示）
+ */
 export interface Strategy {
   id: string
   name: string
@@ -40,6 +52,9 @@ export interface Strategy {
   }
 }
 
+/**
+ * UI层策略参数类型
+ */
 export interface StrategyParam {
   name: string
   label: string
@@ -53,7 +68,10 @@ export interface StrategyParam {
   required?: boolean
 }
 
-export interface Signal {
+/**
+ * UI层信号类型（用于前端展示）
+ */
+export interface UISignal {
   id: string
   name: string
   platform: string
@@ -94,8 +112,6 @@ export interface Signal {
     maxConsecutiveLosses: number
   }
 }
-
-export interface Position {
   symbol: string
   side: 'long' | 'short'
   amount: number
@@ -107,7 +123,7 @@ export interface Position {
 
 export interface LeaderboardEntry {
   rank: number
-  signal: Signal
+  signal: UISignal
 }
 
 export interface UserStrategy {
@@ -122,7 +138,7 @@ export interface UserStrategy {
 
 export interface UserSignalFollow {
   id: string
-  signal: Signal
+  signal: UISignal
   status: 'following' | 'stopped'
   startTime: string
   endTime?: string
@@ -131,7 +147,10 @@ export interface UserSignalFollow {
   totalReturn: number
 }
 
-export interface ApiKey {
+/**
+ * UI层API密钥类型（用于前端展示，扩展自API类型）
+ */
+export interface UIApiKey {
   id: string
   exchange: string
   label: string
@@ -146,41 +165,4 @@ export interface ApiKey {
   userName: string
 }
 
-export interface DataSubscription {
-  id: string
-  name: string
-  exchange: string
-  dataType: 'kline' | 'ticker' | 'depth' | 'trade' | 'orderbook'
-  symbols: string[]
-  interval?: string
-  status: 'running' | 'paused' | 'stopped'
-  createdAt: string
-  updatedAt: string
-  lastSyncTime?: string
-  totalRecords: number
-  errorCount: number
-  config: {
-    autoRestart: boolean
-    maxRetries: number
-    batchSize: number
-    syncInterval: number
-  }
-}
-
-export interface SyncTask {
-  id: string
-  subscriptionId: string
-  subscriptionName: string
-  exchange: string
-  symbols: string[]
-  dataType: string
-  startTime: string
-  endTime: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
-  progress: number
-  totalRecords: number
-  syncedRecords: number
-  errorMessage?: string
-  createdAt: string
-  completedAt?: string
-}
+// DataSubscription 和 SyncTask 已在 api/market.ts 中定义，直接使用 SubscriptionConfig 和 SyncTask

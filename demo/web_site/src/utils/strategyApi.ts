@@ -4,99 +4,19 @@
  */
 
 import { get, post, put, del } from './request'
+import type {
+  StrategyStatus,
+  StrategyParameter,
+  StrategyType,
+  StrategyInfo,
+  CreateStrategyRequest,
+  UpdateStrategyRequest,
+  StrategySignal,
+  CreateUserStrategyRequest,
+  CreateSimulateStrategyRequest,
+} from '../types'
 
-// ==================== 类型定义 ====================
-
-/**
- * 策略状态
- */
-export type StrategyStatus = 'draft' | 'testing' | 'running' | 'paused' | 'stopped' | 'error'
-
-/**
- * 策略类型
- */
-export interface StrategyType {
-  id: string
-  name: string
-  code: string
-  description: string
-  category: string
-  parameters: StrategyParameter[]
-  risk_level: 'low' | 'medium' | 'high'
-  min_capital?: number
-  supported_exchanges: string[]
-  create_time: string
-}
-
-/**
- * 策略参数定义
- */
-export interface StrategyParameter {
-  name: string
-  label: string
-  type: 'string' | 'number' | 'boolean' | 'select'
-  default_value: any
-  required: boolean
-  description?: string
-  options?: Array<{ label: string; value: any }>
-  min?: number
-  max?: number
-  step?: number
-}
-
-/**
- * 策略信息
- */
-export interface StrategyInfo {
-  id: string
-  user_id: string
-  strategy_type_id: string
-  strategy_type_name?: string
-  name: string
-  description?: string
-  exchange_id: string
-  exchange_name?: string
-  symbol: string
-  status: StrategyStatus
-  parameters: Record<string, any>
-  initial_capital?: number
-  current_capital?: number
-  total_pnl?: number
-  total_pnl_ratio?: number
-  daily_pnl?: number
-  daily_pnl_ratio?: number
-  win_rate?: number
-  sharpe_ratio?: number
-  max_drawdown?: number
-  total_trades?: number
-  error_message?: string
-  start_time?: string
-  stop_time?: string
-  create_time: string
-  update_time?: string
-}
-
-/**
- * 创建策略请求
- */
-export interface CreateStrategyRequest {
-  strategy_type_id: string
-  name: string
-  description?: string
-  exchange_id: string
-  symbol: string
-  parameters: Record<string, any>
-  initial_capital?: number
-}
-
-/**
- * 更新策略请求
- */
-export interface UpdateStrategyRequest {
-  name?: string
-  description?: string
-  parameters?: Record<string, any>
-}
+// ==================== 本地扩展类型 ====================
 
 /**
  * 策略列表查询参数
@@ -127,26 +47,6 @@ export interface StrategyListResponse {
 export interface StrategyTypeListResponse {
   total: number
   items: StrategyType[]
-}
-
-/**
- * 策略信号
- */
-export interface StrategySignal {
-  id: string
-  strategy_id: string
-  strategy_name?: string
-  signal_type: 'buy' | 'sell' | 'close_long' | 'close_short'
-  symbol: string
-  price: number
-  quantity?: number
-  reason?: string
-  confidence?: number
-  executed: boolean
-  order_id?: string
-  signal_time: string
-  execute_time?: string
-  create_time: string
 }
 
 /**
