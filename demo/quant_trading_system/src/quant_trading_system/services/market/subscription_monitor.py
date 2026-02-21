@@ -86,7 +86,11 @@ class SubscriptionMonitor:
     async def _check_subscriptions(self) -> None:
         """检查所有订阅的状态变化"""
         try:
-            with get_db() as session:
+            # 正确使用get_db()生成器获取Session
+            db_gen = get_db()
+            session = next(db_gen)
+
+            try:
                 # 获取所有订阅
                 subscriptions = session.query(Subscription).all()
 
@@ -104,6 +108,13 @@ class SubscriptionMonitor:
 
                 for sub_id in active_ids - db_ids:
                     await self._stop_subscription(sub_id)
+
+            finally:
+                # 确保Session被正确关闭
+                try:
+                    next(db_gen)
+                except StopIteration:
+                    pass
 
         except Exception as e:
             logger.error("Error checking subscriptions", error=str(e))
