@@ -181,10 +181,17 @@ export function getStrategies(params?: StrategyListParams): Promise<StrategyList
 }
 
 /**
- * 获取可用策略类型
+ * 获取可用策略类型（M端）
  */
 export function getStrategyTypes(): Promise<StrategyTypeListResponse> {
   return get<StrategyTypeListResponse>('/api/v1/m/strategy/types')
+}
+
+/**
+ * 获取可用策略类型（C端）
+ */
+export function getUserStrategyTypes(): Promise<any> {
+  return get<any>('/api/v1/c/strategy/types')
 }
 
 /**
@@ -487,6 +494,7 @@ export default {
   // C端接口
   getFeaturedStrategies,
   getUserStrategies,
+  getUserStrategyTypes,
   createUserStrategy,
   createSimulateStrategy,
   getUserStrategy,

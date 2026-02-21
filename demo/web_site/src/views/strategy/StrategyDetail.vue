@@ -523,7 +523,7 @@ async function loadStrategyDetail() {
   loading.value = true
   try {
     const strategyId = route.params.id as string
-    const response = await strategyApi.getStrategy(strategyId)
+    const response = await strategyApi.getUserStrategy(strategyId)
     strategy.value = response
   } catch (error: any) {
     console.error('加载策略详情失败:', error)
@@ -618,13 +618,11 @@ async function handleLaunch() {
       launching.value = true
       try {
         // 创建策略实例
-        await strategyApi.createStrategy({
-          strategy_type_id: strategy.value.type,
+        await strategyApi.createUserStrategy({
           name: `${strategy.value.name}_${Date.now()}`,
-          exchange_id: configValues.value.platform.toLowerCase(),
-          symbol: configValues.value.currencyPair.replace('/', ''),
-          parameters: configValues.value,
-          initial_capital: configValues.value.investment
+          strategy_type: strategy.value.type,
+          symbols: [configValues.value.currencyPair],
+          params: configValues.value
         })
         
         MessagePlugin.success('策略已成功启动！可在「我的」页面查看运行状态。')

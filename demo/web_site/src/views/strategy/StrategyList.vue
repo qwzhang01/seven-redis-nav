@@ -173,20 +173,23 @@ const types = ref<string[]>([])
 async function loadStrategies() {
   loading.value = true
   try {
-    const response = await strategyApi.getStrategies({
+    const response = await strategyApi.getUserStrategies({
       page: currentPage.value,
       page_size: pageSize,
-      strategy_type_id: filters.value.type || undefined,
-      status: filters.value.risk as any || undefined,
-      symbol: filters.value.search || undefined,
+      state: filters.value.risk || undefined,
     })
-    strategies.value = response.items
+    strategies.value = response.strategies.map((item: any) => ({
+      ...item,
+      id: item.strategy_id,
+      symbol: item.symbols?.[0] || '',
+      status: item.state,
+    }))
     total.value = response.total
     
     // 提取市场和类型选项
-    if (response.items.length > 0) {
-      const uniqueMarkets = [...new Set(response.items.map((s: any) => s.market))]
-      const uniqueTypes = [...new Set(response.items.map((s: any) => s.type))]
+    if (response.strategies.length > 0) {
+      const uniqueMarkets = [...new Set(response.strategies.map((s: any) => s.market))]
+      const uniqueTypes = [...new Set(response.strategies.map((s: any) => s.type))]
       if (markets.value.length === 0) markets.value = uniqueMarkets
       if (types.value.length === 0) types.value = uniqueTypes
     }

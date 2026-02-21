@@ -443,20 +443,20 @@ const bottomTabs = ref(['持仓', '交易历史'])
 async function loadRunningStrategies() {
   loading.value = true
   try {
-    const response = await strategyApi.getStrategies({
-      status: 'running',
+    const response = await strategyApi.getUserStrategies({
+      state: 'running',
       page: 1,
       page_size: 50
     })
-    strategies.value = response.items.map((item: any) => ({
+    strategies.value = response.strategies.map((item: any) => ({
       id: item.strategy_id,
       name: item.name,
-      pair: item.symbol,
-      status: item.status,
-      pnl: item.total_pnl_percent || 0,
-      position: `${item.current_position || 0} ${item.symbol.replace('USDT', '')}`,
-      runtime: calculateRuntime(item.created_at),
-      signals: item.signal_count || 0
+      pair: item.symbols?.[0] || '',
+      status: item.state,
+      pnl: 0, // C端接口暂不返回盈亏数据
+      position: '', // C端接口暂不返回持仓数据
+      runtime: '', // C端接口暂不返回运行时间
+      signals: 0 // C端接口暂不返回信号数量
     }))
   } catch (error: any) {
     console.error('加载运行策略失败:', error)
