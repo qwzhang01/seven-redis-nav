@@ -289,6 +289,306 @@ export function getExchanges(): Promise<ExchangesResponse> {
   return get<ExchangesResponse>('/api/v1/c/market/exchanges')
 }
 
+/**
+ * 订阅行情数据
+ */
+export interface SubscribeMarketRequest {
+  symbols: string[]
+  exchange?: string
+  market_type?: string
+}
+
+export interface SubscribeMarketResponse {
+  success: boolean
+  message: string
+  symbols: string[]
+}
+
+export function subscribeMarket(data: SubscribeMarketRequest): Promise<SubscribeMarketResponse> {
+  return post<SubscribeMarketResponse>('/api/v1/c/market/subscribe', data)
+}
+
+/**
+ * 取消行情订阅
+ */
+export function unsubscribeMarket(data: SubscribeMarketRequest): Promise<SubscribeMarketResponse> {
+  return post<SubscribeMarketResponse>('/api/v1/c/market/unsubscribe', data)
+}
+
+/**
+ * 获取K线数据（路径参数方式）
+ */
+export interface KlinePathParams {
+  timeframe?: string
+  limit?: number
+}
+
+export function getKlineBySymbol(symbol: string, params?: KlinePathParams): Promise<any> {
+  return get<any>(`/api/v1/c/market/kline/${symbol}`, params)
+}
+
+/**
+ * 获取最新Tick数据
+ */
+export function getTickBySymbol(symbol: string): Promise<any> {
+  return get<any>(`/api/v1/c/market/tick/${symbol}`)
+}
+
+/**
+ * 获取市场深度数据
+ */
+export function getDepthBySymbol(symbol: string, params?: { limit?: number }): Promise<any> {
+  return get<any>(`/api/v1/c/market/depth/${symbol}`, params)
+}
+
+/**
+ * 获取已订阅的交易对列表
+ */
+export interface SubscribedSymbolsParams {
+  exchange?: string
+  market_type?: string
+}
+
+export interface SubscribedSymbolsResponse {
+  exchange: string
+  market_type: string
+  symbols: string[]
+}
+
+export function getSubscribedSymbols(params?: SubscribedSymbolsParams): Promise<SubscribedSymbolsResponse> {
+  return get<SubscribedSymbolsResponse>('/api/v1/c/market/symbols', params)
+}
+
+/**
+ * 获取行情服务统计信息
+ */
+export function getMarketStats(): Promise<Record<string, any>> {
+  return get<Record<string, any>>('/api/v1/c/market/stats')
+}
+
+// ==================== Admin端订阅管理接口 ====================
+
+/**
+ * 订阅配置
+ */
+export interface SubscriptionConfig {
+  id: string
+  name: string
+  exchange: string
+  market_type: string
+  data_type: string
+  symbols: string[]
+  interval?: string
+  status: 'running' | 'paused' | 'stopped'
+  created_at: string
+  updated_at: string
+  last_sync_time?: string
+  total_records: number
+  error_count: number
+  last_error?: string
+  config: {
+    auto_restart: boolean
+    max_retries: number
+    batch_size: number
+    sync_interval: number
+  }
+}
+
+/**
+ * 创建订阅配置
+ */
+export interface CreateSubscriptionRequest {
+  name: string
+  exchange: string
+  market_type?: string
+  data_type: string
+  symbols: string[]
+  interval?: string
+  config?: {
+    auto_restart?: boolean
+    max_retries?: number
+    batch_size?: number
+    sync_interval?: number
+  }
+}
+
+export function createSubscription(data: CreateSubscriptionRequest): Promise<{ success: boolean; message: string; data: SubscriptionConfig }> {
+  return post<{ success: boolean; message: string; data: SubscriptionConfig }>('/api/v1/m/market/subscriptions', data)
+}
+
+/**
+ * 获取订阅列表
+ */
+export interface GetSubscriptionsParams {
+  exchange?: string
+  data_type?: string
+  status?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+export interface GetSubscriptionsResponse {
+  success: boolean
+  data: {
+    items: SubscriptionConfig[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export function getSubscriptions(params?: GetSubscriptionsParams): Promise<GetSubscriptionsResponse> {
+  return get<GetSubscriptionsResponse>('/api/v1/m/market/subscriptions', params)
+}
+
+/**
+ * 获取订阅统计信息
+ */
+export interface SubscriptionStatistics {
+  total_subscriptions: number
+  running_subscriptions: number
+  paused_subscriptions: number
+  stopped_subscriptions: number
+  total_records: number
+  total_errors: number
+  by_exchange: Record<string, number>
+  by_data_type: Record<string, number>
+}
+
+export function getSubscriptionStatistics(): Promise<{ success: boolean; data: SubscriptionStatistics }> {
+  return get<{ success: boolean; data: SubscriptionStatistics }>('/api/v1/m/market/subscriptions/statistics')
+}
+
+/**
+ * 获取订阅详情
+ */
+export function getSubscriptionDetail(subscriptionId: string): Promise<{ success: boolean; data: SubscriptionConfig }> {
+  return get<{ success: boolean; data: SubscriptionConfig }>(`/api/v1/m/market/subscriptions/${subscriptionId}`)
+}
+
+/**
+ * 更新订阅配置
+ */
+export interface UpdateSubscriptionRequest {
+  name?: string
+  symbols?: string[]
+  interval?: string
+  config?: {
+    auto_restart?: boolean
+    max_retries?: number
+    batch_size?: number
+    sync_interval?: number
+  }
+}
+
+export function updateSubscription(subscriptionId: string, data: UpdateSubscriptionRequest): Promise<{ success: boolean; message: string; data: SubscriptionConfig }> {
+  return put<{ success: boolean; message: string; data: SubscriptionConfig }>(`/api/v1/m/market/subscriptions/${subscriptionId}`, data)
+}
+
+/**
+ * 删除订阅
+ */
+export function deleteSubscription(subscriptionId: string): Promise<{ success: boolean; message: string }> {
+  return del<{ success: boolean; message: string }>(`/api/v1/m/market/subscriptions/${subscriptionId}`)
+}
+
+/**
+ * 启动订阅
+ */
+export function startSubscription(subscriptionId: string): Promise<{ success: boolean; message: string; data: any }> {
+  return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/subscriptions/${subscriptionId}/start`)
+}
+
+/**
+ * 暂停订阅
+ */
+export function pauseSubscription(subscriptionId: string): Promise<{ success: boolean; message: string; data: any }> {
+  return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/subscriptions/${subscriptionId}/pause`)
+}
+
+/**
+ * 停止订阅
+ */
+export function stopSubscription(subscriptionId: string): Promise<{ success: boolean; message: string; data: any }> {
+  return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/subscriptions/${subscriptionId}/stop`)
+}
+
+// ==================== Admin端同步任务管理接口 ====================
+
+/**
+ * 同步任务
+ */
+export interface SyncTask {
+  id: string
+  subscription_id: string
+  subscription_name: string
+  exchange: string
+  symbols: string[]
+  data_type: string
+  start_time: string
+  end_time: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  progress: number
+  total_records: number
+  synced_records: number
+  error_message?: string
+  created_at: string
+  updated_at: string
+  completed_at?: string
+}
+
+/**
+ * 创建同步任务
+ */
+export interface CreateSyncTaskRequest {
+  subscription_id: string
+  start_time: string
+  end_time: string
+}
+
+export function createSyncTask(data: CreateSyncTaskRequest): Promise<{ success: boolean; message: string; data: SyncTask }> {
+  return post<{ success: boolean; message: string; data: SyncTask }>('/api/v1/m/market/sync-tasks', data)
+}
+
+/**
+ * 获取同步任务列表
+ */
+export interface GetSyncTasksParams {
+  subscription_id?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+export interface GetSyncTasksResponse {
+  success: boolean
+  data: {
+    items: SyncTask[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export function getSyncTasks(params?: GetSyncTasksParams): Promise<GetSyncTasksResponse> {
+  return get<GetSyncTasksResponse>('/api/v1/m/market/sync-tasks', params)
+}
+
+/**
+ * 获取同步任务详情
+ */
+export function getSyncTaskDetail(taskId: string): Promise<{ success: boolean; data: SyncTask }> {
+  return get<{ success: boolean; data: SyncTask }>(`/api/v1/m/market/sync-tasks/${taskId}`)
+}
+
+/**
+ * 取消同步任务
+ */
+export function cancelSyncTask(taskId: string): Promise<{ success: boolean; message: string; data: any }> {
+  return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/sync-tasks/${taskId}/cancel`)
+}
+
 // ==================== WebSocket相关 ====================
 
 /**
@@ -368,6 +668,7 @@ export function unsubscribeWebSocket(ws: WebSocket, params: WSSubscribeParams): 
 
 // 导出所有API
 export default {
+  // C端接口
   getKlines,
   getTicker,
   getTickers,
@@ -375,6 +676,29 @@ export default {
   getTrades,
   getSymbols,
   getExchanges,
+  subscribeMarket,
+  unsubscribeMarket,
+  getKlineBySymbol,
+  getTickBySymbol,
+  getDepthBySymbol,
+  getSubscribedSymbols,
+  getMarketStats,
+  // Admin端订阅管理接口
+  createSubscription,
+  getSubscriptions,
+  getSubscriptionStatistics,
+  getSubscriptionDetail,
+  updateSubscription,
+  deleteSubscription,
+  startSubscription,
+  pauseSubscription,
+  stopSubscription,
+  // Admin端同步任务管理接口
+  createSyncTask,
+  getSyncTasks,
+  getSyncTaskDetail,
+  cancelSyncTask,
+  // WebSocket相关
   createWebSocket,
   subscribeWebSocket,
   unsubscribeWebSocket,

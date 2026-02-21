@@ -250,8 +250,226 @@ export function getStrategySignals(strategyId: string, params?: SignalListParams
   return get<SignalListResponse>(`/api/v1/m/strategy/${strategyId}/signals`, params)
 }
 
+// ==================== C端接口 ====================
+
+/**
+ * 获取首页优选策略
+ */
+export interface FeaturedStrategiesResponse {
+  strategies: Array<{
+    strategy_id: string
+    name: string
+    state: string
+    symbols: string[]
+    timeframes: string[]
+    signal_count: number
+  }>
+  total: number
+}
+
+export function getFeaturedStrategies(params?: { limit?: number }): Promise<FeaturedStrategiesResponse> {
+  return get<FeaturedStrategiesResponse>('/api/v1/c/strategy/featured', params)
+}
+
+/**
+ * 获取当前用户的策略列表
+ */
+export interface UserStrategyListParams {
+  state?: string
+  page?: number
+  page_size?: number
+}
+
+export interface UserStrategyListResponse {
+  strategies: Array<{
+    strategy_id: string
+    name: string
+    state: string
+    symbols: string[]
+    timeframes: string[]
+  }>
+  total: number
+  page: number
+  page_size: number
+}
+
+export function getUserStrategies(params?: UserStrategyListParams): Promise<UserStrategyListResponse> {
+  return get<UserStrategyListResponse>('/api/v1/c/strategy/list', params)
+}
+
+/**
+ * 创建实盘策略
+ */
+export interface CreateUserStrategyRequest {
+  name: string
+  strategy_type: string
+  symbols: string[]
+  params?: Record<string, any>
+}
+
+export interface CreateUserStrategyResponse {
+  success: boolean
+  strategy_id: string
+  message: string
+}
+
+export function createUserStrategy(data: CreateUserStrategyRequest): Promise<CreateUserStrategyResponse> {
+  return post<CreateUserStrategyResponse>('/api/v1/c/strategy/create', data)
+}
+
+/**
+ * 创建模拟交易策略
+ */
+export interface CreateSimulateStrategyRequest {
+  strategy_type: string
+  symbols: string[]
+  params?: Record<string, any>
+  initial_capital?: number
+}
+
+export interface CreateSimulateStrategyResponse {
+  success: boolean
+  strategy_id: string
+  mode: string
+  initial_capital: number
+  message: string
+}
+
+export function createSimulateStrategy(data: CreateSimulateStrategyRequest): Promise<CreateSimulateStrategyResponse> {
+  return post<CreateSimulateStrategyResponse>('/api/v1/c/strategy/simulate', data)
+}
+
+/**
+ * 获取策略详情（C端）
+ */
+export function getUserStrategy(strategyId: string): Promise<any> {
+  return get<any>(`/api/v1/c/strategy/${strategyId}`)
+}
+
+/**
+ * 更新策略参数（C端）
+ */
+export function updateUserStrategy(strategyId: string, data: { params?: Record<string, any> }): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return put<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}`, data)
+}
+
+/**
+ * 删除策略（C端）
+ */
+export function deleteUserStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return del<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}`)
+}
+
+/**
+ * 启动策略（C端）
+ */
+export function startUserStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}/start`)
+}
+
+/**
+ * 停止策略（C端）
+ */
+export function stopUserStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}/stop`)
+}
+
+/**
+ * 暂停策略（C端）
+ */
+export function pauseUserStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}/pause`)
+}
+
+/**
+ * 恢复策略（C端）
+ */
+export function resumeUserStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/c/strategy/${strategyId}/resume`)
+}
+
+/**
+ * 订阅策略
+ */
+export function subscribeStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/subscribe`)
+}
+
+/**
+ * 取消订阅策略
+ */
+export function unsubscribeStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return del<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/subscribe`)
+}
+
+/**
+ * 收藏策略
+ */
+export function favoriteStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/favorite`)
+}
+
+/**
+ * 取消收藏策略
+ */
+export function unfavoriteStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return del<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/favorite`)
+}
+
+/**
+ * 点赞策略
+ */
+export function likeStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/like`)
+}
+
+/**
+ * 取消点赞策略
+ */
+export function unlikeStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; username: string; message: string }> {
+  return del<{ success: boolean; strategy_id: string; username: string; message: string }>(`/api/v1/c/strategy/${strategyId}/like`)
+}
+
+/**
+ * 获取策略性能指标（C端）
+ */
+export function getUserStrategyPerformance(strategyId: string): Promise<any> {
+  return get<any>(`/api/v1/c/strategy/${strategyId}/performance`)
+}
+
+/**
+ * 获取策略信号历史（C端）
+ */
+export function getUserStrategySignals(strategyId: string, params?: { limit?: number }): Promise<any> {
+  return get<any>(`/api/v1/c/strategy/${strategyId}/signals`, params)
+}
+
+// ==================== Admin端额外接口 ====================
+
+/**
+ * 发布策略
+ */
+export function publishStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/m/strategy/${strategyId}/publish`)
+}
+
+/**
+ * 下架策略
+ */
+export function unpublishStrategy(strategyId: string): Promise<{ success: boolean; strategy_id: string; message: string }> {
+  return post<{ success: boolean; strategy_id: string; message: string }>(`/api/v1/m/strategy/${strategyId}/unpublish`)
+}
+
+/**
+ * 获取策略性能指标（Admin端）
+ */
+export function getStrategyPerformance(strategyId: string): Promise<any> {
+  return get<any>(`/api/v1/m/strategy/${strategyId}/performance`)
+}
+
 // 导出所有API
 export default {
+  // M端接口
   getStrategies,
   getStrategyTypes,
   createStrategy,
@@ -263,4 +481,27 @@ export default {
   pauseStrategy,
   resumeStrategy,
   getStrategySignals,
+  publishStrategy,
+  unpublishStrategy,
+  getStrategyPerformance,
+  // C端接口
+  getFeaturedStrategies,
+  getUserStrategies,
+  createUserStrategy,
+  createSimulateStrategy,
+  getUserStrategy,
+  updateUserStrategy,
+  deleteUserStrategy,
+  startUserStrategy,
+  stopUserStrategy,
+  pauseUserStrategy,
+  resumeUserStrategy,
+  subscribeStrategy,
+  unsubscribeStrategy,
+  favoriteStrategy,
+  unfavoriteStrategy,
+  likeStrategy,
+  unlikeStrategy,
+  getUserStrategyPerformance,
+  getUserStrategySignals,
 }

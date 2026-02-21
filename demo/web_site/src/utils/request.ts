@@ -146,6 +146,48 @@ async function responseInterceptor<T>(response: Response, config: RequestConfig)
 }
 
 /**
+ * 获取Mock数据
+ */
+async function getMockData<T>(url: string): Promise<T | null> {
+  try {
+    // 动态导入mockData模块
+    const mockModule = await import('./mockData')
+    const mockData = mockModule.default || mockModule
+    
+    // 根据URL匹配mock数据
+    if (url.includes('/strategy/list') || url.includes('/strategies')) {
+      return mockData.mockStrategies as T
+    }
+    if (url.includes('/signal/list') || url.includes('/signals')) {
+      return mockData.mockSignals as T
+    }
+    if (url.includes('/leaderboard')) {
+      return mockData.mockLeaderboard as T
+    }
+    if (url.includes('/backtest')) {
+      return mockData.mockBacktestResults as T
+    }
+    if (url.includes('/market/kline')) {
+      return mockData.mockKlineData as T
+    }
+    if (url.includes('/trading/orders')) {
+      return mockData.mockOrders as T
+    }
+    if (url.includes('/trading/positions')) {
+      return mockData.mockPositions as T
+    }
+    if (url.includes('/stats/overview')) {
+      return mockData.mockSystemOverview as T
+    }
+    
+    return null
+  } catch (error) {
+    console.warn('Failed to load mock data:', error)
+    return null
+  }
+}
+
+/**
  * 通用请求方法
  */
 async function request<T = any>(url: string, config: RequestConfig = {}): Promise<T> {
@@ -154,13 +196,35 @@ async function request<T = any>(url: string, config: RequestConfig = {}): Promis
     const response = await fetch(fullUrl, requestConfig)
     return await responseInterceptor<T>(response, config)
   } catch (error) {
-    // 网络错误或其他异常
+    // 网络错误或其他异常，尝试使用mock数据
     if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.warn('Network error, trying to use mock data...')
+      const mockData = await getMockData<T>(url)
+      if (mockData) {
+        console.info('Using mock data for:', url)
+        if (!config.skipErrorHandler) {
+          MessagePlugin.warning('网络连接失败，正在使用模拟数据')
+        }
+        return mockData
+      }
+      
       if (!config.skipErrorHandler) {
         MessagePlugin.error('网络连接失败，请检查网络')
       }
       throw new Error('网络连接失败')
     }
+    
+    // 其他错误也尝试使用mock数据
+    console.warn('Request error, trying to use mock data...', error)
+    const mockData = await getMockData<T>(url)
+    if (mockData) {
+      console.info('Using mock data for:', url)
+      if (!config.skipErrorHandler) {
+        MessagePlugin.warning('接口异常，正在使用模拟数据')
+      }
+      return mockData
+    }
+    
     throw error
   }
 }
