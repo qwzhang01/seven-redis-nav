@@ -22,74 +22,89 @@ from quant_trading_system.services.market.kline_engine import KLineEngine
 
 logger = structlog.get_logger(__name__)
 
+# 全局MarketService实例
+_market_service: MarketService | None = None
 
-# 回调类型
-TickCallback = Callable[[Tick], Coroutine[Any, Any, None]]
-BarCallback = Callable[[Bar], Coroutine[Any, Any, None]]
-DepthCallback = Callable[[Depth], Coroutine[Any, Any, None]]
+
+def get_market_service(event_engine: EventEngine | None = None) -> MarketService:
+    """
+    获取MarketService单例实例
+
+    Args:
+        event_engine: 事件引擎实例，如果为None则创建新的
+
+    Returns:
+        MarketService实例
+    """
+    global _market_service
+
+    if _market_service is None:
+        _market_service = MarketService(event_engine=event_engine)
+
+    return _market_service
 
 
 class MarketService:
     """
     行情服务
-    
+
     提供统一的行情数据接口，包括：
     - 多交易所数据聚合
     - K线合成
     - 数据订阅和分发
     - 数据缓存
     """
-    
+
     def __init__(
         self,
         event_engine: EventEngine | None = None,
     ) -> None:
         self._event_engine = event_engine
-        
+
         # 数据采集器
         self._collectors: dict[str, DataCollector] = {}
-        
+
         # K线引擎
         self._kline_engine = KLineEngine()
-        
+
         # 回调
         self._tick_callbacks: list[TickCallback] = []
         self._bar_callbacks: dict[TimeFrame | None, list[BarCallback]] = defaultdict(list)
         self._depth_callbacks: list[DepthCallback] = []
-        
+
         # 运行状态
         self._running = False
-        
+
         # 统计
         self._tick_count = 0
         self._depth_count = 0
-    
+
     async def start(self) -> None:
         """启动行情服务"""
         if self._running:
             return
-        
+
         self._running = True
-        
+
         # 启动所有采集器
         for collector in self._collectors.values():
             await collector.start()
-        
+
         logger.info("Market service started")
-    
+
     async def stop(self) -> None:
         """停止行情服务"""
         if not self._running:
             return
-        
+
         self._running = False
-        
+
         # 停止所有采集器
         for collector in self._collectors.values():
             await collector.stop()
-        
+
         logger.info("Market service stopped")
-    
+
     def add_exchange(
         self,
         exchange: str,
@@ -100,7 +115,7 @@ class MarketService:
     ) -> None:
         """
         添加交易所数据源
-        
+
         Args:
             exchange: 交易所名称 (binance, okx, huobi 等)
             market_type: 市场类型 (spot, futures, swap)
@@ -108,11 +123,11 @@ class MarketService:
             api_secret: API密钥
         """
         collector_key = f"{exchange}_{market_type}"
-        
+
         if collector_key in self._collectors:
             logger.warning(f"Exchange already added", exchange=exchange)
             return
-        
+
         # 创建采集器
         if exchange == "binance":
             collector = BinanceDataCollector(
@@ -129,15 +144,15 @@ class MarketService:
         else:
             logger.error(f"Unsupported exchange", exchange=exchange)
             return
-        
+
         # 设置回调
         collector.add_callback("tick", self._on_tick_data)
         collector.add_callback("depth", self._on_depth_data)
-        
+
         self._collectors[collector_key] = collector
-        
+
         logger.info(f"Exchange added", exchange=exchange, market_type=market_type)
-    
+
     async def subscribe(
         self,
         symbols: list[str],
@@ -146,21 +161,21 @@ class MarketService:
     ) -> None:
         """
         订阅行情
-        
+
         Args:
             symbols: 交易对列表
             exchange: 交易所
             market_type: 市场类型
         """
         collector_key = f"{exchange}_{market_type}"
-        
+
         if collector_key not in self._collectors:
             logger.error(f"Exchange not found", exchange=exchange)
             return
-        
+
         collector = self._collectors[collector_key]
         await collector.subscribe(symbols)
-    
+
     async def unsubscribe(
         self,
         symbols: list[str],
@@ -169,30 +184,30 @@ class MarketService:
     ) -> None:
         """取消订阅"""
         collector_key = f"{exchange}_{market_type}"
-        
+
         if collector_key not in self._collectors:
             return
-        
+
         collector = self._collectors[collector_key]
         await collector.unsubscribe(symbols)
-    
+
     def add_tick_callback(self, callback: TickCallback) -> None:
         """添加Tick回调"""
         self._tick_callbacks.append(callback)
-    
+
     def add_bar_callback(
-        self, 
+        self,
         callback: BarCallback,
         timeframe: TimeFrame | None = None,
     ) -> None:
         """添加K线回调"""
         self._bar_callbacks[timeframe].append(callback)
         self._kline_engine.add_callback(callback, timeframe)
-    
+
     def add_depth_callback(self, callback: DepthCallback) -> None:
         """添加深度回调"""
         self._depth_callbacks.append(callback)
-    
+
     async def _on_tick_data(self, data: dict[str, Any]) -> None:
         """处理Tick数据"""
         tick = Tick(
@@ -209,28 +224,28 @@ class MarketService:
             is_trade=data.get("is_trade", False),
             trade_id=data.get("trade_id", ""),
         )
-        
+
         self._tick_count += 1
-        
+
         # 合成K线
         await self._kline_engine.process_tick(tick)
-        
+
         # 发送事件
         if self._event_engine:
             await self._event_engine.put(Event(
                 type=EventType.TICK,
                 data=tick,
             ))
-        
+
         # 通知回调
         if self._tick_callbacks:
             tasks = [cb(tick) for cb in self._tick_callbacks]
             await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     async def _on_depth_data(self, data: dict[str, Any]) -> None:
         """处理深度数据"""
         from quant_trading_system.models.market import DepthLevel
-        
+
         depth = Depth(
             symbol=data["symbol"],
             exchange=data["exchange"],
@@ -238,21 +253,21 @@ class MarketService:
             bids=[DepthLevel(price=b[0], size=b[1]) for b in data.get("bids", [])],
             asks=[DepthLevel(price=a[0], size=a[1]) for a in data.get("asks", [])],
         )
-        
+
         self._depth_count += 1
-        
+
         # 发送事件
         if self._event_engine:
             await self._event_engine.put(Event(
                 type=EventType.DEPTH,
                 data=depth,
             ))
-        
+
         # 通知回调
         if self._depth_callbacks:
             tasks = [cb(depth) for cb in self._depth_callbacks]
             await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     def get_bars(
         self,
         symbol: str,
@@ -261,7 +276,7 @@ class MarketService:
     ) -> list[Bar]:
         """获取K线数据"""
         return self._kline_engine.get_bars(symbol, timeframe, limit)
-    
+
     def get_bar_array(
         self,
         symbol: str,
@@ -270,7 +285,7 @@ class MarketService:
     ):
         """获取K线数组"""
         return self._kline_engine.get_bar_array(symbol, timeframe, limit)
-    
+
     def get_current_bar(
         self,
         symbol: str,
@@ -278,11 +293,11 @@ class MarketService:
     ) -> Bar | None:
         """获取当前未完成的K线"""
         return self._kline_engine.get_current_bar(symbol, timeframe)
-    
+
     @property
     def is_running(self) -> bool:
         return self._running
-    
+
     @property
     def stats(self) -> dict[str, Any]:
         """获取统计信息"""

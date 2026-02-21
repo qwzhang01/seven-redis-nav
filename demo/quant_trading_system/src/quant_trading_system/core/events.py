@@ -20,6 +20,37 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+# 全局EventEngine实例
+_event_engine: EventEngine | None = None
+
+
+def get_event_engine(
+    queue_size: int = 100000,
+    num_workers: int = 4,
+    name: str = "MainEventEngine"
+) -> EventEngine:
+    """
+    获取EventEngine单例实例
+
+    Args:
+        queue_size: 事件队列大小
+        num_workers: 工作协程数量
+        name: 事件引擎名称
+
+    Returns:
+        EventEngine实例
+    """
+    global _event_engine
+
+    if _event_engine is None:
+        _event_engine = EventEngine(
+            queue_size=queue_size,
+            num_workers=num_workers,
+            name=name
+        )
+
+    return _event_engine
+
 
 class EventType(Enum):
     """事件类型枚举"""
