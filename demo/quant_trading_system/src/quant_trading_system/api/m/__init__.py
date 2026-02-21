@@ -17,7 +17,7 @@ Admin 端（管理员）路由聚合包
 
 from fastapi import APIRouter
 
-from quant_trading_system.api.strategies.api.strategy import router as strategy_router
+from quant_trading_system.api.strategies.api.strategy_admin import router as strategy_router
 from quant_trading_system.api.system.api.system import router as system_router
 from quant_trading_system.api.system.api.health import router as health_router
 from quant_trading_system.api.market.api.subscription import router as subscription_router

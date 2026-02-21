@@ -12,8 +12,10 @@
 - models: 策略数据模型定义
 """
 
-from .api.strategy import router as strategy_router
+from .api.strategy_admin import router as strategy_router
+from .api.strategy import router as strategy_c_router
 
 __all__ = [
     "strategy_router",
+    "strategy_c_router",
 ]

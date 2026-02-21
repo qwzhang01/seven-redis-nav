@@ -182,6 +182,46 @@ async def _execute_backtest(
         }
 
 
+# 注意：/list 路由必须在 /{backtest_id} 之前注册，否则 "list" 会被路径参数捕获
+@router.get("/list")
+async def list_backtests(
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, Any]:
+    """
+    获取回测历史列表
+
+    查询所有历史回测任务的简要信息列表。
+
+    参数：
+    - limit: 返回记录数量限制（1-100）
+
+    返回：
+    - backtests: 回测任务列表
+    - total: 总回测任务数
+    """
+    backtests = []
+
+    for backtest_id, result in list(_backtest_results.items())[:limit]:
+        status = "completed"
+        if "error" in result:
+            status = "failed"
+
+        backtests.append({
+            "backtest_id": backtest_id,
+            "status": status,
+            "strategy_name": result.get("strategy_name", "Unknown"),
+            "start_time": result.get("start_time"),
+            "end_time": result.get("end_time"),
+            "total_return": result.get("total_return", 0),
+            "total_trades": result.get("total_trades", 0)
+        })
+
+    return {
+        "backtests": backtests,
+        "total": len(_backtest_results)
+    }
+
+
 @router.get("/{backtest_id}")
 async def get_backtest_result(backtest_id: str) -> dict[str, Any]:
     """
@@ -287,45 +327,6 @@ async def get_backtest_trades(
         "backtest_id": backtest_id,
         "trades": trades[:limit],
         "total": len(trades)
-    }
-
-
-@router.get("/list")
-async def list_backtests(
-    limit: int = Query(20, ge=1, le=100),
-) -> dict[str, Any]:
-    """
-    获取回测历史列表
-
-    查询所有历史回测任务的简要信息列表。
-
-    参数：
-    - limit: 返回记录数量限制（1-100）
-
-    返回：
-    - backtests: 回测任务列表
-    - total: 总回测任务数
-    """
-    backtests = []
-
-    for backtest_id, result in list(_backtest_results.items())[:limit]:
-        status = "completed"
-        if "error" in result:
-            status = "failed"
-
-        backtests.append({
-            "backtest_id": backtest_id,
-            "status": status,
-            "strategy_name": result.get("strategy_name", "Unknown"),
-            "start_time": result.get("start_time"),
-            "end_time": result.get("end_time"),
-            "total_return": result.get("total_return", 0),
-            "total_trades": result.get("total_trades", 0)
-        })
-
-    return {
-        "backtests": backtests,
-        "total": len(_backtest_results)
     }
 
 

@@ -11,6 +11,7 @@ C 端（普通用户）路由聚合包
 - backtest   : 策略回测
 - signal     : 信号广场、信号订阅
 - leaderboard: 排行榜
+- strategy   : 策略管理（C端，用户隔离）
 """
 
 from fastapi import APIRouter
@@ -22,6 +23,7 @@ from quant_trading_system.api.trading.api.trading import router as trading_route
 from quant_trading_system.api.backtest.api.backtest import router as backtest_router
 from quant_trading_system.api.signal.api.signal import router as signal_router
 from quant_trading_system.api.leaderboard.api.leaderboard import router as leaderboard_router
+from quant_trading_system.api.strategies.api.strategy import router as strategy_c_router
 
 # C 端聚合路由
 c_router = APIRouter()
@@ -33,5 +35,6 @@ c_router.include_router(trading_router, prefix="/trading", tags=["C端-交易管
 c_router.include_router(backtest_router, prefix="/backtest", tags=["C端-策略回测"])
 c_router.include_router(signal_router, prefix="/signal", tags=["C端-信号广场"])
 c_router.include_router(leaderboard_router, prefix="/leaderboard", tags=["C端-排行榜"])
+c_router.include_router(strategy_c_router, prefix="/strategy", tags=["C端-策略管理"])
 
 __all__ = ["c_router"]
