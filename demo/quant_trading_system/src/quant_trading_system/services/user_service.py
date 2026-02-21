@@ -12,6 +12,7 @@ from quant_trading_system.models.user import (
 from quant_trading_system.models.database import User, Exchange, UserExchangeAPI
 from quant_trading_system.services.database.database import get_db as get_db_session
 from quant_trading_system.core.jwt_utils import JWTUtils
+from quant_trading_system.core.password_utils import PasswordUtils
 
 
 class UserService:
@@ -20,19 +21,15 @@ class UserService:
     def __init__(self, db: Session):
         self.db = db
         self.jwt_utils = JWTUtils()
+        self.password_utils = PasswordUtils()
 
     def hash_password(self, password: str) -> str:
         """密码哈希处理"""
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+        return self.password_utils.hash_password(password)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """验证密码"""
-        return bcrypt.checkpw(
-            plain_password.encode('utf-8'),
-            hashed_password.encode('utf-8')
-        )
+        return self.password_utils.verify_password(plain_password, hashed_password)
 
     def create_jwt_token(self, user_id: int, username: str, user_type: UserType) -> str:
         """创建JWT令牌"""
@@ -62,6 +59,14 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="邮箱已存在"
+            )
+
+        # 验证密码强度
+        is_valid, error_msg = self.password_utils.validate_password_strength(user_data.password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
             )
 
         # 创建新用户
@@ -208,6 +213,14 @@ class UserService:
                 detail="旧密码错误"
             )
 
+        # 验证新密码强度
+        is_valid, error_msg = self.password_utils.validate_password_strength(password_data.new_password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
+
         # 更新密码
         user.password_hash = self.hash_password(password_data.new_password)
         user.update_time = datetime.utcnow()
@@ -229,6 +242,14 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="邮箱对应的用户不存在"
+            )
+
+        # 验证新密码强度
+        is_valid, error_msg = self.password_utils.validate_password_strength(reset_data.new_password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
             )
 
         # 更新密码
