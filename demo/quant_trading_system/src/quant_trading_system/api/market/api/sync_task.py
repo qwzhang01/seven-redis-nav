@@ -58,8 +58,9 @@ class SyncTaskCreate(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_range(cls, v: datetime, values: dict[str, Any]) -> datetime:
-        start_time = values.get("start_time")
+    def validate_time_range(cls, v: datetime, info: Any) -> datetime:
+        # 在Pydantic v2中，info是ValidationInfo对象，需要通过info.data获取字段值
+        start_time = info.data.get("start_time") if info.data else None
         if start_time and v <= start_time:
             raise ValueError("结束时间必须晚于开始时间")
         return v

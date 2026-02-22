@@ -130,6 +130,30 @@ async function responseInterceptor<T>(response: Response, config: RequestConfig)
 
   // 处理业务错误
   if (data && typeof data === 'object') {
+    // 处理success字段为false的情况
+    if ('success' in data && data.success === false) {
+      const errorMessage = data.message || '请求失败'
+      
+      // 检查是否是401令牌过期错误
+      if (errorMessage.includes('401') || errorMessage.includes('令牌已过期') || errorMessage.includes('token')) {
+        clearToken()
+        if (!config.skipErrorHandler) {
+          MessagePlugin.error(errorMessage)
+          // 延迟跳转到登录页
+          setTimeout(() => {
+            window.location.href = '/login'
+          }, 1000)
+        }
+        throw new Error(errorMessage)
+      }
+      
+      // 其他错误情况，只提示不跳转
+      if (!config.skipErrorHandler) {
+        MessagePlugin.error(errorMessage)
+      }
+      throw new Error(errorMessage)
+    }
+    
     // 如果返回的数据包含code字段，检查业务状态码
     if ('code' in data && data.code !== 0 && data.code !== 200) {
       if (!config.skipErrorHandler) {
