@@ -21,6 +21,13 @@ from typing import Any, Callable, Coroutine
 import structlog
 
 from quant_trading_system.services.database.data_store import get_data_store
+from quant_trading_system.services.market.common_utils import (
+    TimeUtils,
+    BinanceDataConverter,
+    BinanceConfig,
+    OKXDataConverter,
+    OKXConfig
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -380,10 +387,6 @@ class BinanceDataCollector(DataCollector):
     支持现货和期货数据采集
     """
 
-    # WebSocket 端点
-    SPOT_WS_URL = "wss://stream.binance.com:9443/ws"
-    FUTURES_WS_URL = "wss://fstream.binance.com/ws"
-
     def __init__(
         self,
         market_type: str = "spot",
@@ -397,11 +400,8 @@ class BinanceDataCollector(DataCollector):
         self.api_key = api_key
         self.api_secret = api_secret
 
-        # 选择WebSocket端点
-        if market_type == "spot":
-            ws_url = self.SPOT_WS_URL
-        else:
-            ws_url = self.FUTURES_WS_URL
+        # 使用共享配置获取WebSocket端点
+        ws_url = BinanceConfig.get_ws_url(market_type)
 
         # WebSocket客户端
         self._ws_client = WebSocketClient(
@@ -520,25 +520,18 @@ class BinanceDataCollector(DataCollector):
         from datetime import datetime
         from quant_trading_system.models.market import Tick
 
+        # 使用共享工具转换数据
+        tick_data = BinanceDataConverter.convert_trade_data(data)
+
         # 创建Tick对象
         tick = Tick(
-            timestamp=datetime.fromtimestamp(data["T"] / 1000),
-            symbol=data["s"],
-            price=float(data["p"]),
-            volume=float(data["q"]),
+            timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
+            symbol=tick_data["symbol"],
+            price=tick_data["last_price"],
+            volume=tick_data["volume"],
             bid=0.0,
             ask=0.0,
         )
-
-        tick_data = {
-            "symbol": data["s"],
-            "exchange": "binance",
-            "timestamp": data["T"],
-            "last_price": float(data["p"]),
-            "volume": float(data["q"]),
-            "is_trade": True,
-            "trade_id": str(data["t"]),
-        }
 
         # 存储到数据库
         if self.enable_storage and self._data_store:
@@ -551,29 +544,18 @@ class BinanceDataCollector(DataCollector):
         from datetime import datetime
         from quant_trading_system.models.market import Tick
 
+        # 使用共享工具转换数据
+        tick_data = BinanceDataConverter.convert_ticker_data(data)
+
         # 创建Tick对象
         tick = Tick(
-            timestamp=datetime.fromtimestamp(data["E"] / 1000),
-            symbol=data["s"],
-            price=float(data["c"]),
-            volume=float(data["v"]),
-            bid=float(data["b"]),
-            ask=float(data["a"]),
+            timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
+            symbol=tick_data["symbol"],
+            price=tick_data["last_price"],
+            volume=tick_data["volume"],
+            bid=tick_data["bid_price"],
+            ask=tick_data["ask_price"],
         )
-
-        tick_data = {
-            "symbol": data["s"],
-            "exchange": "binance",
-            "timestamp": data["E"],
-            "last_price": float(data["c"]),
-            "bid_price": float(data["b"]),
-            "ask_price": float(data["a"]),
-            "bid_size": float(data["B"]),
-            "ask_size": float(data["A"]),
-            "volume": float(data["v"]),
-            "turnover": float(data["q"]),
-            "is_trade": False,
-        }
 
         # 存储到数据库
         if self.enable_storage and self._data_store:
@@ -586,21 +568,16 @@ class BinanceDataCollector(DataCollector):
         from datetime import datetime
         from quant_trading_system.models.market import Depth
 
+        # 使用共享工具转换数据
+        depth_data = BinanceDataConverter.convert_depth_data(data)
+
         # 创建Depth对象
         depth = Depth(
-            timestamp=datetime.fromtimestamp(data["E"] / 1000),
-            symbol=data["s"],
-            bids=[[float(p), float(q)] for p, q in data.get("b", [])],
-            asks=[[float(p), float(q)] for p, q in data.get("a", [])],
+            timestamp=TimeUtils.timestamp_to_datetime(depth_data["timestamp"]),
+            symbol=depth_data["symbol"],
+            bids=depth_data["bids"],
+            asks=depth_data["asks"],
         )
-
-        depth_data = {
-            "symbol": data["s"],
-            "exchange": "binance",
-            "timestamp": data["E"],
-            "bids": [[float(p), float(q)] for p, q in data.get("b", [])],
-            "asks": [[float(p), float(q)] for p, q in data.get("a", [])],
-        }
 
         # 存储到数据库
         if self.enable_storage and self._data_store:
@@ -613,8 +590,6 @@ class OKXDataCollector(DataCollector):
     """
     OKX 数据采集器
     """
-
-    WS_URL = "wss://ws.okx.com:8443/ws/v5/public"
 
     def __init__(
         self,
@@ -629,8 +604,11 @@ class OKXDataCollector(DataCollector):
         self.api_secret = api_secret
         self.passphrase = passphrase
 
+        # 使用共享配置获取WebSocket端点
+        ws_url = OKXConfig.get_ws_url()
+
         self._ws_client = WebSocketClient(
-            url=self.WS_URL,
+            url=ws_url,
             name="okx",
         )
         self._ws_client.set_callbacks(
@@ -723,99 +701,65 @@ class OKXDataCollector(DataCollector):
         from datetime import datetime
         from quant_trading_system.models.market import Tick
 
-        inst_id = data["arg"]["instId"]
-        symbol = inst_id.replace("-", "/")
+        # 使用共享工具转换数据
+        trade_data = OKXDataConverter.convert_trade_data(data)
 
-        for trade in data["data"]:
-            # 创建Tick对象
-            tick = Tick(
-                timestamp=datetime.fromtimestamp(int(trade["ts"]) / 1000),
-                symbol=symbol,
-                price=float(trade["px"]),
-                volume=float(trade["sz"]),
-                bid=0.0,
-                ask=0.0,
-            )
+        # 创建Tick对象
+        tick = Tick(
+            timestamp=datetime.fromtimestamp(trade_data["timestamp"] / 1000),
+            symbol=trade_data["symbol"],
+            price=trade_data["last_price"],
+            volume=trade_data["volume"],
+            bid=0.0,
+            ask=0.0,
+        )
 
-            tick_data = {
-                "symbol": symbol,
-                "exchange": "okx",
-                "timestamp": int(trade["ts"]),
-                "last_price": float(trade["px"]),
-                "volume": float(trade["sz"]),
-                "is_trade": True,
-                "trade_id": trade["tradeId"],
-            }
+        # 存储到数据库
+        if self.enable_storage and self._data_store:
+            await self._data_store.store_tick(tick)
 
-            # 存储到数据库
-            if self.enable_storage and self._data_store:
-                await self._data_store.store_tick(tick)
-
-            await self._notify("tick", tick_data)
+        await self._notify("tick", trade_data)
 
     async def _process_ticker(self, data: dict[str, Any]) -> None:
         from datetime import datetime
         from quant_trading_system.models.market import Tick
 
-        inst_id = data["arg"]["instId"]
-        symbol = inst_id.replace("-", "/")
+        # 使用共享工具转换数据
+        ticker_data = OKXDataConverter.convert_ticker_data(data)
 
-        for ticker in data["data"]:
-            # 创建Tick对象
-            tick = Tick(
-                timestamp=datetime.fromtimestamp(int(ticker["ts"]) / 1000),
-                symbol=symbol,
-                price=float(ticker["last"]),
-                volume=float(ticker["vol24h"]),
-                bid=float(ticker["bidPx"]),
-                ask=float(ticker["askPx"]),
-            )
+        # 创建Tick对象
+        tick = Tick(
+            timestamp=datetime.fromtimestamp(ticker_data["timestamp"] / 1000),
+            symbol=ticker_data["symbol"],
+            price=ticker_data["last_price"],
+            volume=ticker_data["volume"],
+            bid=ticker_data["bid_price"],
+            ask=ticker_data["ask_price"],
+        )
 
-            tick_data = {
-                "symbol": symbol,
-                "exchange": "okx",
-                "timestamp": int(ticker["ts"]),
-                "last_price": float(ticker["last"]),
-                "bid_price": float(ticker["bidPx"]),
-                "ask_price": float(ticker["askPx"]),
-                "bid_size": float(ticker["bidSz"]),
-                "ask_size": float(ticker["askSz"]),
-                "volume": float(ticker["vol24h"]),
-                "is_trade": False,
-            }
+        # 存储到数据库
+        if self.enable_storage and self._data_store:
+            await self._data_store.store_tick(tick)
 
-            # 存储到数据库
-            if self.enable_storage and self._data_store:
-                await self._data_store.store_tick(tick)
-
-            await self._notify("tick", tick_data)
+        await self._notify("tick", ticker_data)
 
     async def _process_depth(self, data: dict[str, Any]) -> None:
         from datetime import datetime
         from quant_trading_system.models.market import Depth
 
-        inst_id = data["arg"]["instId"]
-        symbol = inst_id.replace("-", "/")
+        # 使用共享工具转换数据
+        depth_data = OKXDataConverter.convert_depth_data(data)
 
-        for book in data["data"]:
-            # 创建Depth对象
-            depth = Depth(
-                timestamp=datetime.fromtimestamp(int(book["ts"]) / 1000),
-                symbol=symbol,
-                bids=[[float(b[0]), float(b[1])] for b in book.get("bids", [])],
-                asks=[[float(a[0]), float(a[1])] for a in book.get("asks", [])],
-            )
+        # 创建Depth对象
+        depth = Depth(
+            timestamp=datetime.fromtimestamp(depth_data["timestamp"] / 1000),
+            symbol=depth_data["symbol"],
+            bids=depth_data["bids"],
+            asks=depth_data["asks"],
+        )
 
-            depth_data = {
-                "symbol": symbol,
-                "exchange": "okx",
-                "timestamp": int(book["ts"]),
-                "bids": [[float(b[0]), float(b[1])] for b in book.get("bids", [])],
-                "asks": [[float(a[0]), float(a[1])] for a in book.get("asks", [])],
-            }
+        # 存储到数据库
+        if self.enable_storage and self._data_store:
+            await self._data_store.store_depth(depth)
 
-            # 存储到数据库
-            if self.enable_storage and self._data_store:
-                await self._data_store.store_depth(depth)
-
-            await self._notify("depth", depth_data)
+        await self._notify("depth", depth_data)

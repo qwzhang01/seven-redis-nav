@@ -1,8 +1,8 @@
 """
-币安API客户端
-============
+OKX API客户端
+=============
 
-提供币安REST API接口，用于获取历史数据
+提供OKX REST API接口，用于获取历史数据
 """
 
 import time
@@ -16,33 +16,33 @@ import structlog
 from quant_trading_system.models.market import BarArray, TimeFrame
 from quant_trading_system.services.market.common_utils import (
     TimeUtils,
-    BinanceDataConverter,
+    OKXDataConverter,
     RetryUtils,
-    BinanceConfig
+    OKXConfig
 )
 
 logger = structlog.get_logger(__name__)
 
 
-class BinanceAPI:
+class OKXAPI:
     """
-    币安REST API客户端
+    OKX REST API客户端
 
     用于获取历史K线数据
     """
 
     def __init__(
         self,
-        market_type: str = "spot",
         api_key: str = "",
         api_secret: str = "",
+        passphrase: str = "",
     ) -> None:
-        self.market_type = market_type
         self.api_key = api_key
         self.api_secret = api_secret
+        self.passphrase = passphrase
 
         # 使用共享配置获取基础URL
-        self.base_url = BinanceConfig.get_base_url(market_type)
+        self.base_url = OKXConfig.get_base_url()
 
         # HTTP客户端
         self._client = httpx.Client(
@@ -57,26 +57,26 @@ class BinanceAPI:
         timeframe: TimeFrame,
         start_time: str | None = None,
         end_time: str | None = None,
-        limit: int = 1000,
+        limit: int = 100,
     ) -> BarArray:
         """
         获取K线数据
 
         Args:
-            symbol: 交易对，如 "BTCUSDT"
+            symbol: 交易对，如 "BTC-USDT"
             timeframe: 时间周期
             start_time: 开始时间，格式 "YYYY-MM-DD" 或 "YYYY-MM-DD HH:MM:SS"
             end_time: 结束时间，格式同上
-            limit: 每次请求的数量限制（最大1000）
+            limit: 每次请求的数量限制（最大100）
 
         Returns:
             K线数组
         """
         # 转换交易对格式
-        symbol_formatted = symbol.replace("/", "").upper()
+        symbol_formatted = symbol.replace("/", "-").upper()
 
         # 使用共享配置获取时间间隔
-        interval = BinanceConfig.get_timeframe_interval(timeframe.value)
+        interval = OKXConfig.get_timeframe_interval(timeframe.value)
         if not interval:
             raise ValueError(f"Unsupported timeframe: {timeframe}")
 
@@ -85,7 +85,7 @@ class BinanceAPI:
         end_ts = TimeUtils.parse_time_string(end_time) if end_time else None
 
         logger.info(
-            "Fetching klines from Binance",
+            "Fetching klines from OKX",
             symbol=symbol_formatted,
             timeframe=interval,
             start=start_time,
@@ -94,33 +94,30 @@ class BinanceAPI:
 
         # 获取所有K线数据
         all_klines = []
-        current_start = start_ts
+        current_end = end_ts
 
         while True:
             # 构建请求参数
             params: dict[str, Any] = {
-                "symbol": symbol_formatted,
-                "interval": interval,
-                "limit": min(limit, 1000),
+                "instId": symbol_formatted,
+                "bar": interval,
+                "limit": min(limit, 100),
             }
 
-            if current_start:
-                params["startTime"] = current_start
-
-            if end_ts:
-                params["endTime"] = end_ts
+            if current_end:
+                params["after"] = current_end
 
             # 使用共享重试工具发送请求
             def _fetch_request():
                 response = self._client.get(
-                    f"{self.base_url}/api/v3/klines",
+                    f"{self.base_url}/api/v5/market/candles",
                     params=params,
                 )
                 response.raise_for_status()
                 return response.json()
 
             try:
-                klines = RetryUtils.execute_with_retry(
+                result = RetryUtils.execute_with_retry(
                     _fetch_request,
                     max_retries=3,
                     base_delay=1.0,
@@ -135,21 +132,22 @@ class BinanceAPI:
                 raise
 
             # 检查是否有数据
-            if not klines:
+            if not result.get("data"):
                 break
 
+            klines = result["data"]
             all_klines.extend(klines)
 
             # 检查是否需要继续获取
             if len(klines) < limit:
                 break
 
-            # 如果指定了结束时间且已经到达，停止
-            if end_ts and klines[-1][0] >= end_ts:
+            # 如果指定了开始时间且已经到达，停止
+            if start_ts and int(klines[-1][0]) <= start_ts:
                 break
 
-            # 更新起始时间为最后一根K线的时间+1ms
-            current_start = klines[-1][0] + 1
+            # 更新结束时间为第一根K线的时间-1ms（OKX是反向分页）
+            current_end = int(klines[0][0]) - 1
 
             # 避免请求过快
             time.sleep(0.1)
@@ -171,33 +169,28 @@ class BinanceAPI:
         self,
         symbol: str,
         timeframe: TimeFrame,
-        klines: list[list[Any]],
+        klines: list[list[str]],
     ) -> BarArray:
         """
-        将币安K线数据转换为BarArray
+        将OKX K线数据转换为BarArray
 
-        币安K线格式:
+        OKX K线格式:
         [
             [
-                1499040000000,      // 开盘时间
-                "0.01634790",       // 开盘价
-                "0.80000000",       // 最高价
-                "0.01575800",       // 最低价
-                "0.01577100",       // 收盘价
-                "148976.11427815",  // 成交量
-                1499644799999,      // 收盘时间
-                "2434.19055334",    // 成交额
-                308,                // 成交笔数
-                "1756.87402397",    // 主动买入成交量
-                "28.46694368",      // 主动买入成交额
-                "17928899.62484339" // 忽略
+                "1597026383085",  // 开盘时间
+                "3.721",          // 开盘价
+                "3.743",          // 最高价
+                "3.677",          // 最低价
+                "3.708",          // 收盘价
+                "5593.59",        // 成交量
+                "20575.76"        // 成交额
             ]
         ]
         """
         if not klines:
             return BarArray(
                 symbol=symbol,
-                exchange="binance",
+                exchange="okx",
                 timeframe=timeframe,
                 timestamp=np.array([], dtype="datetime64[ms]"),
                 open=np.array([], dtype=np.float64),
@@ -209,18 +202,20 @@ class BinanceAPI:
             )
 
         # 使用共享工具提取数据
-        timestamps = [k[0] for k in klines]
-        opens = [float(k[1]) for k in klines]
-        highs = [float(k[2]) for k in klines]
-        lows = [float(k[3]) for k in klines]
-        closes = [float(k[4]) for k in klines]
-        volumes = [float(k[5]) for k in klines]
-        turnovers = [float(k[7]) for k in klines]
+        converted_data = OKXDataConverter.convert_kline_data(klines)
 
         # 转换为numpy数组
+        timestamps = [data["timestamp"] for data in converted_data]
+        opens = [data["open"] for data in converted_data]
+        highs = [data["high"] for data in converted_data]
+        lows = [data["low"] for data in converted_data]
+        closes = [data["close"] for data in converted_data]
+        volumes = [data["volume"] for data in converted_data]
+        turnovers = [data["turnover"] for data in converted_data]
+
         return BarArray(
             symbol=symbol,
-            exchange="binance",
+            exchange="okx",
             timeframe=timeframe,
             timestamp=np.array(timestamps, dtype="datetime64[ms]"),
             open=np.array(opens, dtype=np.float64),

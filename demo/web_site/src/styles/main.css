@@ -109,6 +109,152 @@ body {
   color: #ffffff !important;
 }
 
+/* TDesign DatePicker Styles */
+.t-date-picker__panel,
+.t-date-picker__panel-date,
+.t-date-picker__panel-time {
+  background-color: #1a2035 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 日期选择器中的日期数字 */
+.t-date-picker__table-date-cell,
+.t-date-picker__table td,
+.t-date-picker__cell,
+.t-date-picker__cell-inner {
+  color: #ffffff !important;
+}
+
+/* 日期选择器中的星期标题 */
+.t-date-picker__table th,
+.t-date-picker__table-header-cell {
+  color: #94a3b8 !important;
+}
+
+/* 日期选择器悬停状态 */
+.t-date-picker__table-date-cell:hover,
+.t-date-picker__cell:hover .t-date-picker__cell-inner {
+  background-color: rgba(0, 212, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+/* 日期选择器选中状态 */
+.t-date-picker__table-date-cell.t-is-selected,
+.t-date-picker__cell.t-is-selected .t-date-picker__cell-inner,
+.t-date-picker__table-date-cell.t-is-active,
+.t-date-picker__cell.t-is-active .t-date-picker__cell-inner {
+  background-color: var(--color-primary) !important;
+  color: #0a0e17 !important;
+}
+
+/* 日期选择器当前日期 */
+.t-date-picker__table-date-cell.t-is-current,
+.t-date-picker__cell.t-is-current .t-date-picker__cell-inner {
+  color: var(--color-primary) !important;
+}
+
+/* 日期选择器禁用状态 */
+.t-date-picker__table-date-cell.t-is-disabled,
+.t-date-picker__cell.t-is-disabled .t-date-picker__cell-inner {
+  color: #64748b !important;
+  opacity: 0.5 !important;
+}
+
+/* 时间选择器样式 */
+.t-time-picker__panel,
+.t-time-picker__list {
+  background-color: #1a2035 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 时间选择器列表项 - 增强所有可能的选择器 */
+.t-time-picker__list-item,
+.t-time-picker__panel-body-scroll-item,
+.t-date-picker__panel-time .t-time-picker__list-item,
+.t-date-picker__panel .t-time-picker__list-item {
+  color: #ffffff !important;
+}
+
+/* 时间选择器列表项悬停 */
+.t-time-picker__list-item:hover,
+.t-time-picker__panel-body-scroll-item:hover {
+  background-color: rgba(0, 212, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+/* 时间选择器选中项 */
+.t-time-picker__list-item.t-is-selected,
+.t-time-picker__list-item.t-is-current,
+.t-time-picker__panel-body-scroll-item.t-is-selected,
+.t-time-picker__panel-body-scroll-item.t-is-current {
+  background-color: var(--color-primary) !important;
+  color: #0a0e17 !important;
+  font-weight: 600 !important;
+}
+
+/* 时间选择器禁用项 */
+.t-time-picker__list-item.t-is-disabled,
+.t-time-picker__panel-body-scroll-item.t-is-disabled {
+  color: #64748b !important;
+  opacity: 0.5 !important;
+}
+
+/* 强制时间面板中所有文字为白色 */
+.t-date-picker__panel-time,
+.t-date-picker__panel-time * {
+  color: #ffffff !important;
+}
+
+/* 时间面板中的选中项保持主题色背景 */
+.t-date-picker__panel-time .t-is-selected,
+.t-date-picker__panel-time .t-is-current {
+  background-color: var(--color-primary) !important;
+  color: #0a0e17 !important;
+}
+
+/* 时间面板滚动列表 */
+.t-date-picker__panel-time .t-time-picker__list,
+.t-date-picker__panel-time .t-time-picker__panel-body-scroll {
+  background-color: #1a2035 !important;
+}
+
+/* 时间面板中的所有列表项 */
+.t-date-picker__panel-time .t-time-picker__list > *,
+.t-date-picker__panel-time .t-time-picker__panel-body-scroll > * {
+  color: #ffffff !important;
+}
+
+/* 日期选择器头部（年月选择） */
+.t-date-picker__header,
+.t-date-picker__header-controller {
+  color: #ffffff !important;
+}
+
+/* 日期选择器头部控制器按钮 - 包括"日"按钮 */
+.t-date-picker__header-controller-btn,
+.t-date-picker__header-controller button,
+.t-date-picker__panel-header button,
+.t-date-picker__mode-btn {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.t-date-picker__header-controller-btn:hover,
+.t-date-picker__header-controller button:hover,
+.t-date-picker__panel-header button:hover,
+.t-date-picker__mode-btn:hover {
+  background-color: rgba(0, 212, 255, 0.15) !important;
+  border-color: rgba(0, 212, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+/* 日期选择器头部所有文字 */
+.t-date-picker__header *,
+.t-date-picker__panel-header * {
+  color: #ffffff !important;
+}
+
 .t-button--variant-base.t-button--theme-primary {
   background: linear-gradient(135deg, #00d4ff 0%, #3b82f6 100%) !important;
   border: none !important;
