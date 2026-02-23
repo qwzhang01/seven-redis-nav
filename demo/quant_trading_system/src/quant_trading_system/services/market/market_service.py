@@ -11,6 +11,7 @@ from typing import Any, Callable, Coroutine
 
 import structlog
 
+from quant_trading_system.config import get_config
 from quant_trading_system.core.events import Event, EventEngine, EventType
 from quant_trading_system.models.market import Bar, Depth, Tick, TimeFrame
 from quant_trading_system.services.market.data_collector import (
@@ -137,14 +138,14 @@ class MarketService:
         if exchange == "binance":
             collector = BinanceDataCollector(
                 market_type=market_type,
-                api_key=api_key,
-                api_secret=api_secret,
+                api_key=api_key or settings.BINANCE_API_KEY,
+                api_secret=api_secret or settings.BINANCE_SECRET_KEY,
             )
         elif exchange == "okx":
             collector = OKXDataCollector(
-                api_key=api_key,
-                api_secret=api_secret,
-                passphrase=kwargs.get("passphrase", ""),
+                api_key=api_key or settings.OKX_API_KEY,
+                api_secret=api_secret or settings.OKX_SECRET_KEY,
+                passphrase=kwargs.get("passphrase", "") or settings.OKX_PASSPHRASE,
             )
         else:
             logger.error(f"Unsupported exchange", exchange=exchange)
@@ -313,3 +314,7 @@ class MarketService:
             "collectors": list(self._collectors.keys()),
             "kline_stats": self._kline_engine.stats,
         }
+
+
+# 全局配置实例
+settings = get_config()
