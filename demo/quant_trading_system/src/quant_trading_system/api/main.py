@@ -94,10 +94,11 @@ async def lifespan(app: FastAPI):
             list_strategies as list_registered,
             get_strategy_class,
         )
-        from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
+        from quant_trading_system.services.trading.orchestrator import \
+            TradingOrchestrator
 
         orchestrator = TradingOrchestrator(
-            mode="paper",       # 默认 paper 模式，用户启动策略时可按需覆盖
+            mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
             exchange="binance",
             market_type="spot",
         )
@@ -114,7 +115,8 @@ async def lifespan(app: FastAPI):
             orchestrator.add_strategy(cls, symbols=default_symbols)
 
         set_orchestrator(orchestrator)
-        print(f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
+        print(
+            f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
         print(f"   已注册策略: {registered}")
 
     except Exception as e:
@@ -123,7 +125,8 @@ async def lifespan(app: FastAPI):
 
     # 启动订阅监听器
     try:
-        from quant_trading_system.services.market.subscription_monitor import init_subscription_monitor
+        from quant_trading_system.services.market.subscription_monitor import \
+            init_subscription_monitor
         await init_subscription_monitor()
         print("✅ 订阅监听器启动完成")
     except Exception as e:
@@ -137,7 +140,8 @@ async def lifespan(app: FastAPI):
 
     # 关闭订阅监听器
     try:
-        from quant_trading_system.services.market.subscription_monitor import close_subscription_monitor
+        from quant_trading_system.services.market.subscription_monitor import \
+            close_subscription_monitor
         await close_subscription_monitor()
         print("✅ 订阅监听器已停止")
     except Exception as e:
@@ -162,9 +166,10 @@ app = FastAPI(
 )
 
 # ── 中间件注册（执行顺序：后注册先执行）──────────────────────────
-# 执行顺序：RequestID → Logging → RateLimit → Auth → CORS → 路由
+# 实际执行顺序：RequestID → Logging → RateLimit → Auth → CORS → 路由
+# 注册顺序：CORS → Auth → RateLimit → Logging → RequestID
 
-# 1. CORS（最内层，最后注册）
+# 1. CORS（最先注册，最后执行）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -186,10 +191,25 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
 
-# 全局异常处理
+# 异常处理
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理器"""
+    """全局异常处理器 - 处理所有类型的异常"""
+    from fastapi import HTTPException
+
+    # 如果是HTTPException，返回对应的状态码和错误信息
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "error": exc.detail,
+                "message": str(exc.detail),
+                "path": request.url.path
+            }
+        )
+
+    # 其他异常返回500状态码
     return JSONResponse(
         status_code=500,
         content={
@@ -199,21 +219,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             "path": request.url.path
         }
     )
-
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTP异常处理器"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": exc.detail,
-            "message": str(exc.detail),
-            "path": request.url.path
-        }
-    )
-
 
 # 注册路由
 # C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
@@ -228,6 +233,16 @@ app.include_router(m_router, prefix="/api/v1/m")
 app.include_router(market_ws_router, prefix="/api/v1/ws", tags=["WebSocket-行情推送"])
 app.include_router(trading_ws_router, prefix="/api/v1/ws", tags=["WebSocket-交易推送"])
 app.include_router(strategy_ws_router, prefix="/api/v1/ws", tags=["WebSocket-策略推送"])
+
+
+# 测试路由：验证异常处理器
+@app.get("/api/v1/test/exception")
+async def test_exception_handler():
+    """测试异常处理器 - 抛出HTTPException应该被专门的处理器捕获"""
+    raise HTTPException(
+        status_code=418,
+        detail="这是一个测试异常，应该被HTTPException处理器捕获"
+    )
 
 
 # 根路径

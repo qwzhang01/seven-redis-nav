@@ -131,25 +131,10 @@ class SubscriptionUpdate(BaseModel):
             raise ValueError(f"不支持的K线周期 '{v}'，合法值：{sorted(VALID_INTERVALS)}")
         return v
 
-    @field_validator("symbols")
-    @classmethod
-    def validate_symbols(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("交易对列表不能为空")
-        return v
-
     def model_post_init(self, __context: Any) -> None:
         """跨字段校验：kline 类型必须提供 interval"""
         if self.data_type == "kline" and not self.interval:
             raise ValueError("data_type 为 kline 时，interval 为必填项")
-
-
-class SubscriptionUpdate(BaseModel):
-    """更新订阅请求体（所有字段可选）"""
-    name: Optional[str] = None
-    symbols: Optional[list[str]] = None
-    interval: Optional[str] = None
-    config: Optional[SubscriptionConfig] = None
 
 
 def _to_dict(sub: Subscription) -> dict[str, Any]:
@@ -170,6 +155,35 @@ def _to_dict(sub: Subscription) -> dict[str, Any]:
         "error_count": sub.error_count,
         "last_error": sub.last_error,
         "config": sub.config,
+    }
+
+
+# ── 通用状态变更函数 ────────────────────────────────────────────────────────────
+
+def _change_subscription_status(
+    subscription_id: str,
+    target_status: str,
+    allowed_from: list[str],
+    message: str,
+    db: Session,
+) -> dict[str, Any]:
+    """通用状态变更辅助函数"""
+    sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    if sub.status not in allowed_from:
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前状态 '{sub.status}' 不允许执行此操作，允许的状态：{allowed_from}",
+        )
+    sub.status = target_status
+    sub.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(sub)
+    return {
+        "success": True,
+        "message": message,
+        "data": {"id": sub.id, "status": sub.status, "updated_at": sub.updated_at.isoformat()},
     }
 
 
@@ -256,7 +270,7 @@ async def get_subscription_statistics(
 async def list_subscriptions(
     exchange: Optional[str] = Query(None, description="按交易所筛选"),
     data_type: Optional[str] = Query(None, description="按数据类型筛选"),
-    sub_status: Optional[str] = Query(None, alias="status", description="按状态筛选：running/paused/stopped"),
+    status: Optional[str] = Query(None, description="按状态筛选：running/paused/stopped"),
     search: Optional[str] = Query(None, description="按名称模糊搜索"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -273,8 +287,8 @@ async def list_subscriptions(
         query = query.filter(Subscription.exchange == exchange)
     if data_type:
         query = query.filter(Subscription.data_type == data_type)
-    if sub_status:
-        query = query.filter(Subscription.status == sub_status)
+    if status:
+        query = query.filter(Subscription.status == status)
     if search:
         query = query.filter(Subscription.name.ilike(f"%{search}%"))
 
@@ -365,33 +379,6 @@ async def delete_subscription(
 
 # ── 状态控制 ──────────────────────────────────────────────────────────────────
 
-def _change_status(
-    subscription_id: str,
-    target_status: str,
-    allowed_from: list[str],
-    message: str,
-    db: Session,
-) -> dict[str, Any]:
-    """通用状态变更辅助函数"""
-    sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
-    if not sub:
-        raise HTTPException(status_code=404, detail="订阅不存在")
-    if sub.status not in allowed_from:
-        raise HTTPException(
-            status_code=400,
-            detail=f"当前状态 '{sub.status}' 不允许执行此操作，允许的状态：{allowed_from}",
-        )
-    sub.status = target_status
-    sub.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(sub)
-    return {
-        "success": True,
-        "message": message,
-        "data": {"id": sub.id, "status": sub.status, "updated_at": sub.updated_at.isoformat()},
-    }
-
-
 @router.post("/{subscription_id}/start")
 async def start_subscription(
     subscription_id: str,
@@ -403,7 +390,7 @@ async def start_subscription(
 
     将 stopped 或 paused 状态的订阅切换为 running。
     """
-    return _change_status(
+    return _change_subscription_status(
         subscription_id, "running", ["stopped", "paused"], "订阅已启动", db
     )
 
@@ -419,7 +406,7 @@ async def pause_subscription(
 
     将 running 状态的订阅切换为 paused，保留配置和数据。
     """
-    return _change_status(
+    return _change_subscription_status(
         subscription_id, "paused", ["running"], "订阅已暂停", db
     )
 
@@ -435,6 +422,6 @@ async def stop_subscription(
 
     将 running 或 paused 状态的订阅切换为 stopped。
     """
-    return _change_status(
+    return _change_subscription_status(
         subscription_id, "stopped", ["running", "paused"], "订阅已停止", db
     )

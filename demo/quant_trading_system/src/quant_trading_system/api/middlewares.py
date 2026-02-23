@@ -82,6 +82,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        from fastapi import HTTPException
         start = time.perf_counter()
         request_id = getattr(request.state, "request_id", "-")
 
@@ -95,6 +96,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         try:
             response: Response = await call_next(request)
+        except HTTPException:
+            # HTTPException应该直接传播，不要捕获和重新抛出
+            raise
         except Exception as exc:
             elapsed = (time.perf_counter() - start) * 1000
             logger.error(
@@ -169,14 +173,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "⚠ 限流触发  [%s] ip=%s  count=%d/%d",
                 request_id, ip, len(dq), self.max_requests,
             )
-            return JSONResponse(
+            from fastapi import HTTPException
+            raise HTTPException(
                 status_code=429,
-                content={
-                    "success": False,
-                    "error": "请求过于频繁",
-                    "message": f"每 {self.window_seconds} 秒最多允许 {self.max_requests} 次请求，请稍后再试",
-                },
-                headers={"Retry-After": str(self.window_seconds)},
+                detail=f"请求过于频繁：每 {self.window_seconds} 秒最多允许 {self.max_requests} 次请求，请稍后再试"
             )
 
         dq.append(now)
@@ -208,44 +208,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 提取 Token
         authorization = request.headers.get("Authorization", "")
         if not authorization.startswith("Bearer "):
-            return JSONResponse(
+            from fastapi import HTTPException
+            raise HTTPException(
                 status_code=401,
-                content={
-                    "success": False,
-                    "error": "未提供认证凭据",
-                    "message": "请在请求头中携带 Authorization: Bearer <token>",
-                    "path": path,
-                },
+                detail="未提供认证凭据"
             )
 
         token = authorization[len("Bearer "):]
 
+        jwt_utils = JWTUtils()
         try:
-            jwt_utils = JWTUtils()
             payload = jwt_utils.verify_token(token)
             username: str = payload.get("sub")
             if not username:
-                raise ValueError("sub 字段缺失")
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=401,
+                    detail="Token无效：缺少用户标识"
+                )
             request.state.username = username
-        except jwt.ExpiredSignatureError:
-            return JSONResponse(
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(
                 status_code=401,
-                content={
-                    "success": False,
-                    "error": "令牌已过期",
-                    "message": "Token 已过期，请重新登录",
-                    "path": path,
-                },
-            )
-        except jwt.PyJWTError as exc:
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "success": False,
-                    "error": "无效的认证凭据",
-                    "message": str(exc),
-                    "path": path,
-                },
+                detail=f"Token验证失败：{str(e)}"
             )
 
         return await call_next(request)
