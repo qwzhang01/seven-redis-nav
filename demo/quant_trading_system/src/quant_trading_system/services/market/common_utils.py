@@ -160,6 +160,31 @@ class BinanceDataConverter:
             "asks": [[float(p), float(q)] for p, q in data.get("a", [])],
         }
 
+    @staticmethod
+    def convert_kline_data(data: dict[str, Any]) -> dict[str, Any]:
+        """
+        转换币安K线数据为统一格式
+
+        Args:
+            data: 币安K线数据
+
+        Returns:
+            统一格式的K线数据
+        """
+        kline_info = data.get("k", {})
+        return {
+            "symbol": kline_info.get("s", ""),
+            "exchange": "binance",
+            "timestamp": kline_info.get("t", 0),
+            "interval": kline_info.get("i", "1m"),
+            "open": float(kline_info.get("o", 0)),
+            "high": float(kline_info.get("h", 0)),
+            "low": float(kline_info.get("l", 0)),
+            "close": float(kline_info.get("c", 0)),
+            "volume": float(kline_info.get("v", 0)),
+            "is_closed": kline_info.get("x", False),
+        }
+
 
 class RetryUtils:
     """重试工具类"""

@@ -457,6 +457,10 @@ class BinanceDataCollector(DataCollector):
                 f"{symbol_lower}@trade",        # 逐笔成交
                 f"{symbol_lower}@ticker",       # 24小时行情
                 f"{symbol_lower}@depth20@100ms", # 深度数据
+                f"{symbol_lower}@kline_1m",     # 1分钟K线
+                f"{symbol_lower}@kline_5m",     # 5分钟K线
+                f"{symbol_lower}@kline_15m",    # 15分钟K线
+                f"{symbol_lower}@kline_1h",     # 1小时K线
             ])
 
         self._sub_id += 1
@@ -469,7 +473,10 @@ class BinanceDataCollector(DataCollector):
         })
 
         self._subscriptions.update(symbols)
-        logger.info(f"Subscribed to symbols", symbols=symbols)
+        logger.info(f"Subscribed to symbols with kline data",
+                   symbols=symbols,
+                   stream_count=len(streams),
+                   streams=streams)
 
     async def unsubscribe(self, symbols: list[str]) -> None:
         """取消订阅"""
@@ -483,6 +490,10 @@ class BinanceDataCollector(DataCollector):
                 f"{symbol_lower}@trade",
                 f"{symbol_lower}@ticker",
                 f"{symbol_lower}@depth20@100ms",
+                f"{symbol_lower}@kline_1m",
+                f"{symbol_lower}@kline_5m",
+                f"{symbol_lower}@kline_15m",
+                f"{symbol_lower}@kline_1h",
             ])
 
         self._sub_id += 1
@@ -494,7 +505,9 @@ class BinanceDataCollector(DataCollector):
         })
 
         self._subscriptions.difference_update(symbols)
-        logger.info(f"Unsubscribed from symbols", symbols=symbols)
+        logger.info(f"Unsubscribed from symbols",
+                   symbols=symbols,
+                   stream_count=len(streams))
 
     async def _on_connect(self) -> None:
         """连接成功回调"""
@@ -504,6 +517,11 @@ class BinanceDataCollector(DataCollector):
 
     async def _on_message(self, data: dict[str, Any]) -> None:
         """消息处理回调"""
+        # 记录接收到的消息
+        logger.warning(f"Received WebSocket message",
+                    name=self.name,
+                    data=data)
+
         # 处理不同类型的消息
         if "e" in data:
             event_type = data["e"]
@@ -514,6 +532,12 @@ class BinanceDataCollector(DataCollector):
                 await self._process_ticker(data)
             elif event_type == "depthUpdate":
                 await self._process_depth(data)
+            elif event_type == "kline":
+                await self._process_kline(data)
+            else:
+                logger.debug(f"Unhandled event type",
+                           event_type=event_type,
+                           data=data)
 
     async def _process_trade(self, data: dict[str, Any]) -> None:
         """处理成交数据"""
@@ -585,6 +609,40 @@ class BinanceDataCollector(DataCollector):
 
         await self._notify("depth", depth_data)
 
+    async def _process_kline(self, data: dict[str, Any]) -> None:
+        """处理K线数据"""
+        from datetime import datetime
+        from quant_trading_system.models.market import Bar, TimeFrame
+
+        # 使用共享工具转换数据
+        kline_data = OKXDataConverter.convert_kline_data(data)
+
+        # 创建Bar对象（K线数据）
+        bar = Bar(
+            timestamp=datetime.fromtimestamp(kline_data["timestamp"] / 1000),
+            symbol=kline_data["symbol"],
+            exchange="okx",
+            timeframe=TimeFrame(kline_data["interval"]),
+            open=kline_data["open"],
+            high=kline_data["high"],
+            low=kline_data["low"],
+            close=kline_data["close"],
+            volume=kline_data["volume"],
+            is_closed=kline_data["is_closed"],
+        )
+
+        # 存储到数据库
+        if self.enable_storage and self._data_store:
+            await self._data_store.store_kline(bar)
+
+        logger.info(f"Processed OKX kline data",
+                   symbol=kline_data["symbol"],
+                   interval=kline_data["interval"],
+                   open=kline_data["open"],
+                   close=kline_data["close"])
+
+        await self._notify("kline", kline_data)
+
 
 class OKXDataCollector(DataCollector):
     """
@@ -651,6 +709,10 @@ class OKXDataCollector(DataCollector):
                 {"channel": "trades", "instId": inst_id},
                 {"channel": "tickers", "instId": inst_id},
                 {"channel": "books5", "instId": inst_id},
+                {"channel": "candle1m", "instId": inst_id},  # 1分钟K线
+                {"channel": "candle5m", "instId": inst_id},  # 5分钟K线
+                {"channel": "candle15m", "instId": inst_id}, # 15分钟K线
+                {"channel": "candle1H", "instId": inst_id},  # 1小时K线
             ])
 
         await self._ws_client.send({
@@ -659,6 +721,9 @@ class OKXDataCollector(DataCollector):
         })
 
         self._subscriptions.update(symbols)
+        logger.info(f"Subscribed to symbols with kline data",
+                   symbols=symbols,
+                   channel_count=len(args))
 
     async def unsubscribe(self, symbols: list[str]) -> None:
         if not self._ws_client.is_connected:
@@ -671,6 +736,10 @@ class OKXDataCollector(DataCollector):
                 {"channel": "trades", "instId": inst_id},
                 {"channel": "tickers", "instId": inst_id},
                 {"channel": "books5", "instId": inst_id},
+                {"channel": "candle1m", "instId": inst_id},
+                {"channel": "candle5m", "instId": inst_id},
+                {"channel": "candle15m", "instId": inst_id},
+                {"channel": "candle1H", "instId": inst_id},
             ])
 
         await self._ws_client.send({
@@ -679,6 +748,9 @@ class OKXDataCollector(DataCollector):
         })
 
         self._subscriptions.difference_update(symbols)
+        logger.info(f"Unsubscribed from symbols",
+                   symbols=symbols,
+                   channel_count=len(args))
 
     async def _on_connect(self) -> None:
         if self._subscriptions:
@@ -690,12 +762,23 @@ class OKXDataCollector(DataCollector):
 
         channel = data["arg"].get("channel", "")
 
+        # 记录接收到的消息
+        logger.debug(f"Received OKX WebSocket message",
+                    channel=channel,
+                    data=data)
+
         if channel == "trades":
             await self._process_trades(data)
         elif channel == "tickers":
             await self._process_ticker(data)
         elif channel == "books5":
             await self._process_depth(data)
+        elif channel.startswith("candle"):
+            await self._process_kline(data)
+        else:
+            logger.debug(f"Unhandled channel type",
+                       channel=channel,
+                       data=data)
 
     async def _process_trades(self, data: dict[str, Any]) -> None:
         from datetime import datetime
