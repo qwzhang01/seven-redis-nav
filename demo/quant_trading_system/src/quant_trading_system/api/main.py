@@ -101,6 +101,8 @@ async def lifespan(app: FastAPI):
             mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
             exchange="binance",
             market_type="spot",
+            api_key=settings.BINANCE_API_KEY or "",  # 从配置读取API key
+            api_secret=settings.BINANCE_SECRET_KEY or "",  # 从配置读取API secret
         )
         await orchestrator.start()
 

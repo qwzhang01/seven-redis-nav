@@ -7,6 +7,7 @@
 
 import asyncio
 import time
+from datetime import datetime
 from typing import Dict, Optional
 import structlog
 from sqlalchemy.orm import Session
@@ -147,7 +148,7 @@ class SubscriptionMonitor:
             self.active_subscriptions[sub_id] = subscription
 
             # 更新订阅状态
-            subscription.last_sync_time = time.time()
+            subscription.last_sync_time = datetime.utcnow()
             session.commit()
 
             logger.info(
