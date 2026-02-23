@@ -251,6 +251,44 @@ COMMENT ON COLUMN sync_tasks.synced_records IS '已同步记录数';
 COMMENT ON COLUMN sync_tasks.error_message IS '错误信息';
 COMMENT ON COLUMN sync_tasks.completed_at IS '任务完成时间';
 
+-- 创建历史数据同步任务表（独立于订阅）
+CREATE TABLE IF NOT EXISTS historical_sync_tasks (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    exchange VARCHAR(50) NOT NULL,
+    data_type VARCHAR(20) NOT NULL,
+    symbols JSONB NOT NULL,
+    interval VARCHAR(10),
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    batch_size INTEGER DEFAULT 1000,
+    status VARCHAR(20) DEFAULT 'pending', -- pending/running/completed/failed/cancelled
+    progress INTEGER DEFAULT 0,
+    total_records BIGINT DEFAULT 0,
+    synced_records BIGINT DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+COMMENT ON TABLE historical_sync_tasks IS '历史数据同步任务表（独立于订阅）';
+COMMENT ON COLUMN historical_sync_tasks.id IS '任务ID';
+COMMENT ON COLUMN historical_sync_tasks.name IS '任务名称';
+COMMENT ON COLUMN historical_sync_tasks.exchange IS '交易所名称';
+COMMENT ON COLUMN historical_sync_tasks.data_type IS '数据类型：kline/ticker/depth/trade/orderbook';
+COMMENT ON COLUMN historical_sync_tasks.symbols IS '交易对列表（JSON数组）';
+COMMENT ON COLUMN historical_sync_tasks.interval IS 'K线周期（仅data_type为kline时有效）';
+COMMENT ON COLUMN historical_sync_tasks.start_time IS '同步数据起始时间';
+COMMENT ON COLUMN historical_sync_tasks.end_time IS '同步数据结束时间';
+COMMENT ON COLUMN historical_sync_tasks.batch_size IS '批量同步记录数';
+COMMENT ON COLUMN historical_sync_tasks.status IS '任务状态：pending/running/completed/failed/cancelled';
+COMMENT ON COLUMN historical_sync_tasks.progress IS '同步进度（0-100）';
+COMMENT ON COLUMN historical_sync_tasks.total_records IS '预计总记录数';
+COMMENT ON COLUMN historical_sync_tasks.synced_records IS '已同步记录数';
+COMMENT ON COLUMN historical_sync_tasks.error_message IS '错误信息';
+COMMENT ON COLUMN historical_sync_tasks.completed_at IS '任务完成时间';
+
 -- 创建索引
 -- 用户信息表索引
 CREATE INDEX IF NOT EXISTS idx_user_info_username ON user_info (username);
@@ -297,6 +335,12 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_created_at ON subscriptions (create
 CREATE INDEX IF NOT EXISTS idx_sync_tasks_subscription_id ON sync_tasks (subscription_id);
 CREATE INDEX IF NOT EXISTS idx_sync_tasks_status ON sync_tasks (status);
 CREATE INDEX IF NOT EXISTS idx_sync_tasks_created_at ON sync_tasks (created_at DESC);
+
+-- 历史数据同步任务表索引
+CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_status ON historical_sync_tasks (status);
+CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_exchange ON historical_sync_tasks (exchange);
+CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_data_type ON historical_sync_tasks (data_type);
+CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_created_at ON historical_sync_tasks (created_at DESC);
 
 -- 插入示例数据
 -- 插入示例交易所

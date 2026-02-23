@@ -247,3 +247,101 @@ async def cancel_historical_sync_task(
         "message": "历史数据同步任务已取消",
         "data": {"id": task.id, "status": task.status, "updated_at": task.updated_at.isoformat()},
     }
+
+
+@router.get("/status/executor")
+async def get_historical_sync_executor_status(
+    _admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    获取历史数据同步执行器状态
+
+    返回执行器的运行状态、活跃任务数量等信息。
+    """
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            get_historical_sync_executor
+
+        executor = get_historical_sync_executor()
+        stats = executor.stats
+
+        return {
+            "success": True,
+            "data": {
+                "executor_running": executor.is_running,
+                "active_tasks": stats["active_tasks"],
+                "task_ids": stats["task_ids"],
+                "max_concurrent_tasks": executor.max_concurrent_tasks,
+                "check_interval": executor.check_interval,
+                "max_retries": executor.max_retries
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"获取执行器状态失败: {str(e)}"
+        }
+
+
+@router.post("/executor/start")
+async def start_historical_sync_executor(
+    _admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    启动历史数据同步执行器
+
+    手动启动历史数据同步任务执行器。
+    """
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            get_historical_sync_executor
+
+        executor = get_historical_sync_executor()
+        if executor.is_running:
+            return {
+                "success": True,
+                "message": "历史数据同步执行器已在运行中"
+            }
+
+        await executor.start()
+        return {
+            "success": True,
+            "message": "历史数据同步执行器已启动"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"启动执行器失败: {str(e)}"
+        }
+
+
+@router.post("/executor/stop")
+async def stop_historical_sync_executor(
+    _admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    停止历史数据同步执行器
+
+    手动停止历史数据同步任务执行器。
+    """
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            get_historical_sync_executor
+
+        executor = get_historical_sync_executor()
+        if not executor.is_running:
+            return {
+                "success": True,
+                "message": "历史数据同步执行器已停止"
+            }
+
+        await executor.stop()
+        return {
+            "success": True,
+            "message": "历史数据同步执行器已停止"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"停止执行器失败: {str(e)}"
+        }

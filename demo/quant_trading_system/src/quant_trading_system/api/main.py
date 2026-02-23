@@ -135,10 +135,29 @@ async def lifespan(app: FastAPI):
         print(f"❌ 订阅监听器启动失败: {e}")
         raise
 
+    # 启动历史数据同步执行器
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            init_historical_sync_executor
+        await init_historical_sync_executor()
+        print("✅ 历史数据同步执行器启动完成")
+    except Exception as e:
+        print(f"❌ 历史数据同步执行器启动失败: {e}")
+        raise
+
     yield
 
     # 关闭时执行
     print("🛑 停止量化交易系统...")
+
+    # 关闭历史数据同步执行器
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            close_historical_sync_executor
+        await close_historical_sync_executor()
+        print("✅ 历史数据同步执行器已停止")
+    except Exception as e:
+        print(f"❌ 历史数据同步执行器停止失败: {e}")
 
     # 关闭订阅监听器
     try:
