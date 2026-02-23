@@ -63,7 +63,8 @@ class TradingOrchestrator:
         self.initial_capital = initial_capital
 
         # ---- 核心组件 ----
-        self.event_engine = EventEngine(name="MainEventEngine")
+        from quant_trading_system.core.events import get_event_engine
+        self.event_engine = get_event_engine(name="MainEventEngine")
         self.market_service = MarketService(event_engine=self.event_engine)
         self.strategy_engine = StrategyEngine(event_engine=self.event_engine)
         self.trading_engine = TradingEngine(event_engine=self.event_engine)

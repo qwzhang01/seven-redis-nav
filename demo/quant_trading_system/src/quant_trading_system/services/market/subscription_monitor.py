@@ -160,7 +160,7 @@ class SubscriptionMonitor:
             )
 
             # 发送事件
-            if self.event_engine:
+            if self.event_engine and hasattr(self.event_engine, '_running') and self.event_engine._running:
                 await self.event_engine.put(Event(
                     type=EventType.STRATEGY_START,
                     data={
@@ -170,6 +170,8 @@ class SubscriptionMonitor:
                         "symbols": symbols
                     }
                 ))
+            elif self.event_engine:
+                logger.warning("EventEngine not running, STRATEGY_START event dropped")
 
         except Exception as e:
             logger.error(
@@ -205,7 +207,7 @@ class SubscriptionMonitor:
             )
 
             # 发送事件
-            if self.event_engine:
+            if self.event_engine and hasattr(self.event_engine, '_running') and self.event_engine._running:
                 await self.event_engine.put(Event(
                     type=EventType.STRATEGY_STOP,
                     data={
@@ -213,6 +215,8 @@ class SubscriptionMonitor:
                         "name": subscription.name
                     }
                 ))
+            elif self.event_engine:
+                logger.warning("EventEngine not running, STRATEGY_STOP event dropped")
 
         except Exception as e:
             logger.error(
