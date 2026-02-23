@@ -518,7 +518,7 @@ class BinanceDataCollector(DataCollector):
     async def _on_message(self, data: dict[str, Any]) -> None:
         """消息处理回调"""
         # 记录接收到的消息
-        logger.warning(f"Received WebSocket message",
+        logger.info(f"Received WebSocket message",
                     name=self.name,
                     data=data)
 
@@ -615,13 +615,13 @@ class BinanceDataCollector(DataCollector):
         from quant_trading_system.models.market import Bar, TimeFrame
 
         # 使用共享工具转换数据
-        kline_data = OKXDataConverter.convert_kline_data(data)
+        kline_data = BinanceDataConverter.convert_kline_data(data)
 
         # 创建Bar对象（K线数据）
         bar = Bar(
             timestamp=datetime.fromtimestamp(kline_data["timestamp"] / 1000),
             symbol=kline_data["symbol"],
-            exchange="okx",
+            exchange="binance",
             timeframe=TimeFrame(kline_data["interval"]),
             open=kline_data["open"],
             high=kline_data["high"],
@@ -635,7 +635,7 @@ class BinanceDataCollector(DataCollector):
         if self.enable_storage and self._data_store:
             await self._data_store.store_kline(bar)
 
-        logger.info(f"Processed OKX kline data",
+        logger.info(f"Processed Binance kline data",
                    symbol=kline_data["symbol"],
                    interval=kline_data["interval"],
                    open=kline_data["open"],

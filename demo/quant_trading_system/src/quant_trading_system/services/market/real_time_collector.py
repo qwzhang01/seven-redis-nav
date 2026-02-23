@@ -94,6 +94,7 @@ class RealTimeCollector:
             # 添加数据存储回调
             collector.add_callback("tick", self._on_tick_data)
             collector.add_callback("depth", self._on_depth_data)
+            collector.add_callback("kline", self._on_kline_data)
 
             self._collectors["binance"] = collector
 
@@ -112,6 +113,7 @@ class RealTimeCollector:
             # 添加数据存储回调
             collector.add_callback("tick", self._on_tick_data)
             collector.add_callback("depth", self._on_depth_data)
+            collector.add_callback("kline", self._on_kline_data)
 
             self._collectors["okx"] = collector
 
@@ -142,6 +144,22 @@ class RealTimeCollector:
                         asks_count=len(data.get("asks", [])))
         except Exception as e:
             logger.error("Failed to process depth data", error=str(e))
+
+    async def _on_kline_data(self, data: Dict[str, Any]) -> None:
+        """处理K线数据"""
+        try:
+            # 记录K线数据接收
+            logger.info("Kline data received",
+                       symbol=data.get("symbol"),
+                       exchange=data.get("exchange"),
+                       interval=data.get("interval"),
+                       open_price=data.get("open"),
+                       close_price=data.get("close"),
+                       high_price=data.get("high"),
+                       low_price=data.get("low"),
+                       volume=data.get("volume"))
+        except Exception as e:
+            logger.error("Failed to process kline data", error=str(e))
 
     async def subscribe_symbols(self, exchange: str, symbols: List[str]) -> None:
         """订阅新的交易对"""
