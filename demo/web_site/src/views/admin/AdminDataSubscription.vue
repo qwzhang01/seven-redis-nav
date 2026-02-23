@@ -96,10 +96,7 @@
       </t-select>
       <t-select v-model="filterExchange" placeholder="交易所" clearable
                 size="medium" style="width: 160px">
-        <t-option label="Binance" value="Binance"/>
-        <t-option label="OKX" value="OKX"/>
-        <t-option label="Bybit" value="Bybit"/>
-        <t-option label="Bitget" value="Bitget"/>
+        <t-option v-for="ex in exchanges" :key="ex.value" :label="ex.label" :value="ex.value"/>
       </t-select>
       <t-select v-model="filterDataType" placeholder="数据类型" clearable
                 size="medium" style="width: 140px">
@@ -324,10 +321,7 @@
               class="block text-sm font-medium text-white mb-2">交易所</label>
           <t-select v-model="formData.exchange" placeholder="选择交易所"
                     style="width: 100%">
-            <t-option label="Binance" value="Binance"/>
-            <t-option label="OKX" value="OKX"/>
-            <t-option label="Bybit" value="Bybit"/>
-            <t-option label="Bitget" value="Bitget"/>
+            <t-option v-for="ex in exchanges" :key="ex.value" :label="ex.label" :value="ex.value"/>
           </t-select>
         </div>
         <div>
@@ -436,10 +430,7 @@
               class="block text-sm font-medium text-white mb-2">交易所</label>
           <t-select v-model="historySyncFormData.exchange"
                     placeholder="选择交易所" style="width: 100%">
-            <t-option label="Binance" value="Binance"/>
-            <t-option label="OKX" value="OKX"/>
-            <t-option label="Bybit" value="Bybit"/>
-            <t-option label="Bitget" value="Bitget"/>
+            <t-option v-for="ex in exchanges" :key="ex.value" :label="ex.label" :value="ex.value"/>
           </t-select>
         </div>
         <div>
@@ -563,6 +554,14 @@ const historySyncFormData = ref({
   endTime: '',
   batchSize: 1000
 })
+
+// 交易所配置
+const exchanges = ref([
+  { label: 'Binance', value: 'binance' },
+  { label: 'OKX', value: 'okx' },
+  { label: 'Bybit', value: 'bybit' },
+  { label: 'Bitget', value: 'bitget' }
+])
 
 // 统计数据
 const statisticsData = ref<any>(null)
