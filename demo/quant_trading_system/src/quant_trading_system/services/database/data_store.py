@@ -39,6 +39,11 @@ class DataStore:
         if self._running:
             return
 
+        # 确保数据库已连接
+        if not self.db.is_connected:
+            logger.info("Database not connected, connecting now...")
+            await self.db.connect()
+
         self._running = True
 
         # 启动定时刷新任务
