@@ -23,14 +23,34 @@ class TimeUtils:
         解析时间字符串为毫秒时间戳
 
         Args:
-            time_str: 时间字符串，格式 "YYYY-MM-DD" 或 "YYYY-MM-DD HH:MM:SS"
+            time_str: 时间字符串，格式支持：
+                     - "YYYY-MM-DD"（仅日期）
+                     - "YYYY-MM-DD HH:MM:SS"（完整时间）
+                     - ISO 8601格式（如："YYYY-MM-DDTHH:MM:SSZ"、"YYYY-MM-DDTHH:MM:SS+HH:MM"）
 
         Returns:
             毫秒时间戳
         """
         try:
+            # 首先尝试解析ISO 8601格式
+            if "T" in time_str:
+                # 移除时区信息，因为datetime.fromisoformat()需要Python 3.7+
+                # 对于简单的ISO格式，可以直接使用strptime
+                if time_str.endswith("Z"):
+                    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
+                elif "+" in time_str:
+                    # 处理带时区偏移的格式，如：2026-02-24T16:55:17+08:00
+                    dt_str = time_str.split("+")[0]
+                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
+                elif "-" in time_str[10:]:
+                    # 处理带负时区偏移的格式
+                    dt_str = time_str.split("-")[0]
+                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
+                else:
+                    # 不带时区的ISO格式
+                    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
             # 尝试解析完整时间
-            if " " in time_str:
+            elif " " in time_str:
                 dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
             else:
                 dt = datetime.strptime(time_str, "%Y-%m-%d")
