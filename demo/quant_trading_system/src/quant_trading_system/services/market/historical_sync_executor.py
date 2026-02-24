@@ -20,7 +20,7 @@ from quant_trading_system.models.database import HistoricalSyncTask
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.services.market.binance_api import BinanceAPI
 from quant_trading_system.services.market.okx_api import OKXAPI
-from quant_trading_system.models.market import TimeFrame
+from quant_trading_system.models.market import TimeFrame, Bar
 
 logger = structlog.get_logger(__name__)
 
@@ -286,9 +286,13 @@ class HistoricalSyncExecutor:
 
         total_records = 0
 
+        # 获取数据存储服务
+        from quant_trading_system.services.database.data_store import get_data_store
+        data_store = get_data_store()
+
         for symbol in task.symbols:
             # 获取K线数据
-            bars = api_client.fetch_klines(
+            bar_array = api_client.fetch_klines(
                 symbol=symbol,
                 timeframe=timeframe,
                 start_time=task.start_time.isoformat(),
@@ -296,10 +300,26 @@ class HistoricalSyncExecutor:
                 limit=task.batch_size
             )
 
-            # 这里应该将数据存储到数据库
-            # 实际实现需要根据具体的数据存储逻辑来编写
-            # 这里只是示例
-            total_records += len(bars)
+            # 将数据存储到数据库
+            for i in range(len(bar_array)):
+                # 创建Bar对象
+                bar = Bar(
+                    timestamp=bar_array.timestamp[i],
+                    open=bar_array.open[i],
+                    high=bar_array.high[i],
+                    low=bar_array.low[i],
+                    close=bar_array.close[i],
+                    volume=bar_array.volume[i],
+                    symbol=symbol,
+                    exchange=task.exchange,
+                    timeframe=timeframe,
+                    is_closed=True
+                )
+
+                # 存储到数据库
+                await data_store.store_kline(bar)
+
+            total_records += len(bar_array)
 
             # 更新进度
             progress = min(100, int((total_records / (len(task.symbols) * 1000)) * 100))
@@ -311,7 +331,10 @@ class HistoricalSyncExecutor:
             session.commit()
 
             logger.debug("Synced kline data",
-                       symbol=symbol, records=len(bars), progress=progress)
+                       symbol=symbol, records=len(bar_array), progress=progress)
+
+        # 确保所有数据都刷新到数据库
+        await data_store.flush_all()
 
     async def _sync_ticker_data(self, task: HistoricalSyncTask, api_client, session: Session) -> None:
         """同步Ticker数据"""
