@@ -232,28 +232,127 @@ class RetryUtils:
         """
         retry_count = 0
 
-        while retry_count < max_retries:
+        while retry_count <= max_retries:
             try:
                 return func(**kwargs)
             except retry_exceptions as e:
                 retry_count += 1
-                if retry_count >= max_retries:
+
+                if retry_count > max_retries:
                     logger.error(
-                        "Failed after retries",
+                        "Failed after all retries",
                         error=str(e),
+                        error_type=type(e).__name__,
                         retries=max_retries,
                     )
                     raise
 
+                # 根据异常类型调整延迟时间
+                delay = RetryUtils._calculate_delay(retry_count, base_delay, e)
+
                 logger.warning(
-                    "Retrying operation",
+                    "Operation failed, retrying",
                     error=str(e),
-                    retry=retry_count,
+                    error_type=type(e).__name__,
+                    retry_count=retry_count,
                     max_retries=max_retries,
+                    delay=delay,
                 )
-                time.sleep(base_delay * retry_count)  # 指数退避
+
+                time.sleep(delay)
 
         raise RuntimeError("Unexpected error in retry logic")
+
+    @staticmethod
+    def _calculate_delay(retry_count: int, base_delay: float, exception: Exception) -> float:
+        """
+        根据异常类型和重试次数计算延迟时间
+
+        Args:
+            retry_count: 当前重试次数
+            base_delay: 基础延迟
+            exception: 发生的异常
+
+        Returns:
+            计算后的延迟时间
+        """
+        # 指数退避基础延迟
+        delay = base_delay * (2 ** (retry_count - 1))
+
+        # 根据异常类型调整延迟
+        exception_name = type(exception).__name__
+
+        # 连接相关错误使用较短延迟
+        if "Connect" in exception_name:
+            delay = min(delay, 5.0)  # 连接错误最大延迟5秒
+        # 超时相关错误使用中等延迟
+        elif "Timeout" in exception_name:
+            delay = min(delay, 10.0)  # 超时错误最大延迟10秒
+        # 网络相关错误使用较长延迟
+        elif any(keyword in exception_name for keyword in ["Network", "Read", "Write", "Proxy"]):
+            delay = min(delay, 15.0)  # 网络错误最大延迟15秒
+        # 其他错误使用标准延迟
+        else:
+            delay = min(delay, 30.0)  # 其他错误最大延迟30秒
+
+        # 添加随机抖动避免同步重试
+        jitter = delay * 0.1  # 10%的随机抖动
+        delay += jitter * (2 * time.time() % 1 - 0.5)
+
+        return max(0.5, delay)  # 最小延迟0.5秒
+
+    @staticmethod
+    def execute_with_progressive_retry(
+        func: callable,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        **kwargs
+    ) -> Any:
+        """
+        使用渐进式重试策略执行函数
+
+        针对网络请求的智能重试策略，根据异常类型和重试次数动态调整
+
+        Args:
+            func: 要执行的函数
+            max_retries: 最大重试次数
+            base_delay: 基础延迟时间（秒）
+            **kwargs: 函数参数
+
+        Returns:
+            函数执行结果
+        """
+        # 定义网络相关的重试异常
+        network_exceptions = [
+            ConnectionError,
+            TimeoutError,
+            OSError,
+            IOError,
+        ]
+
+        # 如果httpx可用，添加httpx相关的异常
+        try:
+            import httpx
+            network_exceptions.extend([
+                httpx.ConnectError,
+                httpx.TimeoutException,
+                httpx.ReadError,
+                httpx.WriteError,
+                httpx.ProxyError,
+                httpx.NetworkError,
+                httpx.RemoteProtocolError,
+                httpx.ProtocolError,
+            ])
+        except ImportError:
+            logger.debug("httpx not available, using standard exceptions only")
+
+        return RetryUtils.execute_with_retry(
+            func=func,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            retry_exceptions=tuple(network_exceptions),
+            **kwargs
+        )
 
 
 class BinanceConfig:

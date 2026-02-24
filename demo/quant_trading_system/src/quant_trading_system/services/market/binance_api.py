@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 币安API客户端
 ============
@@ -44,11 +45,12 @@ class BinanceAPI:
         # 使用共享配置获取基础URL
         self.base_url = BinanceConfig.get_base_url(market_type)
 
-        # HTTP客户端
+        # HTTP客户端 - 增加超时和重试配置
         self._client = httpx.Client(
-            timeout=30.0,
+            timeout=httpx.Timeout(connect=30.0, read=60.0, write=30.0, pool=30.0),
             verify=True,  # SSL验证
             follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
 
     def fetch_klines(
@@ -110,27 +112,47 @@ class BinanceAPI:
             if end_ts:
                 params["endTime"] = end_ts
 
-            # 使用共享重试工具发送请求
+            # 使用共享重试工具发送请求，增加更多网络异常类型
             def _fetch_request():
-                response = self._client.get(
-                    f"{self.base_url}/api/v3/klines",
-                    params=params,
-                )
-                response.raise_for_status()
-                return response.json()
+                try:
+                    response = self._client.get(
+                        f"{self.base_url}/api/v3/klines",
+                        params=params,
+                    )
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.RequestError as e:
+                    # 记录详细的网络错误信息
+                    logger.warning(
+                        "Network request failed",
+                        error_type=type(e).__name__,
+                        error=str(e),
+                        url=f"{self.base_url}/api/v3/klines",
+                        params=params
+                    )
+                    raise
 
             try:
                 klines = RetryUtils.execute_with_retry(
                     _fetch_request,
                     max_retries=3,
-                    base_delay=1.0,
-                    retry_exceptions=(httpx.ConnectError, httpx.TimeoutException)
+                    base_delay=2.0,  # 增加基础延迟
+                    retry_exceptions=(
+                        httpx.ConnectError,
+                        httpx.TimeoutException,
+                        httpx.ReadError,
+                        httpx.WriteError,
+                        httpx.ProxyError,
+                        httpx.NetworkError
+                    )
                 )
             except Exception as e:
                 logger.error(
-                    "Failed to fetch klines",
+                    "Failed to fetch klines after retries",
                     error=str(e),
+                    error_type=type(e).__name__,
                     symbol=symbol_formatted,
+                    retries=3
                 )
                 raise
 
@@ -151,8 +173,8 @@ class BinanceAPI:
             # 更新起始时间为最后一根K线的时间+1ms
             current_start = klines[-1][0] + 1
 
-            # 避免请求过快
-            time.sleep(0.1)
+            # 增加请求间隔，避免触发API限制
+            time.sleep(0.2)
 
         logger.info(
             "Fetched klines",
@@ -208,35 +230,76 @@ class BinanceAPI:
                 turnover=np.array([], dtype=np.float64),
             )
 
-        # 使用共享工具提取数据
-        timestamps = [k[0] for k in klines]
-        opens = [float(k[1]) for k in klines]
-        highs = [float(k[2]) for k in klines]
-        lows = [float(k[3]) for k in klines]
-        closes = [float(k[4]) for k in klines]
-        volumes = [float(k[5]) for k in klines]
-        turnovers = [float(k[7]) for k in klines]
+        try:
+            # 使用共享工具提取数据
+            timestamps = [k[0] for k in klines]
+            opens = [float(k[1]) for k in klines]
+            highs = [float(k[2]) for k in klines]
+            lows = [float(k[3]) for k in klines]
+            closes = [float(k[4]) for k in klines]
+            volumes = [float(k[5]) for k in klines]
+            turnovers = [float(k[7]) for k in klines]
 
-        # 转换为numpy数组
-        return BarArray(
-            symbol=symbol,
-            exchange="binance",
-            timeframe=timeframe,
-            timestamp=np.array(timestamps, dtype="datetime64[ms]"),
-            open=np.array(opens, dtype=np.float64),
-            high=np.array(highs, dtype=np.float64),
-            low=np.array(lows, dtype=np.float64),
-            close=np.array(closes, dtype=np.float64),
-            volume=np.array(volumes, dtype=np.float64),
-            turnover=np.array(turnovers, dtype=np.float64),
-        )
+            # 转换为numpy数组
+            return BarArray(
+                symbol=symbol,
+                exchange="binance",
+                timeframe=timeframe,
+                timestamp=np.array(timestamps, dtype="datetime64[ms]"),
+                open=np.array(opens, dtype=np.float64),
+                high=np.array(highs, dtype=np.float64),
+                low=np.array(lows, dtype=np.float64),
+                close=np.array(closes, dtype=np.float64),
+                volume=np.array(volumes, dtype=np.float64),
+                turnover=np.array(turnovers, dtype=np.float64),
+            )
+        except (ValueError, IndexError, TypeError) as e:
+            logger.error(
+                "Failed to convert kline data",
+                error=str(e),
+                symbol=symbol,
+                klines_count=len(klines),
+                first_kline=klines[0] if klines else None
+            )
+            raise ValueError(f"Invalid kline data format: {e}")
 
     def close(self) -> None:
         """关闭HTTP客户端"""
-        self._client.close()
+        if hasattr(self, '_client') and self._client:
+            try:
+                self._client.close()
+                logger.debug("HTTP client closed")
+            except Exception as e:
+                logger.warning("Error closing HTTP client", error=str(e))
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+# 时间周期映射
+TIMEFRAME_MAP = {
+    TimeFrame.M1: "1m",
+    TimeFrame.M5: "5m",
+    TimeFrame.M15: "15m",
+    TimeFrame.M30: "30m",
+    TimeFrame.H1: "1h",
+    TimeFrame.H4: "4h",
+    TimeFrame.D1: "1d",
+    TimeFrame.W1: "1w",
+}
+
+
+def get_binance_api(market_type: str = "spot") -> BinanceAPI:
+    """
+    获取币安API实例（工厂函数）
+
+    Args:
+        market_type: 市场类型，spot（现货）或futures（期货）
+
+    Returns:
+        BinanceAPI实例
+    """
+    return BinanceAPI(market_type=market_type)

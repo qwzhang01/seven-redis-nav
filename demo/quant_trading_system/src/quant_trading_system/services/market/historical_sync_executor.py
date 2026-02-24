@@ -21,6 +21,7 @@ from quant_trading_system.services.database.database import get_db
 from quant_trading_system.services.market.binance_api import BinanceAPI
 from quant_trading_system.services.market.okx_api import OKXAPI
 from quant_trading_system.models.market import TimeFrame, Bar
+from quant_trading_system.services.market.common_utils import RetryUtils
 
 logger = structlog.get_logger(__name__)
 
@@ -291,47 +292,64 @@ class HistoricalSyncExecutor:
         data_store = get_data_store()
 
         for symbol in task.symbols:
-            # 获取K线数据
-            bar_array = api_client.fetch_klines(
-                symbol=symbol,
-                timeframe=timeframe,
-                start_time=task.start_time.isoformat(),
-                end_time=task.end_time.isoformat(),
-                limit=task.batch_size
-            )
-
-            # 将数据存储到数据库
-            for i in range(len(bar_array)):
-                # 创建Bar对象
-                bar = Bar(
-                    timestamp=bar_array.timestamp[i],
-                    open=bar_array.open[i],
-                    high=bar_array.high[i],
-                    low=bar_array.low[i],
-                    close=bar_array.close[i],
-                    volume=bar_array.volume[i],
-                    symbol=symbol,
-                    exchange=task.exchange,
-                    timeframe=timeframe,
-                    is_closed=True
+            try:
+                # 使用改进的重试机制获取K线数据
+                bar_array = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: RetryUtils.execute_with_progressive_retry(
+                        api_client.fetch_klines,
+                        max_retries=5,  # 增加重试次数
+                        base_delay=2.0,  # 增加基础延迟
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        start_time=task.start_time.isoformat(),
+                        end_time=task.end_time.isoformat(),
+                        limit=task.batch_size
+                    )
                 )
 
-                # 存储到数据库
-                await data_store.store_kline(bar)
+                # 将数据存储到数据库
+                for i in range(len(bar_array)):
+                    # 创建Bar对象
+                    bar = Bar(
+                        timestamp=bar_array.timestamp[i],
+                        open=bar_array.open[i],
+                        high=bar_array.high[i],
+                        low=bar_array.low[i],
+                        close=bar_array.close[i],
+                        volume=bar_array.volume[i],
+                        symbol=symbol,
+                        exchange=task.exchange,
+                        timeframe=timeframe,
+                        is_closed=True
+                    )
 
-            total_records += len(bar_array)
+                    # 存储到数据库
+                    await data_store.store_kline(bar)
 
-            # 更新进度
-            progress = min(100, int((total_records / (len(task.symbols) * 1000)) * 100))
+                total_records += len(bar_array)
 
-            task.progress = progress
-            task.total_records = total_records
-            task.synced_records = total_records
-            task.updated_at = datetime.utcnow()
-            session.commit()
+                # 更新进度
+                progress = min(100, int((total_records / (len(task.symbols) * 1000)) * 100))
 
-            logger.debug("Synced kline data",
-                       symbol=symbol, records=len(bar_array), progress=progress)
+                task.progress = progress
+                task.total_records = total_records
+                task.synced_records = total_records
+                task.updated_at = datetime.utcnow()
+                session.commit()
+
+                logger.info("Synced kline data",
+                         symbol=symbol, records=len(bar_array), progress=progress)
+
+            except Exception as e:
+                logger.error(
+                    "Failed to sync kline data for symbol",
+                    symbol=symbol,
+                    error=str(e),
+                    error_type=type(e).__name__
+                )
+                # 继续处理下一个symbol，而不是整个任务失败
+                continue
 
         # 确保所有数据都刷新到数据库
         await data_store.flush_all()
