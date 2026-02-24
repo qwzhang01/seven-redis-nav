@@ -569,11 +569,6 @@ class BinanceDataCollector(DataCollector):
         # 处理不同类型的消息
         if "e" in data:
             event_type = data["e"]
-
-            logger.info(f"Received Binance WebSocket message",
-                       event_type=event_type,
-                       symbol=data.get("s", "unknown"))
-
             if event_type == "trade":
                 await self._process_trade(data)
             elif event_type == "24hrTicker":
@@ -667,6 +662,7 @@ class BinanceDataCollector(DataCollector):
         await self._notify("depth", depth_data)
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
+        logger.info(f"Processing Binance kline data", data=data)
         """处理K线数据"""
         from datetime import datetime
         from quant_trading_system.models.market import Bar, TimeFrame
