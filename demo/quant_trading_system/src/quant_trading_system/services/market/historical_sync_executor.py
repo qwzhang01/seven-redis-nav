@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 import structlog
+import traceback  # 新增导入，用于获取完整异常堆栈
 from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import HistoricalSyncTask
@@ -108,7 +109,12 @@ class HistoricalSyncExecutor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("Error in monitor loop", error=str(e))
+                # 获取完整的异常堆栈信息
+                error_stack = traceback.format_exc()
+                logger.error("Error in monitor loop",
+                           error=str(e),
+                           error_type=type(e).__name__,
+                           error_stack=error_stack)  # 新增：记录完整堆栈信息
                 await asyncio.sleep(self.check_interval)
 
     async def _check_pending_tasks(self) -> None:
@@ -146,7 +152,12 @@ class HistoricalSyncExecutor:
                     pass
 
         except Exception as e:
-            logger.error("Error checking pending tasks", error=str(e))
+            # 获取完整的异常堆栈信息
+            error_stack = traceback.format_exc()
+            logger.error("Error checking pending tasks",
+                       error=str(e),
+                       error_type=type(e).__name__,
+                       error_stack=error_stack)  # 新增：记录完整堆栈信息
 
     async def _execute_sync_task(self, task_id: str) -> None:
         """执行单个历史数据同步任务"""
@@ -199,6 +210,9 @@ class HistoricalSyncExecutor:
                 except Exception as e:
                     session.rollback()
 
+                    # 获取完整的异常堆栈信息
+                    error_stack = traceback.format_exc()
+
                     # 更新任务状态为failed
                     db_gen = get_db()
                     session = next(db_gen)
@@ -215,6 +229,8 @@ class HistoricalSyncExecutor:
 
                     logger.error("Historical data sync failed",
                                task_id=task_id, error=str(e),
+                               error_type=type(e).__name__,
+                               error_stack=error_stack,  # 新增：记录完整堆栈信息
                                retry_count=retry_count)
 
                     retry_count += 1
@@ -232,8 +248,12 @@ class HistoricalSyncExecutor:
                         pass
 
             except Exception as e:
+                # 获取完整的异常堆栈信息
+                error_stack = traceback.format_exc()
                 logger.error("Unexpected error in task execution",
-                           task_id=task_id, error=str(e))
+                           task_id=task_id, error=str(e),
+                           error_type=type(e).__name__,
+                           error_stack=error_stack)  # 新增：记录完整堆栈信息
                 retry_count += 1
                 await asyncio.sleep(30)
 
@@ -310,9 +330,12 @@ class HistoricalSyncExecutor:
 
                 # 将数据存储到数据库
                 for i in range(len(bar_array)):
+                    # 将numpy.datetime64转换为Python datetime
+                    timestamp_dt = bar_array.timestamp[i].astype(datetime)
+
                     # 创建Bar对象
                     bar = Bar(
-                        timestamp=bar_array.timestamp[i],
+                        timestamp=timestamp_dt,
                         open=bar_array.open[i],
                         high=bar_array.high[i],
                         low=bar_array.low[i],
@@ -342,11 +365,14 @@ class HistoricalSyncExecutor:
                          symbol=symbol, records=len(bar_array), progress=progress)
 
             except Exception as e:
+                # 获取完整的异常堆栈信息
+                error_stack = traceback.format_exc()
                 logger.error(
                     "Failed to sync kline data for symbol",
                     symbol=symbol,
                     error=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
+                    error_stack=error_stack  # 新增：记录完整堆栈信息
                 )
                 # 继续处理下一个symbol，而不是整个任务失败
                 continue
