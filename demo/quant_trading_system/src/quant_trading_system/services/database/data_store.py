@@ -11,17 +11,17 @@ from typing import List, Dict, Any, Optional
 import structlog
 
 from quant_trading_system.models.market import Bar, Tick, Depth
-from .database import get_database
-from quant_trading_system.core.snowflake import generate_snowflake_id  # 新增导入
+from .database import get_async_database
+from quant_trading_system.core.snowflake import generate_snowflake_id
 
 logger = structlog.get_logger(__name__)
 
 
 class DataStore:
-    """数据存储服务"""
+    """数据存储服务 - 异步版本"""
 
     def __init__(self, batch_size: int = 1000, flush_interval: float = 5.0):
-        self.db = get_database()
+        self.db = get_async_database()
         self.batch_size = batch_size
         self.flush_interval = flush_interval
 
@@ -44,7 +44,7 @@ class DataStore:
         # 启动定时刷新任务
         self._flush_task = asyncio.create_task(self._flush_loop())
 
-        logger.info("Data store service started")
+        logger.info("Async data store service started")
 
     async def stop(self) -> None:
         """停止数据存储服务"""
@@ -64,10 +64,10 @@ class DataStore:
         # 刷新剩余数据
         await self.flush_all()
 
-        logger.info("Data store service stopped")
+        logger.info("Async data store service stopped")
 
     async def store_kline(self, bar: Bar) -> None:
-        """存储K线数据"""
+        """存储K线数据 - 异步版本"""
         self._kline_buffer.append(bar)
 
         # 如果达到批量大小，立即刷新
@@ -75,7 +75,7 @@ class DataStore:
             await self._flush_kline()
 
     async def store_tick(self, tick: Tick) -> None:
-        """存储实时行情数据"""
+        """存储实时行情数据 - 异步版本"""
         self._tick_buffer.append(tick)
 
         # 如果达到批量大小，立即刷新
@@ -83,7 +83,7 @@ class DataStore:
             await self._flush_tick()
 
     async def store_depth(self, depth: Depth) -> None:
-        """存储深度数据"""
+        """存储深度数据 - 异步版本"""
         self._depth_buffer.append(depth)
 
         # 如果达到批量大小，立即刷新
@@ -91,7 +91,7 @@ class DataStore:
             await self._flush_depth()
 
     async def flush_all(self) -> None:
-        """刷新所有缓存数据到数据库"""
+        """刷新所有缓存数据到数据库 - 异步版本"""
         tasks = []
 
         if self._kline_buffer:
@@ -107,135 +107,147 @@ class DataStore:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _flush_kline(self) -> None:
-        """刷新K线数据到数据库"""
+        """刷新K线数据到数据库 - 异步版本"""
         if not self._kline_buffer:
             return
 
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
+            # 准备批量插入数据
+            values = []
+            for bar in self._kline_buffer:
+                turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
+                values.append((
+                    generate_snowflake_id(),
+                    bar.symbol,
+                    bar.exchange,
+                    bar.timeframe.value,
+                    bar.timestamp,
+                    float(bar.open),
+                    float(bar.high),
+                    float(bar.low),
+                    float(bar.close),
+                    float(bar.volume),
+                    float(turnover),
+                    bar.is_closed
+                ))
 
-                # 批量插入K线数据
-                query = """
-                    INSERT INTO kline_data
-                    (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
+            # 执行异步批量插入
+            query = """
+                INSERT INTO kline_data
+                (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    turnover = EXCLUDED.turnover,
+                    is_closed = EXCLUDED.is_closed,
+                    created_at = EXCLUDED.created_at
+            """
 
-                values = []
-                for bar in self._kline_buffer:
-                    turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
-                    values.append((
-                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
-                        bar.symbol,
-                        bar.exchange,
-                        bar.timeframe.value,
-                        bar.timestamp,
-                        float(bar.open),
-                        float(bar.high),
-                        float(bar.low),
-                        float(bar.close),
-                        float(bar.volume),
-                        float(turnover),
-                        bar.is_closed
-                    ))
+            rowcount = await self.db.execute_many(query, values)
 
-                cursor.executemany(query, values)
-                conn.commit()
+            if rowcount > 0:
+                logger.debug("Kline data processed (inserted or updated)", count=rowcount)
+            else:
+                logger.debug("No kline data processed (all were duplicates with no changes)")
 
-                count = len(self._kline_buffer)
-                logger.debug("Kline data flushed to database", count=count)
-
-                # 清空缓存
-                self._kline_buffer.clear()
+            # 清空缓存
+            self._kline_buffer.clear()
 
         except Exception as e:
             logger.error("Failed to flush kline data", error=str(e))
             # 保留数据以便重试
 
     async def _flush_tick(self) -> None:
-        """刷新实时行情数据到数据库"""
+        """刷新实时行情数据到数据库 - 异步版本"""
         if not self._tick_buffer:
             return
 
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
+            values = []
+            for tick in self._tick_buffer:
+                values.append((
+                    generate_snowflake_id(),
+                    tick.symbol,
+                    "unknown",
+                    tick.timestamp,
+                    float(tick.price),
+                    float(tick.volume),
+                    float(tick.bid) if tick.bid else None,
+                    float(tick.ask) if tick.ask else None,
+                    None,
+                    None
+                ))
 
-                # 批量插入实时行情数据
-                query = """
-                    INSERT INTO tick_data
-                    (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
+            query = """
+                INSERT INTO tick_data
+                (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
+                    price = EXCLUDED.price,
+                    volume = EXCLUDED.volume,
+                    bid_price = EXCLUDED.bid_price,
+                    ask_price = EXCLUDED.ask_price,
+                    bid_size = EXCLUDED.bid_size,
+                    ask_size = EXCLUDED.ask_size,
+                    created_at = EXCLUDED.created_at
+            """
 
-                values = []
-                for tick in self._tick_buffer:
-                    values.append((
-                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
-                        tick.symbol,
-                        "unknown",  # 交易所信息需要从tick对象中获取
-                        tick.timestamp,
-                        float(tick.price),
-                        float(tick.volume),
-                        float(tick.bid) if tick.bid else None,
-                        float(tick.ask) if tick.ask else None,
-                        None,  # bid_size 需要从tick对象中获取
-                        None   # ask_size 需要从tick对象中获取
-                    ))
+            rowcount = await self.db.execute_many(query, values)
 
-                cursor.executemany(query, values)
-                conn.commit()
+            if rowcount > 0:
+                logger.debug("Tick data processed (inserted or updated)", count=rowcount)
+            else:
+                logger.debug("No tick data processed (all were duplicates with no changes)")
 
-                count = len(self._tick_buffer)
-                logger.debug("Tick data flushed to database", count=count)
-
-                # 清空缓存
-                self._tick_buffer.clear()
+            self._tick_buffer.clear()
 
         except Exception as e:
             logger.error("Failed to flush tick data", error=str(e))
-            # 保留数据以便重试
 
     async def _flush_depth(self) -> None:
-        """刷新深度数据到数据库"""
+        """刷新深度数据到数据库 - 异步版本"""
         if not self._depth_buffer:
             return
 
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
+            values = []
+            for depth in self._depth_buffer:
+                values.append((
+                    generate_snowflake_id(),
+                    depth.symbol,
+                    "unknown",
+                    depth.timestamp,
+                    json.dumps(depth.bids) if depth.bids else None,
+                    json.dumps(depth.asks) if depth.asks else None,
+                    depth.sequence
+                ))
 
-                # 批量插入深度数据
-                query = """
-                    INSERT INTO depth_data
-                    (id, symbol, exchange, timestamp, bids, asks)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
+            query = """
+                INSERT INTO depth_data
+                (id, symbol, exchange, timestamp, bids, asks, sequence)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
+                    bids = EXCLUDED.bids,
+                    asks = EXCLUDED.asks,
+                    sequence = EXCLUDED.sequence,
+                    created_at = EXCLUDED.created_at
+            """
 
-                values = []
-                for depth in self._depth_buffer:
-                    values.append((
-                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
-                        depth.symbol,
-                        "unknown",  # 交易所信息需要从depth对象中获取
-                        depth.timestamp,
-                        json.dumps(depth.bids),
-                        json.dumps(depth.asks)
-                    ))
+            rowcount = await self.db.execute_many(query, values)
 
-                cursor.executemany(query, values)
-                conn.commit()
+            if rowcount > 0:
+                logger.debug("Depth data processed (inserted or updated)", count=rowcount)
+            else:
+                logger.debug("No depth data processed (all were duplicates with no changes)")
 
-                count = len(self._depth_buffer)
-                logger.debug("Depth data flushed to database", count=count)
-
-                # 清空缓存
-                self._depth_buffer.clear()
+            self._depth_buffer.clear()
 
         except Exception as e:
             logger.error("Failed to flush depth data", error=str(e))
-            # 保留数据以便重试
 
     async def _flush_loop(self) -> None:
         """定时刷新循环"""
@@ -248,7 +260,7 @@ class DataStore:
             except Exception as e:
                 logger.error("Error in flush loop", error=str(e))
 
-    # 数据查询方法
+    # 数据查询方法 - 异步版本
     async def get_kline_data(
         self,
         symbol: str,
@@ -257,35 +269,27 @@ class DataStore:
         end_time: datetime,
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
-        """查询K线数据"""
+        """查询K线数据 - 异步版本"""
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
+            query = """
+                SELECT timestamp, open, high, low, close, volume, turnover
+                FROM kline_data
+                WHERE symbol = $1 AND timeframe = $2
+                AND timestamp >= $3 AND timestamp <= $4
+                ORDER BY timestamp ASC
+                LIMIT $5
+            """
 
-                query = """
-                    SELECT timestamp, open, high, low, close, volume, turnover
-                    FROM kline_data
-                    WHERE symbol = %s AND timeframe = %s
-                    AND timestamp >= %s AND timestamp <= %s
-                    ORDER BY timestamp ASC
-                    LIMIT %s
-                """
+            params = {
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'start_time': start_time,
+                'end_time': end_time,
+                'limit': limit
+            }
 
-                cursor.execute(query, (symbol, timeframe, start_time, end_time, limit))
-
-                results = []
-                for row in cursor.fetchall():
-                    results.append({
-                        'timestamp': row[0],
-                        'open': float(row[1]),
-                        'high': float(row[2]),
-                        'low': float(row[3]),
-                        'close': float(row[4]),
-                        'volume': float(row[5]),
-                        'turnover': float(row[6]) if row[6] else None
-                    })
-
-                return results
+            results = await self.db.execute_query(query, params)
+            return results
 
         except Exception as e:
             logger.error("Failed to query kline data", error=str(e))
@@ -297,34 +301,24 @@ class DataStore:
         timeframe: str,
         limit: int = 1
     ) -> List[Dict[str, Any]]:
-        """获取最新的K线数据"""
+        """获取最新的K线数据 - 异步版本"""
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
+            query = """
+                SELECT timestamp, open, high, low, close, volume, turnover
+                FROM kline_data
+                WHERE symbol = $1 AND timeframe = $2
+                ORDER BY timestamp DESC
+                LIMIT $3
+            """
 
-                query = """
-                    SELECT timestamp, open, high, low, close, volume, turnover
-                    FROM kline_data
-                    WHERE symbol = %s AND timeframe = %s
-                    ORDER BY timestamp DESC
-                    LIMIT %s
-                """
+            params = {
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'limit': limit
+            }
 
-                cursor.execute(query, (symbol, timeframe, limit))
-
-                results = []
-                for row in cursor.fetchall():
-                    results.append({
-                        'timestamp': row[0],
-                        'open': float(row[1]),
-                        'high': float(row[2]),
-                        'low': float(row[3]),
-                        'close': float(row[4]),
-                        'volume': float(row[5]),
-                        'turnover': float(row[6]) if row[6] else None
-                    })
-
-                return results
+            results = await self.db.execute_query(query, params)
+            return results
 
         except Exception as e:
             logger.error("Failed to query latest kline data", error=str(e))

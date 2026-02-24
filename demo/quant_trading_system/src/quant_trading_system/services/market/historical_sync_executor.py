@@ -328,7 +328,7 @@ class HistoricalSyncExecutor:
                     )
                 )
 
-                # 将数据存储到数据库
+                # 将数据存储到数据库 - 使用异步方法
                 for i in range(len(bar_array)):
                     # 将numpy.datetime64转换为Python datetime
                     timestamp_dt = bar_array.timestamp[i].astype(datetime)
@@ -347,7 +347,7 @@ class HistoricalSyncExecutor:
                         is_closed=True
                     )
 
-                    # 存储到数据库
+                    # 使用异步方法存储到数据库，避免阻塞事件循环
                     await data_store.store_kline(bar)
 
                 total_records += len(bar_array)
