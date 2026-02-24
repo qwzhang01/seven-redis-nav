@@ -37,8 +37,18 @@ def _build_sync_database_url() -> str:
 
 
 def _build_async_database_url() -> str:
-    """构建异步数据库URL，将postgresql://转换为postgresql+asyncpg://"""
+    """构建异步数据库URL，将postgresql://转换为postgresql+asyncpg://，并对密码中的特殊字符进行URL编码"""
     database_url = os.getenv("DATABASE_URL", "postgresql://quant:quant123@localhost:5432/quant_trading")
+    parsed = urlparse(database_url)
+    if parsed.password:
+        encoded_password = quote_plus(parsed.password)
+        # 重新构建编码后的URL
+        netloc = f"{parsed.username}:{encoded_password}@{parsed.hostname}"
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        database_url = f"{parsed.scheme}://{netloc}{parsed.path}"
+        if parsed.query:
+            database_url += f"?{parsed.query}"
     # 将postgresql://替换为postgresql+asyncpg://
     return database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
@@ -124,8 +134,9 @@ class AsyncTimescaleDB:
             )
 
             # 测试连接
+            from sqlalchemy import text
             async with self._engine.begin() as conn:
-                result = await conn.execute("SELECT version();")
+                result = await conn.execute(text("SELECT version();"))
                 version = result.scalar()
 
             logger.info("Async TimescaleDB connected successfully", version=version)
