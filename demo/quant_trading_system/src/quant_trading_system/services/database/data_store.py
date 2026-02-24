@@ -12,6 +12,7 @@ import structlog
 
 from quant_trading_system.models.market import Bar, Tick, Depth
 from .database import get_database
+from quant_trading_system.core.snowflake import generate_snowflake_id  # 新增导入
 
 logger = structlog.get_logger(__name__)
 
@@ -117,14 +118,15 @@ class DataStore:
                 # 批量插入K线数据
                 query = """
                     INSERT INTO kline_data
-                    (symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
 
                 values = []
                 for bar in self._kline_buffer:
                     turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
                     values.append((
+                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
                         bar.symbol,
                         bar.exchange,
                         bar.timeframe.value,
@@ -163,13 +165,14 @@ class DataStore:
                 # 批量插入实时行情数据
                 query = """
                     INSERT INTO tick_data
-                    (symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
 
                 values = []
                 for tick in self._tick_buffer:
                     values.append((
+                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
                         tick.symbol,
                         "unknown",  # 交易所信息需要从tick对象中获取
                         tick.timestamp,
@@ -206,13 +209,14 @@ class DataStore:
                 # 批量插入深度数据
                 query = """
                     INSERT INTO depth_data
-                    (symbol, exchange, timestamp, bids, asks)
-                    VALUES (%s, %s, %s, %s, %s)
+                    (id, symbol, exchange, timestamp, bids, asks)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """
 
                 values = []
                 for depth in self._depth_buffer:
                     values.append((
+                        generate_snowflake_id(),  # 为每条记录生成唯一雪花ID
                         depth.symbol,
                         "unknown",  # 交易所信息需要从depth对象中获取
                         depth.timestamp,
