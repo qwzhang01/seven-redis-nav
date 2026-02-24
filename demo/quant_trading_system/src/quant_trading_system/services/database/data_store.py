@@ -121,26 +121,26 @@ class DataStore:
             values = []
             for bar in self._kline_buffer:
                 turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
-                values.append((
-                    generate_snowflake_id(),
-                    bar.symbol,
-                    bar.exchange,
-                    bar.timeframe.value,
-                    bar.timestamp,
-                    float(bar.open),
-                    float(bar.high),
-                    float(bar.low),
-                    float(bar.close),
-                    float(bar.volume),
-                    float(turnover),
-                    bar.is_closed
-                ))
+                values.append({
+                    "id": generate_snowflake_id(),
+                    "symbol": bar.symbol,
+                    "exchange": bar.exchange,
+                    "timeframe": bar.timeframe.value,
+                    "timestamp": bar.timestamp,
+                    "open": float(bar.open),
+                    "high": float(bar.high),
+                    "low": float(bar.low),
+                    "close": float(bar.close),
+                    "volume": float(bar.volume),
+                    "turnover": float(turnover),
+                    "is_closed": bar.is_closed
+                })
 
             # 执行异步批量插入
             query = """
                 INSERT INTO kline_data
                 (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                VALUES (:id, :symbol, :exchange, :timeframe, :timestamp, :open, :high, :low, :close, :volume, :turnover, :is_closed)
                 ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
                     open = EXCLUDED.open,
                     high = EXCLUDED.high,
@@ -174,23 +174,23 @@ class DataStore:
         try:
             values = []
             for tick in self._tick_buffer:
-                values.append((
-                    generate_snowflake_id(),
-                    tick.symbol,
-                    "unknown",
-                    tick.timestamp,
-                    float(tick.price),
-                    float(tick.volume),
-                    float(tick.bid) if tick.bid else None,
-                    float(tick.ask) if tick.ask else None,
-                    None,
-                    None
-                ))
+                values.append({
+                    "id": generate_snowflake_id(),
+                    "symbol": tick.symbol,
+                    "exchange": "unknown",
+                    "timestamp": tick.timestamp,
+                    "price": float(tick.price),
+                    "volume": float(tick.volume),
+                    "bid_price": float(tick.bid) if tick.bid else None,
+                    "ask_price": float(tick.ask) if tick.ask else None,
+                    "bid_size": None,
+                    "ask_size": None
+                })
 
             query = """
                 INSERT INTO tick_data
                 (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                VALUES (:id, :symbol, :exchange, :timestamp, :price, :volume, :bid_price, :ask_price, :bid_size, :ask_size)
                 ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
                     price = EXCLUDED.price,
                     volume = EXCLUDED.volume,
@@ -221,20 +221,20 @@ class DataStore:
         try:
             values = []
             for depth in self._depth_buffer:
-                values.append((
-                    generate_snowflake_id(),
-                    depth.symbol,
-                    "unknown",
-                    depth.timestamp,
-                    json.dumps(depth.bids) if depth.bids else None,
-                    json.dumps(depth.asks) if depth.asks else None,
-                    depth.sequence
-                ))
+                values.append({
+                    "id": generate_snowflake_id(),
+                    "symbol": depth.symbol,
+                    "exchange": "unknown",
+                    "timestamp": depth.timestamp,
+                    "bids": json.dumps(depth.bids) if depth.bids else None,
+                    "asks": json.dumps(depth.asks) if depth.asks else None,
+                    "sequence": depth.sequence
+                })
 
             query = """
                 INSERT INTO depth_data
                 (id, symbol, exchange, timestamp, bids, asks, sequence)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES (:id, :symbol, :exchange, :timestamp, :bids, :asks, :sequence)
                 ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
                     bids = EXCLUDED.bids,
                     asks = EXCLUDED.asks,
