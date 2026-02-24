@@ -108,8 +108,15 @@ COMMENT ON COLUMN kline_data.is_closed IS 'K线是否已闭合';
 COMMENT ON COLUMN kline_data.created_at IS '记录创建时间';
 
 -- 添加唯一约束，防止相同时间戳、相同标的的重复数据
-ALTER TABLE kline_data ADD CONSTRAINT kline_data_unique_constraint
-UNIQUE (symbol, exchange, timeframe, timestamp);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'kline_data_unique_constraint'
+    ) THEN
+        ALTER TABLE kline_data ADD CONSTRAINT kline_data_unique_constraint
+        UNIQUE (symbol, exchange, timeframe, timestamp);
+    END IF;
+END $$;
 
 -- 将kline_data表转换为时序表
 SELECT create_hypertable('kline_data', 'timestamp', if_not_exists => TRUE);
@@ -145,8 +152,15 @@ COMMENT ON COLUMN tick_data.ask_size IS '卖一数量';
 COMMENT ON COLUMN tick_data.created_at IS '记录创建时间';
 
 -- 添加唯一约束，防止相同时间戳、相同标的的重复数据
-ALTER TABLE tick_data ADD CONSTRAINT tick_data_unique_constraint
-UNIQUE (symbol, exchange, timestamp);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'tick_data_unique_constraint'
+    ) THEN
+        ALTER TABLE tick_data ADD CONSTRAINT tick_data_unique_constraint
+        UNIQUE (symbol, exchange, timestamp);
+    END IF;
+END $$;
 
 -- 将tick_data表转换为时序表
 SELECT create_hypertable('tick_data', 'timestamp', if_not_exists => TRUE);
@@ -176,8 +190,15 @@ COMMENT ON COLUMN depth_data.sequence IS '序列号';
 COMMENT ON COLUMN depth_data.created_at IS '记录创建时间';
 
 -- 添加唯一约束，防止相同时间戳、相同标的的重复数据
-ALTER TABLE depth_data ADD CONSTRAINT depth_data_unique_constraint
-UNIQUE (symbol, exchange, timestamp);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'depth_data_unique_constraint'
+    ) THEN
+        ALTER TABLE depth_data ADD CONSTRAINT depth_data_unique_constraint
+        UNIQUE (symbol, exchange, timestamp);
+    END IF;
+END $$;
 
 -- 将depth_data表转换为时序表
 SELECT create_hypertable('depth_data', 'timestamp', if_not_exists => TRUE);
