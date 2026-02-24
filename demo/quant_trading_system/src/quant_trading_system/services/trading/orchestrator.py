@@ -111,7 +111,7 @@ class TradingOrchestrator:
         self.trading_engine._risk_manager = self.risk_manager
 
         # 5. 添加行情数据源
-        self.market_service.add_exchange(
+        await self.market_service.add_exchange(
             exchange=self.exchange,
             market_type=self.market_type,
             api_key=self.api_key,

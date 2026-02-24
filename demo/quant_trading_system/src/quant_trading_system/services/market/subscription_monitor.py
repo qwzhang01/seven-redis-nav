@@ -130,7 +130,7 @@ class SubscriptionMonitor:
                 await self.market_service.start()
 
             # 添加交易所数据源
-            self.market_service.add_exchange(
+            await self.market_service.add_exchange(
                 exchange=subscription.exchange,
                 market_type=subscription.market_type or "spot"
             )

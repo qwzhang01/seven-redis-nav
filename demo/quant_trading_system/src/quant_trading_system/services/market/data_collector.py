@@ -110,10 +110,13 @@ class WebSocketClient:
     async def connect(self) -> bool:
         """连接到WebSocket服务器"""
         if self._connected:
+            logger.info(f"WebSocket already connected, skipping", name=self.name)
             return True
 
         try:
             import websockets
+
+            logger.info(f"WebSocket connecting...", name=self.name, url=self.url)
 
             self._ws = await websockets.connect(
                 self.url,
@@ -126,7 +129,7 @@ class WebSocketClient:
             self._reconnect_count = 0
             self.stats.connect_count += 1
 
-            logger.info(f"WebSocket connected", name=self.name, url=self.url)
+            logger.info(f"WebSocket connected successfully", name=self.name, url=self.url)
 
             # 启动接收任务
             self._receive_task = asyncio.create_task(
@@ -149,7 +152,9 @@ class WebSocketClient:
         except Exception as e:
             logger.error(f"WebSocket connect failed",
                         name=self.name,
-                        error=str(e))
+                        url=self.url,
+                        error=str(e),
+                        error_type=type(e).__name__)
             self.stats.error_count += 1
             return False
 
@@ -205,9 +210,14 @@ class WebSocketClient:
 
     async def _receive_loop(self) -> None:
         """接收消息循环"""
+        logger.info(f"WebSocket receive loop started",
+                   name=self.name,
+                   running=self._running,
+                   connected=self._connected)
         while self._running and self._connected:
             try:
                 if not self._ws:
+                    logger.warning(f"WebSocket object is None in receive loop", name=self.name)
                     break
 
                 message = await self._ws.recv()
@@ -215,6 +225,13 @@ class WebSocketClient:
 
                 self.stats.message_count += 1
                 self.stats.last_message_time = recv_time
+
+                # 每100条消息打印一次统计
+                if self.stats.message_count % 100 == 0:
+                    logger.info(f"WebSocket message stats",
+                               name=self.name,
+                               total_messages=self.stats.message_count,
+                               avg_latency=f"{self.stats.avg_latency:.1f}ms")
 
                 # 解析消息
                 if isinstance(message, str):
@@ -235,15 +252,18 @@ class WebSocketClient:
                     await self._on_message(data)
 
             except asyncio.CancelledError:
+                logger.info(f"WebSocket receive loop cancelled", name=self.name)
                 break
             except Exception as e:
                 logger.error(f"WebSocket receive error",
                            name=self.name,
-                           error=str(e))
+                           error=str(e),
+                           error_type=type(e).__name__)
                 self.stats.error_count += 1
 
                 # 尝试重连
                 if self._running:
+                    logger.info(f"Attempting reconnect after receive error", name=self.name)
                     await self._reconnect()
                 break
 
@@ -419,19 +439,27 @@ class BinanceDataCollector(DataCollector):
     async def start(self) -> None:
         """启动采集器"""
         if self._running:
+            logger.info(f"Binance data collector already running, skipping start",
+                       market_type=self.market_type)
             return
 
         self._running = True
 
         # 启动数据存储服务
         if self.enable_storage and self._data_store:
+            logger.info(f"Starting data store service", market_type=self.market_type)
             await self._data_store.start()
 
-        await self._ws_client.connect()
+        logger.info(f"Connecting WebSocket for Binance",
+                   market_type=self.market_type,
+                   ws_url=self._ws_client.url)
+        connect_result = await self._ws_client.connect()
 
         logger.info(f"Binance data collector started",
                    market_type=self.market_type,
-                   storage_enabled=self.enable_storage)
+                   storage_enabled=self.enable_storage,
+                   ws_connected=connect_result,
+                   ws_url=self._ws_client.url)
 
     async def stop(self) -> None:
         """停止采集器"""
@@ -446,7 +474,16 @@ class BinanceDataCollector(DataCollector):
 
     async def subscribe(self, symbols: list[str]) -> None:
         """订阅品种"""
+        logger.info(f"BinanceDataCollector.subscribe called",
+                   symbols=symbols,
+                   ws_connected=self._ws_client.is_connected,
+                   ws_url=self._ws_client.url,
+                   running=self._running)
         if not self._ws_client.is_connected:
+            logger.warning(f"WebSocket not connected, cannot subscribe",
+                          symbols=symbols,
+                          ws_url=self._ws_client.url,
+                          reconnect_count=self._ws_client._reconnect_count)
             return
 
         # 构建订阅参数
@@ -465,18 +502,26 @@ class BinanceDataCollector(DataCollector):
 
         self._sub_id += 1
 
-        # 发送订阅请求
-        await self._ws_client.send({
+        subscribe_msg = {
             "method": "SUBSCRIBE",
             "params": streams,
             "id": self._sub_id,
-        })
+        }
+
+        # 发送订阅请求
+        logger.info(f"Sending subscribe request to Binance WebSocket",
+                   sub_id=self._sub_id,
+                   stream_count=len(streams),
+                   streams=streams)
+        send_result = await self._ws_client.send(subscribe_msg)
+        logger.info(f"Subscribe request sent",
+                   send_result=send_result,
+                   sub_id=self._sub_id)
 
         self._subscriptions.update(symbols)
         logger.info(f"Subscribed to symbols with kline data",
                    symbols=symbols,
-                   stream_count=len(streams),
-                   streams=streams)
+                   stream_count=len(streams))
 
     async def unsubscribe(self, symbols: list[str]) -> None:
         """取消订阅"""
@@ -511,20 +556,23 @@ class BinanceDataCollector(DataCollector):
 
     async def _on_connect(self) -> None:
         """连接成功回调"""
+        logger.info(f"Binance WebSocket on_connect callback fired",
+                   existing_subscriptions=list(self._subscriptions))
         # 重新订阅
         if self._subscriptions:
+            logger.info(f"Re-subscribing existing symbols after reconnect",
+                       symbols=list(self._subscriptions))
             await self.subscribe(list(self._subscriptions))
 
     async def _on_message(self, data: dict[str, Any]) -> None:
         """消息处理回调"""
-        # 记录接收到的消息
-        logger.info(f"Received WebSocket message",
-                    name=self.name,
-                    data=data)
-
         # 处理不同类型的消息
         if "e" in data:
             event_type = data["e"]
+
+            logger.info(f"Received Binance WebSocket message",
+                       event_type=event_type,
+                       symbol=data.get("s", "unknown"))
 
             if event_type == "trade":
                 await self._process_trade(data)
@@ -538,6 +586,15 @@ class BinanceDataCollector(DataCollector):
                 logger.debug(f"Unhandled event type",
                            event_type=event_type,
                            data=data)
+        elif "result" in data:
+            # 订阅/取消订阅的响应
+            logger.info(f"Binance subscription response",
+                       result=data.get("result"),
+                       id=data.get("id"))
+        else:
+            logger.debug(f"Binance unknown message format",
+                        data_keys=list(data.keys()),
+                        data=data)
 
     async def _process_trade(self, data: dict[str, Any]) -> None:
         """处理成交数据"""

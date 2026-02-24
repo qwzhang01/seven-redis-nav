@@ -111,7 +111,7 @@ class MarketService:
 
         logger.info("Market service stopped")
 
-    def add_exchange(
+    async def add_exchange(
         self,
         exchange: str,
         market_type: str = "spot",
@@ -157,6 +157,12 @@ class MarketService:
 
         self._collectors[collector_key] = collector
 
+        # 如果服务已经在运行，立即启动新添加的采集器
+        if self._running:
+            logger.info(f"Market service is running, starting new collector immediately",
+                       exchange=exchange, market_type=market_type)
+            await collector.start()
+
         logger.info(f"Exchange added", exchange=exchange, market_type=market_type)
 
     async def subscribe(
@@ -180,6 +186,11 @@ class MarketService:
             return
 
         collector = self._collectors[collector_key]
+        logger.info(f"Subscribing symbols on collector",
+                   exchange=exchange, market_type=market_type,
+                   symbols=symbols,
+                   collector_running=collector.is_running,
+                   ws_connected=getattr(collector, '_ws_client', None) and getattr(collector._ws_client, 'is_connected', False))
         await collector.subscribe(symbols)
 
     async def unsubscribe(
