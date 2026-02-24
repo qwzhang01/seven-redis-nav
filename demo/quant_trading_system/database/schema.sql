@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS depth_data (
     symbol VARCHAR(32) NOT NULL,
     exchange VARCHAR(32) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
+    sequence BIGINT,
     bids JSONB NOT NULL,
     asks JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
