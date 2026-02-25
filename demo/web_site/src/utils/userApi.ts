@@ -12,6 +12,8 @@ import type {
   UpdateProfileRequest,
   ChangePasswordRequest,
   ResetPasswordRequest,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
   ExchangeInfo,
   CreateAPIKeyRequest,
   UpdateAPIKeyRequest,
@@ -69,6 +71,14 @@ export function updateProfile(data: UpdateProfileRequest): Promise<UserResponse>
  */
 export function changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
   return post<{ message: string }>('/api/v1/c/user/password/change', data)
+}
+
+/**
+ * 刷新Token
+ * 使用 refresh_token 换取新的 access_token 和 refresh_token
+ */
+export function refreshToken(data: RefreshTokenRequest): Promise<RefreshTokenResponse> {
+  return post<RefreshTokenResponse>('/api/v1/c/user/token/refresh', data, { skipAuth: true, skipErrorHandler: true })
 }
 
 /**
@@ -304,6 +314,7 @@ export default {
   // 用户认证
   register,
   login,
+  refreshToken,
   updateProfile,
   changePassword,
   resetPassword,

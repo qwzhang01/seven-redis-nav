@@ -1,6 +1,7 @@
 /**
  * API请求工具
  * 基于fetch封装，支持请求拦截、响应拦截、错误处理
+ * 支持JWT Token自动刷新机制
  */
 
 import { MessagePlugin } from 'tdesign-vue-next'
@@ -23,28 +24,134 @@ interface ApiResponse<T = any> {
 interface RequestConfig extends RequestInit {
   skipAuth?: boolean // 是否跳过认证
   skipErrorHandler?: boolean // 是否跳过错误处理
+  _isRetry?: boolean // 内部标记：是否为刷新token后的重试请求
+  _originalUrl?: string // 内部标记：保存原始URL（用于重试）
 }
 
+// ==================== Token 管理 ====================
+
 /**
- * 获取认证token
+ * 获取认证token（access_token）
  */
 function getToken(): string | null {
   return localStorage.getItem('qm_token')
 }
 
 /**
- * 设置认证token
+ * 设置认证token（access_token）
  */
 export function setToken(token: string) {
   localStorage.setItem('qm_token', token)
 }
 
 /**
- * 清除认证token
+ * 获取刷新token（refresh_token）
+ */
+export function getRefreshToken(): string | null {
+  return localStorage.getItem('qm_refresh_token')
+}
+
+/**
+ * 设置刷新token（refresh_token）
+ */
+export function setRefreshToken(token: string) {
+  localStorage.setItem('qm_refresh_token', token)
+}
+
+/**
+ * 清除所有认证信息
  */
 export function clearToken() {
   localStorage.removeItem('qm_token')
+  localStorage.removeItem('qm_refresh_token')
   localStorage.removeItem('qm_user')
+}
+
+// ==================== Token 刷新队列 ====================
+
+// 标记当前是否正在刷新token
+let isRefreshing = false
+// 等待token刷新的请求队列
+let refreshQueue: Array<{
+  resolve: (value: string) => void
+  reject: (reason?: any) => void
+}> = []
+
+/**
+ * 处理等待队列中的请求
+ */
+function processQueue(error: Error | null, token: string | null = null) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error)
+    } else {
+      resolve(token!)
+    }
+  })
+  refreshQueue = []
+}
+
+/**
+ * 尝试刷新token
+ * 使用队列机制确保并发401请求只触发一次刷新
+ * @returns 新的access_token
+ */
+async function tryRefreshToken(): Promise<string> {
+  const refreshTokenValue = getRefreshToken()
+  
+  if (!refreshTokenValue) {
+    throw new Error('no_refresh_token')
+  }
+
+  // 如果已经在刷新中，加入队列等待
+  if (isRefreshing) {
+    return new Promise<string>((resolve, reject) => {
+      refreshQueue.push({ resolve, reject })
+    })
+  }
+
+  isRefreshing = true
+
+  try {
+    // 直接调用fetch避免循环依赖（不经过request拦截器）
+    const fullUrl = `${API_BASE_URL}/api/v1/c/user/token/refresh`
+    const response = await fetch(fullUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshTokenValue }),
+    })
+
+    if (!response.ok) {
+      throw new Error('refresh_failed')
+    }
+
+    const data = await response.json()
+    // 兼容 { data: { ... } } 和 { access_token: ... } 两种响应格式
+    const tokenData = data.data || data
+
+    const newAccessToken = tokenData.access_token
+    const newRefreshToken = tokenData.refresh_token
+
+    if (!newAccessToken) {
+      throw new Error('refresh_failed')
+    }
+
+    // 更新本地存储的token
+    setToken(newAccessToken)
+    if (newRefreshToken) {
+      setRefreshToken(newRefreshToken)
+    }
+
+    // 处理等待队列，将新token分发给等待中的请求
+    processQueue(null, newAccessToken)
+
+    return newAccessToken
+  } catch (error) {
+    processQueue(error as Error)
+    throw error
+  } finally {
+    isRefreshing = false
+  }
 }
 
 /**
@@ -84,16 +191,53 @@ async function responseInterceptor<T>(response: Response, config: RequestConfig)
   // 处理HTTP错误状态
   if (!response.ok) {
     if (response.status === 401) {
-      // 未授权，清除token并跳转登录
-      clearToken()
-      if (!config.skipErrorHandler) {
-        MessagePlugin.error('登录已过期，请重新登录')
-        // 延迟跳转，避免在某些场景下立即跳转
-        setTimeout(() => {
-          window.location.href = '/login'
-        }, 1000)
+      // 如果是刷新token的重试请求仍然401，或者是skipAuth的请求，直接失败
+      if (config._isRetry || config.skipAuth) {
+        clearToken()
+        if (!config.skipErrorHandler) {
+          MessagePlugin.error('登录已过期，请重新登录')
+          setTimeout(() => {
+            window.location.href = '/login'
+          }, 1000)
+        }
+        throw new Error('未授权')
       }
-      throw new Error('未授权')
+
+      // 尝试使用 refresh_token 刷新
+      try {
+        const newToken = await tryRefreshToken()
+        
+        // 用新token重试原始请求
+        const retryHeaders: Record<string, string> = {
+          ...(config.headers as Record<string, string> || {}),
+          'Authorization': `Bearer ${newToken}`,
+        }
+        
+        const retryUrl = config._originalUrl || ''
+        const fullUrl = retryUrl.startsWith('http') ? retryUrl : `${API_BASE_URL}${retryUrl}`
+        
+        const retryResponse = await fetch(fullUrl, {
+          ...config,
+          headers: retryHeaders,
+          _isRetry: undefined,
+          _originalUrl: undefined,
+        } as RequestInit)
+
+        return await responseInterceptor<T>(retryResponse, {
+          ...config,
+          _isRetry: true,
+        })
+      } catch (refreshError) {
+        // 刷新失败，清除token并跳转登录
+        clearToken()
+        if (!config.skipErrorHandler) {
+          MessagePlugin.error('登录已过期，请重新登录')
+          setTimeout(() => {
+            window.location.href = '/login'
+          }, 1000)
+        }
+        throw new Error('未授权')
+      }
     }
 
     if (response.status === 403) {
@@ -217,8 +361,10 @@ async function getMockData<T>(url: string): Promise<T | null> {
 async function request<T = any>(url: string, config: RequestConfig = {}): Promise<T> {
   try {
     const [fullUrl, requestConfig] = requestInterceptor(url, config)
+    // 保存原始URL，用于401重试
+    const configWithUrl: RequestConfig = { ...requestConfig, _originalUrl: url }
     const response = await fetch(fullUrl, requestConfig)
-    return await responseInterceptor<T>(response, config)
+    return await responseInterceptor<T>(response, configWithUrl)
   } catch (error) {
     // 网络错误或其他异常，尝试使用mock数据
     if (error instanceof TypeError && error.message.includes('fetch')) {

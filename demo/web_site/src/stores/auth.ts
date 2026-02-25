@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as userApi from '@/utils/userApi'
-import { setToken, clearToken } from '@/utils/request'
+import { setToken, clearToken, setRefreshToken } from '@/utils/request'
 import type { UserProfile, LoginRequest, RegisterRequest } from '@/utils/userApi'
 
 export interface UserInfo {
@@ -60,10 +60,15 @@ export const useAuthStore = defineStore('auth', () => {
       const loginData: LoginRequest = { username, password }
       const response = await userApi.login(loginData)
       
-      // 保存token
+      // 保存 access_token
       const accessToken = response.access_token
       token.value = accessToken
       setToken(accessToken)
+      
+      // 保存 refresh_token
+      if (response.refresh_token) {
+        setRefreshToken(response.refresh_token)
+      }
       
       // 转换并保存用户信息
       const userInfo = transformUserProfile(response.user)

@@ -13,32 +13,16 @@
         <template #prefix-icon><Search :size="16" class="text-dark-100" /></template>
       </t-input>
       <t-select v-model="filterStatus" placeholder="状态" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
-        <t-option label="运行中" value="active" />
-        <t-option label="已停止" value="stopped" />
+        <t-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
       </t-select>
       <t-select v-model="filterRisk" placeholder="风险等级" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
-        <t-option label="低风险" value="low" />
-        <t-option label="中风险" value="medium" />
-        <t-option label="高风险" value="high" />
+        <t-option v-for="item in riskLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
       </t-select>
       <t-select v-model="filterExchange" placeholder="交易所" clearable size="medium" style="width: 160px; color: white !important;" class="text-white">
-        <t-option label="Binance" value="Binance" />
-        <t-option label="OKX" value="OKX" />
-        <t-option label="Bybit" value="Bybit" />
-        <t-option label="Bitget" value="Bitget" />
-        <t-option label="Gate.io" value="Gate.io" />
-        <t-option label="Huobi" value="Huobi" />
-        <t-option label="Kraken" value="Kraken" />
-        <t-option label="Coinbase" value="Coinbase" />
+        <t-option v-for="item in exchangeOptions" :key="item.value" :label="item.label" :value="item.value" />
       </t-select>
       <t-select v-model="filterTimeframe" placeholder="时间周期" clearable size="medium" style="width: 140px; color: white !important;" class="text-white">
-        <t-option label="1分钟" value="1m" />
-        <t-option label="5分钟" value="5m" />
-        <t-option label="15分钟" value="15m" />
-        <t-option label="1小时" value="1h" />
-        <t-option label="4小时" value="4h" />
-        <t-option label="日线" value="1d" />
-        <t-option label="周线" value="1w" />
+        <t-option v-for="item in timeframeOptions" :key="item.value" :label="item.label" :value="item.value" />
       </t-select>
     </div>
 
@@ -90,6 +74,7 @@
       v-model:visible="createDialogVisible"
       header="新增策略"
       :footer="false"
+      :dialogStyle="{'background-color': 'rgb(8 10 15)'}"
       width="640px"
       placement="center"
       destroy-on-close
@@ -118,8 +103,7 @@
           <div class="space-y-1.5">
             <label class="text-sm text-dark-100">市场类型</label>
             <t-select v-model="createForm.market_type" placeholder="请选择市场类型" clearable>
-              <t-option label="现货" value="spot" />
-              <t-option label="合约" value="futures" />
+              <t-option v-for="item in marketTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
             </t-select>
           </div>
         </div>
@@ -129,22 +113,13 @@
           <div class="space-y-1.5">
             <label class="text-sm text-dark-100">交易所</label>
             <t-select v-model="createForm.exchange" placeholder="请选择交易所" clearable>
-              <t-option label="Binance" value="binance" />
-              <t-option label="OKX" value="okx" />
-              <t-option label="Bybit" value="bybit" />
-              <t-option label="Bitget" value="bitget" />
-              <t-option label="Gate.io" value="gate" />
-              <t-option label="Huobi" value="huobi" />
-              <t-option label="Kraken" value="kraken" />
-              <t-option label="Coinbase" value="coinbase" />
+              <t-option v-for="item in exchangeOptions" :key="item.value" :label="item.label" :value="item.value" />
             </t-select>
           </div>
           <div class="space-y-1.5">
             <label class="text-sm text-dark-100">风险等级</label>
             <t-select v-model="createForm.risk_level" placeholder="请选择风险等级" clearable>
-              <t-option label="低风险" value="low" />
-              <t-option label="中风险" value="medium" />
-              <t-option label="高风险" value="high" />
+              <t-option v-for="item in riskLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
             </t-select>
           </div>
         </div>
@@ -159,13 +134,7 @@
         <div class="space-y-1.5">
           <label class="text-sm text-dark-100">时间周期</label>
           <t-select v-model="createForm.timeframes" placeholder="请选择时间周期" multiple clearable>
-            <t-option label="1分钟" value="1m" />
-            <t-option label="5分钟" value="5m" />
-            <t-option label="15分钟" value="15m" />
-            <t-option label="1小时" value="1h" />
-            <t-option label="4小时" value="4h" />
-            <t-option label="日线" value="1d" />
-            <t-option label="周线" value="1w" />
+            <t-option v-for="item in timeframeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </t-select>
         </div>
 
@@ -186,6 +155,7 @@ import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
 import StatusDot from '@/components/common/StatusDot.vue'
 import strategyApi from '@/utils/strategyApi'
+import systemApi, { type EnumItem } from '@/utils/systemApi'
 
 const search = ref('')
 const filterStatus = ref('')
@@ -194,6 +164,14 @@ const filterExchange = ref('')
 const filterTimeframe = ref('')
 const loading = ref(false)
 const strategies = ref<any[]>([])
+
+// ========== 枚举选项数据 ==========
+const statusOptions = ref<EnumItem[]>([])
+const riskLevelOptions = ref<EnumItem[]>([])
+const exchangeOptions = ref<EnumItem[]>([])
+const timeframeOptions = ref<EnumItem[]>([])
+const marketTypeOptions = ref<EnumItem[]>([])
+const strategyTypeOptions = ref<EnumItem[]>([])
 
 // ========== 新增策略相关 ==========
 const createDialogVisible = ref(false)
@@ -219,25 +197,45 @@ function openCreateDialog() {
   loadStrategyTypes()
 }
 
-// 加载策略类型
-async function loadStrategyTypes() {
+// 批量加载枚举数据
+async function loadEnums() {
   try {
-    const res = await strategyApi.getStrategyTypes()
-    strategyTypes.value = (res.items || []).map((t: any) => ({
-      label: t.name || t.label || t.strategy_type,
-      value: t.id || t.strategy_type || t.value,
-    }))
+    const response = await systemApi.getEnumBatch([
+      'StrategyStatus', 'RiskLevel', 'ExchangeEnum', 'KlineInterval', 'MarketType', 'StrategyType'
+    ])
+    if (response?.enums) {
+      const enums = response.enums
+      if (enums['StrategyStatus']) statusOptions.value = enums['StrategyStatus']
+      if (enums['RiskLevel']) riskLevelOptions.value = enums['RiskLevel']
+      if (enums['ExchangeEnum']) exchangeOptions.value = enums['ExchangeEnum']
+      if (enums['KlineInterval']) timeframeOptions.value = enums['KlineInterval']
+      if (enums['MarketType']) marketTypeOptions.value = enums['MarketType']
+      if (enums['StrategyType']) {
+        strategyTypeOptions.value = enums['StrategyType']
+        strategyTypes.value = enums['StrategyType'].map((t: EnumItem) => ({
+          label: t.label,
+          value: t.value,
+        }))
+      }
+    }
+  } catch (error) {
+    console.error('批量加载枚举失败:', error)
+  }
+}
+
+// 加载策略类型（作为备用，当枚举未加载时在打开弹窗时调用）
+async function loadStrategyTypes() {
+  if (strategyTypes.value.length > 0) return
+  try {
+    const res = await systemApi.getEnumByName('StrategyType')
+    if (res?.items) {
+      strategyTypes.value = res.items.map((t: EnumItem) => ({
+        label: t.label,
+        value: t.value,
+      }))
+    }
   } catch (e: any) {
     console.error('加载策略类型失败:', e)
-    // 提供默认策略类型选项
-    strategyTypes.value = [
-      { label: '均线交叉', value: 'ma_cross' },
-      { label: '网格交易', value: 'grid' },
-      { label: '趋势跟踪', value: 'trend_follow' },
-      { label: 'RSI策略', value: 'rsi' },
-      { label: 'MACD策略', value: 'macd' },
-      { label: '布林带策略', value: 'bollinger' },
-    ]
   }
 }
 
@@ -294,7 +292,7 @@ async function loadStrategies() {
     if (filterTimeframe.value) params.timeframe = filterTimeframe.value
 
     const response = await strategyApi.getStrategies(params)
-    strategies.value = (response.items || []).map((s: any) => ({
+    strategies.value = (response.strategies || response.items || []).map((s: any) => ({
       id: s.id || s.strategy_id,
       name: s.name || '',
       exchange: s.exchange || '',
@@ -347,6 +345,7 @@ async function handleDelete(id: string, name: string) {
 }
 
 onMounted(() => {
+  loadEnums()
   loadStrategies()
 })
 </script>
