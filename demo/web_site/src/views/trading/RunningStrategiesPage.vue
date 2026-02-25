@@ -490,11 +490,9 @@ async function loadPositions() {
 async function loadTrades() {
   try {
     const response = await tradingApi.getTrades({
-      exchange_id: 'binance',
-      page: 1,
-      page_size: 20
+      limit: 20
     })
-    recentTrades.value = response.items.map((trade: any) => ({
+    recentTrades.value = response.trades.map((trade: any) => ({
       id: trade.trade_id,
       time: new Date(trade.created_at).toLocaleTimeString('zh-CN', { hour12: false }),
       strategy: trade.strategy_name || '未知策略',

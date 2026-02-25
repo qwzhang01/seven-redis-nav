@@ -409,9 +409,7 @@ let ws: WebSocket | null = null
 // 加载账户信息
 async function loadAccountInfo() {
   try {
-    const account = await tradingApi.getAccount({
-      exchange_id: 'binance'
-    })
+    const account = await tradingApi.getAccount()
     accountInfo.value = account
     accountBalance.value = account.total_balance.toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -426,13 +424,11 @@ async function loadAccountInfo() {
 async function loadOrders() {
   try {
     const response = await tradingApi.getOrders({
-      exchange_id: 'binance',
       symbol: 'BTCUSDT',
-      status: 'open',
-      page: 1,
-      page_size: 20
+      status: 'active',
+      limit: 20
     })
-    currentOrders.value = response.items.map((order: any) => ({
+    currentOrders.value = response.orders.map((order: any) => ({
       id: order.order_id,
       pair: order.symbol,
       type: order.side === 'buy' ? '买入' : '卖出',
@@ -449,12 +445,10 @@ async function loadOrders() {
 async function loadHistoryOrders() {
   try {
     const response = await tradingApi.getOrders({
-      exchange_id: 'binance',
       symbol: 'BTCUSDT',
-      page: 1,
-      page_size: 20
+      limit: 20
     })
-    historyOrders.value = response.items.map((order: any) => ({
+    historyOrders.value = response.orders.map((order: any) => ({
       id: order.order_id,
       time: new Date(order.created_at).toLocaleTimeString('zh-CN', { hour12: false }),
       pair: order.symbol,
