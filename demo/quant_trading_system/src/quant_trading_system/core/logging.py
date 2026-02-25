@@ -10,8 +10,10 @@
 """
 
 import logging
+import logging.handlers
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -102,10 +104,18 @@ def setup_logging(
 
     handlers = [console_handler]
 
-    # 文件处理器
+    # 文件处理器（按大小轮转，每个文件最大 500KB，文件名使用时间戳）
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        # 使用时间戳作为日志文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_with_ts = log_file.parent / f"{log_file.stem}_{timestamp}{log_file.suffix}"
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file_with_ts,
+            maxBytes=500 * 1024,  # 500KB
+            backupCount=100,  # 最多保留100个备份文件
+            encoding="utf-8",
+        )
         file_handler.setFormatter(formatter)
         handlers.append(file_handler)
 

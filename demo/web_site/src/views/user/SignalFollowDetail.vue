@@ -89,29 +89,60 @@
               </div>
             </div>
 
-            <!-- 价格走势图 -->
+            <!-- K线+指标+买卖点综合图表 -->
             <div class="rounded-xl bg-dark-800/30 p-4 mb-6">
               <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-medium text-dark-100">价格走势</h3>
-                <div class="flex gap-1">
-                  <button 
-                    v-for="period in ['1H', '4H', '1D', '1W']" 
-                    :key="period"
-                    @click="selectedPeriod = period"
-                    class="px-2 py-1 text-xs rounded transition-colors"
-                    :class="selectedPeriod === period ? 'bg-primary-500 text-white' : 'text-dark-100 hover:text-white'"
-                  >
-                    {{ period }}
-                  </button>
+                <h3 class="text-sm font-medium text-dark-100">K线行情</h3>
+                <div class="flex items-center gap-3">
+                  <div class="flex gap-1">
+                    <button 
+                      v-for="tf in timeframeOptions" 
+                      :key="tf"
+                      @click="selectedPeriod = tf"
+                      class="px-2 py-1 text-xs rounded transition-colors"
+                      :class="selectedPeriod === tf ? 'bg-primary-500 text-white' : 'text-dark-100 hover:text-white'"
+                    >
+                      {{ tf }}
+                    </button>
+                  </div>
+                  <div class="flex gap-1">
+                    <button 
+                      v-for="ind in availableIndicators" 
+                      :key="ind.key"
+                      @click="toggleIndicator(ind.key)"
+                      class="px-2 py-1 text-xs rounded transition-colors"
+                      :class="activeIndicators.includes(ind.key) ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-dark-800/50 text-dark-200 hover:text-white'"
+                    >
+                      {{ ind.label }}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <ReturnCurveChart
-                v-if="followDetail.priceHistory?.length"
-                :data="followDetail.priceHistory"
-                :labels="followDetail.priceHistoryLabels"
-                :height="280"
-                :color="followDetail.priceChange24h >= 0 ? '#10b981' : '#ef4444'"
+              <TradingChart
+                :kline-data="klineData"
+                :indicators="chartIndicators"
+                :trade-marks="followTradeMarks"
+                :height="480"
+                :show-volume="true"
               />
+              <div class="flex items-center gap-6 mt-3 text-xs text-dark-200">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>
+                  买入
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+                  卖出
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-0.5 bg-amber-400 inline-block"></span>
+                  MA7
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-0.5 bg-blue-400 inline-block"></span>
+                  MA25
+                </span>
+              </div>
             </div>
 
             <!-- 交易点位标记 -->
@@ -387,9 +418,163 @@ import {
 } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
+import TradingChart from '@/components/charts/TradingChart.vue'
+import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
 
 const route = useRoute()
 const selectedPeriod = ref('1D')
+const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
+
+const availableIndicators = [
+  { key: 'ma', label: 'MA' },
+  { key: 'macd', label: 'MACD' },
+  { key: 'rsi', label: 'RSI' },
+]
+const activeIndicators = ref<string[]>(['ma'])
+
+function toggleIndicator(key: string) {
+  const idx = activeIndicators.value.indexOf(key)
+  if (idx >= 0) {
+    activeIndicators.value.splice(idx, 1)
+  } else {
+    activeIndicators.value.push(key)
+  }
+}
+
+// 生成模拟K线数据
+function generateMockKline(count = 200): KlineDataPoint[] {
+  const data: KlineDataPoint[] = []
+  const now = Math.floor(Date.now() / 1000)
+  const interval = 3600
+  let price = 89000 + Math.random() * 3000
+
+  for (let i = 0; i < count; i++) {
+    const time = now - (count - i) * interval
+    const change = (Math.random() - 0.48) * price * 0.012
+    const open = price
+    const close = open + change
+    const high = Math.max(open, close) + Math.random() * price * 0.004
+    const low = Math.min(open, close) - Math.random() * price * 0.004
+    const volume = Math.floor(30 + Math.random() * 400)
+    data.push({ time, open, high, low, close, volume })
+    price = close
+  }
+  return data
+}
+
+const klineData = ref<KlineDataPoint[]>(generateMockKline())
+
+// MA计算
+function calcMA(data: KlineDataPoint[], period: number): Array<{ time: number; value: number }> {
+  const result: Array<{ time: number; value: number }> = []
+  for (let i = period - 1; i < data.length; i++) {
+    let sum = 0
+    for (let j = 0; j < period; j++) {
+      sum += data[i - j].close
+    }
+    result.push({ time: data[i].time, value: sum / period })
+  }
+  return result
+}
+
+// EMA计算
+function calcEMA(data: number[], period: number): number[] {
+  const k = 2 / (period + 1)
+  const result: number[] = [data[0]]
+  for (let i = 1; i < data.length; i++) {
+    result.push(data[i] * k + result[i - 1] * (1 - k))
+  }
+  return result
+}
+
+// MACD计算
+function calcMACD(data: KlineDataPoint[]) {
+  const closes = data.map(d => d.close)
+  const ema12 = calcEMA(closes, 12)
+  const ema26 = calcEMA(closes, 26)
+  const dif: number[] = []
+  for (let i = 0; i < closes.length; i++) {
+    dif.push((ema12[i] || 0) - (ema26[i] || 0))
+  }
+  const dea = calcEMA(dif.slice(25), 9)
+  const macdLine: Array<{ time: number; value: number }> = []
+  const signalLine: Array<{ time: number; value: number }> = []
+  const histogram: Array<{ time: number; value: number }> = []
+  for (let i = 0; i < dea.length; i++) {
+    const idx = i + 25 + 8
+    if (idx < data.length) {
+      macdLine.push({ time: data[idx].time, value: dif[idx] })
+      signalLine.push({ time: data[idx].time, value: dea[i] })
+      histogram.push({ time: data[idx].time, value: (dif[idx] - dea[i]) * 2 })
+    }
+  }
+  return { macd: macdLine, signal: signalLine, histogram }
+}
+
+// RSI计算
+function calcRSI(data: KlineDataPoint[], period = 14): Array<{ time: number; value: number }> {
+  const result: Array<{ time: number; value: number }> = []
+  const gains: number[] = []
+  const losses: number[] = []
+  for (let i = 1; i < data.length; i++) {
+    const change = data[i].close - data[i - 1].close
+    gains.push(change > 0 ? change : 0)
+    losses.push(change < 0 ? -change : 0)
+    if (i >= period) {
+      const avgGain = gains.slice(i - period, i).reduce((a, b) => a + b, 0) / period
+      const avgLoss = losses.slice(i - period, i).reduce((a, b) => a + b, 0) / period
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss
+      result.push({ time: data[i].time, value: 100 - (100 / (1 + rs)) })
+    }
+  }
+  return result
+}
+
+// 组合指标
+const chartIndicators = computed<IndicatorData[]>(() => {
+  const indicators: IndicatorData[] = []
+  const data = klineData.value
+  if (activeIndicators.value.includes('ma')) {
+    indicators.push(
+      { name: 'MA7', type: 'line', color: '#f59e0b', pane: 'main', data: calcMA(data, 7) },
+      { name: 'MA25', type: 'line', color: '#3b82f6', pane: 'main', data: calcMA(data, 25) },
+    )
+  }
+  if (activeIndicators.value.includes('macd')) {
+    const macd = calcMACD(data)
+    indicators.push(
+      { name: 'MACD', type: 'line', color: '#3b82f6', pane: 'sub', data: macd.macd },
+      { name: 'Signal', type: 'line', color: '#f59e0b', pane: 'sub', data: macd.signal },
+      { name: 'Histogram', type: 'histogram', color: '#26a69a', pane: 'sub', data: macd.histogram },
+    )
+  }
+  if (activeIndicators.value.includes('rsi')) {
+    indicators.push(
+      { name: 'RSI', type: 'line', color: '#ec4899', pane: 'sub2', data: calcRSI(data) },
+    )
+  }
+  return indicators
+})
+
+// 将交易点位映射为K线图上的买卖标记
+const followTradeMarks = computed<TradeMarkData[]>(() => {
+  const data = klineData.value
+  const marks: TradeMarkData[] = []
+  let i = 25
+  let isBuy = true
+  while (i < data.length) {
+    marks.push({
+      time: data[i].time,
+      position: isBuy ? 'belowBar' : 'aboveBar',
+      color: isBuy ? '#10b981' : '#ef5350',
+      shape: isBuy ? 'arrowUp' : 'arrowDown',
+      text: isBuy ? '买入' : '卖出',
+    })
+    isBuy = !isBuy
+    i += 18 + Math.floor(Math.random() * 15)
+  }
+  return marks
+})
 
 // Mock data - 实际应该从API获取
 const followDetail = computed(() => {
