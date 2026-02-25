@@ -340,7 +340,7 @@ if __name__ == "__main__":
 
     # 启动开发服务器
     uvicorn.run(
-        "src.quant_trading_system.api.main:app",
+        "quant_trading_system.api.main:app",
         host=settings.api.host,
         port=settings.api.port,
         reload=settings.debug,
