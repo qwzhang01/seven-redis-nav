@@ -28,7 +28,7 @@ from quant_trading_system.api.users.models.user_models import (
     UserResponse, RegisterRequest, LoginRequest, LoginResponse,
     ChangePasswordRequest, ResetPasswordRequest, UpdateProfileRequest,
     ExchangeInfo, CreateAPIKeyRequest, APIKeyResponse, APIKeyListResponse,
-    UpdateAPIKeyRequest
+    UpdateAPIKeyRequest, RefreshTokenRequest, RefreshTokenResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -101,6 +101,31 @@ async def login(
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     return LoginResponse(**auth_result)
+
+
+@router.post("/token/refresh", response_model=RefreshTokenResponse)
+async def refresh_token(
+    request: RefreshTokenRequest,
+    db: Session = Depends(get_db),
+) -> RefreshTokenResponse:
+    """
+    刷新 Token
+
+    使用 refresh_token 换取新的 access_token 和 refresh_token。
+    当 access_token 过期时，前端应调用此接口，而非要求用户重新登录。
+    """
+    user_service = UserService(db)
+
+    try:
+        result = user_service.refresh_token(request.refresh_token)
+        if not result:
+            raise HTTPException(status_code=401, detail="无效的刷新令牌或用户不存在")
+        return RefreshTokenResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token刷新失败: {str(e)}")
+        raise HTTPException(status_code=401, detail="Token刷新失败，请重新登录")
 
 
 # ─────────────────────────────────────────────

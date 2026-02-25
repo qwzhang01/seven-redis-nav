@@ -38,8 +38,23 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     """登录响应模型"""
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+    expires_in: int  # access_token 过期时间（秒）
     user: UserResponse
+
+
+class RefreshTokenRequest(BaseModel):
+    """刷新令牌请求模型"""
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    """刷新令牌响应模型"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # access_token 过期时间（秒）
 
 
 class ChangePasswordRequest(BaseModel):

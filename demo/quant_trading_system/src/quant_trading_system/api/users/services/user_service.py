@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.core.password_utils import PasswordUtils
 from quant_trading_system.core.jwt_utils import JWTUtils
+from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.api.users.repositories.user_repository import (
     UserRepository, ExchangeRepository, APIKeyRepository
@@ -89,11 +90,14 @@ class UserService:
 
         # 生成JWT Token
         jwt_utils = JWTUtils()
-        token = jwt_utils.create_user_token(user.id, user.username, user.user_type)
+        access_token = jwt_utils.create_user_token(user.id, user.username, user.user_type)
+        refresh_token = jwt_utils.create_user_refresh_token(user.id, user.username, user.user_type)
 
         return {
-            "access_token": token,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
+            "expires_in": settings.JWT_EXPIRE_MINUTES * 60,  # 转换为秒
             "user": {
                 "id": user.id,
                 "username": user.username,
@@ -103,6 +107,40 @@ class UserService:
                 "user_type": user.user_type,
                 "registration_time": user.registration_time.isoformat(),
             }
+        }
+
+    def refresh_token(self, refresh_token_str: str) -> Optional[Dict[str, Any]]:
+        """刷新令牌业务逻辑
+
+        验证 refresh_token，签发新的 access_token 和 refresh_token。
+        """
+        jwt_utils = JWTUtils()
+
+        # 验证 refresh_token（内部会检查过期和类型）
+        payload = jwt_utils.verify_refresh_token(refresh_token_str)
+
+        # 从 payload 中提取用户信息
+        username = payload.get("sub")
+        user_id = payload.get("user_id")
+        user_type = payload.get("user_type")
+
+        if not username or not user_id:
+            return None
+
+        # 验证用户是否仍然存在且有效
+        user = self.user_repo.get_user_by_username(username)
+        if not user:
+            return None
+
+        # 签发新的 access_token 和 refresh_token
+        new_access_token = jwt_utils.create_user_token(user.id, user.username, user.user_type)
+        new_refresh_token = jwt_utils.create_user_refresh_token(user.id, user.username, user.user_type)
+
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.JWT_EXPIRE_MINUTES * 60,  # 转换为秒
         }
 
     def change_password(self, user_id: int, old_password: str, new_password: str) -> bool:

@@ -41,6 +41,7 @@ AUTH_WHITELIST: set[str] = {
     f"{_prefix}/c/user/register",
     f"{_prefix}/c/user/login",
     f"{_prefix}/c/user/password/reset",
+    f"{_prefix}/c/user/token/refresh",
     # Admin 端健康探针（供运维/K8s 使用，无需登录）
     f"{_prefix}/m/health/",
     f"{_prefix}/m/health/ready",
