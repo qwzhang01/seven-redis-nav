@@ -411,6 +411,7 @@ import StatusDot from '@/components/common/StatusDot.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
 import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
 import simulationApi from '@/utils/simulationApi'
+import strategyApi from '@/utils/strategyApi'
 import { createStrategyWebSocket, type WebSocketManager } from '@/utils/websocketApi'
 import { useAuthStore } from '@/stores/auth'
 
@@ -439,63 +440,37 @@ const timeframes = [
   { label: '1D', value: '1d' },
 ]
 
-// ==================== 模拟策略数据（Mock） ====================
+// ==================== 模拟策略数据 ====================
 
 const strategy = ref({
   id: '',
-  name: '网格交易 BTC #1',
-  symbol: 'BTC/USDT',
-  type: '网格交易',
+  name: '',
+  symbol: '',
+  type: '',
   timeframe: '5m',
   riskLevel: 'medium' as 'low' | 'medium' | 'high',
   status: 'running',
-  totalReturn: 8.75,
-  todayReturn: 1.2,
-  currentValue: 10875,
-  maxDrawdown: 3.1,
-  tradeCount: 89,
-  winRate: 62.3,
-  profitFactor: 1.85,
-  avgHoldingTime: 4.2,
-  signalsToday: 3,
-  sharpeRatio: 1.65,
-  calmarRatio: 1.92,
-  sortinoRatio: 2.15,
-  var: 850,
-  volatility: 12.5,
-  maxConsecutiveLosses: 4,
+  totalReturn: 0,
+  todayReturn: 0,
+  currentValue: 0,
+  maxDrawdown: 0,
+  tradeCount: 0,
+  winRate: 0,
+  profitFactor: 0,
+  avgHoldingTime: 0,
+  signalsToday: 0,
+  sharpeRatio: 0,
+  calmarRatio: 0,
+  sortinoRatio: 0,
+  var: 0,
+  volatility: 0,
+  maxConsecutiveLosses: 0,
   initialCapital: 10000,
-  runDays: 15,
+  runDays: 0,
 })
 
-const positions = ref([
-  {
-    symbol: 'BTC/USDT',
-    direction: 'long' as const,
-    amount: '0.12 BTC',
-    entry_price: 91200.00,
-    current_price: 91680.50,
-    pnl: 57.66,
-    pnl_ratio: 0.53,
-  },
-  {
-    symbol: 'BTC/USDT',
-    direction: 'short' as const,
-    amount: '0.05 BTC',
-    entry_price: 92100.00,
-    current_price: 91680.50,
-    pnl: 20.98,
-    pnl_ratio: 0.46,
-  },
-])
-
-const recentTrades = ref([
-  { id: '1', symbol: 'BTC/USDT', side: 'buy' as const, price: 91200, amount: 0.12, pnl: null as number | null, time: '2025-02-24T16:30:15Z' },
-  { id: '2', symbol: 'BTC/USDT', side: 'sell' as const, price: 91800, amount: 0.08, pnl: 48.0, time: '2025-02-24T16:25:30Z' },
-  { id: '3', symbol: 'BTC/USDT', side: 'buy' as const, price: 90800, amount: 0.1, pnl: null as number | null, time: '2025-02-24T15:45:00Z' },
-  { id: '4', symbol: 'BTC/USDT', side: 'sell' as const, price: 91500, amount: 0.1, pnl: 70.0, time: '2025-02-24T15:12:00Z' },
-  { id: '5', symbol: 'BTC/USDT', side: 'buy' as const, price: 90500, amount: 0.15, pnl: null as number | null, time: '2025-02-24T14:30:00Z' },
-])
+const positions = ref<any[]>([])
+const recentTrades = ref<any[]>([])
 
 // ==================== 日志 ====================
 
@@ -508,15 +483,7 @@ const logLevels = [
   { label: '错误', value: 'error' },
 ]
 
-const logs = ref([
-  { time: '2025-02-24T19:03:23Z', level: 'info', message: '模拟策略运行正常，当前持仓2个' },
-  { time: '2025-02-24T19:02:15Z', level: 'trade', message: '模拟买入 BTC/USDT 数量: 0.12 价格: $91,200' },
-  { time: '2025-02-24T19:01:45Z', level: 'info', message: '检测到MA20与MA60金叉信号' },
-  { time: '2025-02-24T19:00:30Z', level: 'trade', message: '模拟卖出 BTC/USDT 数量: 0.08 价格: $91,800 盈利: +$48' },
-  { time: '2025-02-24T18:59:12Z', level: 'info', message: 'RSI指标值: 68.5，市场偏多' },
-  { time: '2025-02-24T18:58:05Z', level: 'warn', message: '接近止损线，注意风险控制' },
-  { time: '2025-02-24T18:55:00Z', level: 'info', message: '风险检查通过，继续运行' },
-])
+const logs = ref<any[]>([])
 
 const filteredLogs = computed(() => {
   if (logFilter.value === 'all') return logs.value
@@ -579,6 +546,82 @@ function initWebSocket() {
   })
 
   wsManager.connect()
+}
+
+/**
+ * 加载模拟策略详情和相关数据
+ */
+async function loadStrategyInfo() {
+  try {
+    // 并行加载策略详情、持仓、交易记录、日志
+    const [detail, posRes, tradeRes, logRes] = await Promise.all([
+      strategyApi.getUserStrategy(strategyId.value),
+      simulationApi.getSimPositions(strategyId.value).catch(() => null),
+      simulationApi.getSimTrades(strategyId.value, { page: 1, page_size: 10 }).catch(() => null),
+      simulationApi.getSimLogs(strategyId.value, { limit: 50 }).catch(() => null),
+    ])
+
+    // 填充策略基本信息
+    strategy.value = {
+      id: detail.strategy_id || detail.id || strategyId.value,
+      name: detail.name || '模拟策略',
+      symbol: detail.symbols?.[0] || detail.symbol || 'BTC/USDT',
+      type: detail.strategy_type || detail.type || '',
+      timeframe: detail.timeframe || '5m',
+      riskLevel: detail.risk_level || detail.riskLevel || 'medium',
+      status: detail.state || detail.status || 'running',
+      totalReturn: detail.total_pnl_ratio ?? detail.total_return ?? 0,
+      todayReturn: detail.daily_pnl_ratio ?? 0,
+      currentValue: detail.current_capital ?? detail.initial_capital ?? 10000,
+      maxDrawdown: detail.max_drawdown ?? 0,
+      tradeCount: detail.stats?.trade_count ?? 0,
+      winRate: detail.win_rate ? (detail.win_rate * 100) : 0,
+      profitFactor: detail.stats?.profit_factor ?? 0,
+      avgHoldingTime: detail.stats?.avg_holding_hours ?? 0,
+      signalsToday: 0,
+      sharpeRatio: detail.sharpe_ratio ?? 0,
+      calmarRatio: 0,
+      sortinoRatio: 0,
+      var: 0,
+      volatility: 0,
+      maxConsecutiveLosses: detail.stats?.max_consecutive_losses ?? 0,
+      initialCapital: detail.initial_capital ?? 10000,
+      runDays: 0,
+    }
+
+    // 填充持仓数据
+    if (posRes?.positions) {
+      positions.value = posRes.positions.map((p: any) => ({
+        symbol: p.symbol,
+        direction: p.direction,
+        amount: p.amount,
+        entry_price: p.entry_price,
+        current_price: p.current_price,
+        pnl: p.pnl,
+        pnl_ratio: p.pnl_ratio,
+      }))
+    }
+
+    // 填充交易记录
+    if (tradeRes?.trades) {
+      recentTrades.value = tradeRes.trades.map((t: any) => ({
+        id: t.id,
+        symbol: t.symbol,
+        side: t.side,
+        price: t.price,
+        amount: t.amount,
+        pnl: t.pnl,
+        time: t.time,
+      }))
+    }
+
+    // 填充日志
+    if (logRes?.logs) {
+      logs.value = logRes.logs
+    }
+  } catch (error: any) {
+    console.error('加载模拟策略数据失败:', error)
+  }
 }
 
 // ==================== 数据加载 ====================
@@ -754,49 +797,64 @@ function handleTimeRangeChange(_from: number, _to: number) {
 
 // ==================== 策略控制 ====================
 
-function pauseStrategy() {
+async function pauseStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认暂停模拟策略',
     body: '确定要暂停该模拟策略吗？暂停后策略将停止模拟交易，但保留当前模拟持仓。',
     theme: 'warning' as const,
     confirmBtn: '确认暂停',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'paused'
-      MessagePlugin.success('模拟策略已暂停')
+      try {
+        await strategyApi.pauseUserStrategy(strategyId.value)
+        strategy.value.status = 'paused'
+        MessagePlugin.success('模拟策略已暂停')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '暂停模拟策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
 
-function resumeStrategy() {
+async function resumeStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认恢复模拟策略',
     body: '确定要恢复该模拟策略吗？恢复后策略将继续执行模拟交易逻辑。',
     theme: 'info' as const,
     confirmBtn: '确认恢复',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'running'
-      MessagePlugin.success('模拟策略已恢复')
+      try {
+        await strategyApi.resumeUserStrategy(strategyId.value)
+        strategy.value.status = 'running'
+        MessagePlugin.success('模拟策略已恢复')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '恢复模拟策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
 
-function stopStrategy() {
+async function stopStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认停止模拟策略',
     body: '确定要停止该模拟策略吗？停止后将结束所有模拟交易。此操作不可撤销。',
     theme: 'danger' as const,
     confirmBtn: '确认停止',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'stopped'
-      MessagePlugin.success('模拟策略已停止')
+      try {
+        await strategyApi.stopUserStrategy(strategyId.value)
+        strategy.value.status = 'stopped'
+        MessagePlugin.success('模拟策略已停止')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '停止模拟策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
@@ -828,7 +886,11 @@ function getLogColor(level: string): string {
 
 onMounted(async () => {
   strategy.value.id = strategyId.value
-  await loadInitialData()
+  // 并行加载策略信息和图表数据
+  await Promise.all([
+    loadStrategyInfo(),
+    loadInitialData(),
+  ])
   initWebSocket()
 })
 

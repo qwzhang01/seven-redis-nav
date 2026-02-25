@@ -377,52 +377,6 @@ CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_exchange ON historical_sync
 CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_data_type ON historical_sync_tasks (data_type);
 CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_created_at ON historical_sync_tasks (created_at DESC);
 
--- 插入示例数据
--- 插入示例交易所
-INSERT INTO exchange_info (
-    id, exchange_code, exchange_name, exchange_type, base_url, api_doc_url,
-    supported_pairs, rate_limits
-) VALUES
-(
-    1000000000000000001, 'binance', '币安', 'spot', 'https://api.binance.com',
-    'https://binance-docs.github.io/apidocs/',
-    '["BTCUSDT", "ETHUSDT", "BNBUSDT"]'::JSONB,
-    '{"requests_per_minute": 1200}'::JSONB
-),
-(
-    1000000000000000002, 'okx', '欧易', 'spot', 'https://www.okx.com',
-    'https://www.okx.com/docs/',
-    '["BTC-USDT", "ETH-USDT", "OKB-USDT"]'::JSONB,
-    '{"requests_per_minute": 300}'::JSONB
-),
-(
-    1000000000000000003, 'huobi', '火币', 'spot', 'https://api.huobi.pro',
-    'https://huobiapi.github.io/docs/',
-    '["btcusdt", "ethusdt", "htusdt"]'::JSONB,
-    '{"requests_per_minute": 100}'::JSONB
-)
-ON CONFLICT (exchange_code) DO NOTHING;
-
--- 插入示例用户（密码为password123的哈希值）
-INSERT INTO user_info (
-    id, username, nickname, password_hash, email, user_type
-) VALUES
-(
-    1000000000000000101, 'admin', '系统管理员',
-    '$2b$12$LQv3c1yqBWV3pC7tb8H8CeZP3C3JZJQ9W8tYQYbY8YtY8YtY8YtY',
-    'admin@quant.com', 'admin'
-),
-(
-    1000000000000000102, 'user1', '测试用户1',
-    '$2b$12$LQv3c1yqBWV3pC7tb8H8CeZP3C3JZJQ9W8tYQYbY8YtY8YtY8YtY',
-    'user1@quant.com', 'customer'
-)
-ON CONFLICT (username) DO NOTHING;
-
--- ============================================================
--- 新增表：信号记录、排行榜快照、系统统计快照、审计日志、风控告警
--- ============================================================
-
 -- 创建信号记录表（策略产生的交易信号）
 CREATE TABLE IF NOT EXISTS signal_records (
     id BIGINT PRIMARY KEY,
@@ -590,10 +544,6 @@ CREATE INDEX IF NOT EXISTS idx_risk_alert_type ON risk_alerts (alert_type);
 CREATE INDEX IF NOT EXISTS idx_risk_alert_severity ON risk_alerts (severity);
 CREATE INDEX IF NOT EXISTS idx_risk_alert_strategy ON risk_alerts (strategy_id);
 CREATE INDEX IF NOT EXISTS idx_risk_alert_resolved ON risk_alerts (is_resolved);
-
--- ============================================================
--- 新增表：信号跟单订单、跟单持仓、跟单交易记录
--- ============================================================
 
 -- 创建信号跟单订单表（用户跟单记录主表）
 CREATE TABLE IF NOT EXISTS signal_follow_orders (

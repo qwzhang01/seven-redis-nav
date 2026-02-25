@@ -368,6 +368,44 @@ export function cancelHistoricalSync(taskId: string): Promise<{ success: boolean
   return post<{ success: boolean; message: string; data: any }>(`/api/v1/m/market/historical-sync/${taskId}/cancel`)
 }
 
+// ==================== Admin端历史同步执行器控制接口 ====================
+
+/**
+ * 同步执行器状态
+ */
+export interface ExecutorStatusResponse {
+  success: boolean
+  data: {
+    is_running: boolean
+    pending_tasks: number
+    running_tasks: number
+    completed_tasks: number
+    failed_tasks: number
+    start_time?: string
+  }
+}
+
+/**
+ * 获取同步执行器状态
+ */
+export function getHistoricalSyncExecutorStatus(): Promise<ExecutorStatusResponse> {
+  return get<ExecutorStatusResponse>('/api/v1/m/market/historical-sync/status/executor')
+}
+
+/**
+ * 启动同步执行器
+ */
+export function startHistoricalSyncExecutor(): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>('/api/v1/m/market/historical-sync/executor/start')
+}
+
+/**
+ * 停止同步执行器
+ */
+export function stopHistoricalSyncExecutor(): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>('/api/v1/m/market/historical-sync/executor/stop')
+}
+
 // ==================== WebSocket相关 ====================
 
 /**
@@ -482,6 +520,10 @@ export default {
   getHistoricalSyncTasks,
   getHistoricalSyncDetail,
   cancelHistoricalSync,
+  // Admin端历史同步执行器控制接口
+  getHistoricalSyncExecutorStatus,
+  startHistoricalSyncExecutor,
+  stopHistoricalSyncExecutor,
   // WebSocket相关
   createWebSocket,
   subscribeWebSocket,

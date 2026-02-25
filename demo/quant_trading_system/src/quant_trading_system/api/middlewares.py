@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from quant_trading_system.config import settings
+from quant_trading_system.core.config import settings
 from quant_trading_system.core.jwt_utils import JWTUtils
 
 logger = logging.getLogger(__name__)
@@ -29,24 +29,26 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────
 # 认证中间件白名单（这些路径不需要 Token）
 # ──────────────────────────────────────────────
+_prefix = settings.API_PREFIX
+
 AUTH_WHITELIST: set[str] = {
     "/",
     "/docs",
     "/redoc",
-    "/api/v1/openapi.json",
-    "/api/v1/info",
+    f"{_prefix}/openapi.json",
+    f"{_prefix}/info",
     # C 端公开接口（无需登录）
-    "/api/v1/c/user/register",
-    "/api/v1/c/user/login",
-    "/api/v1/c/user/password/reset",
+    f"{_prefix}/c/user/register",
+    f"{_prefix}/c/user/login",
+    f"{_prefix}/c/user/password/reset",
     # Admin 端健康探针（供运维/K8s 使用，无需登录）
-    "/api/v1/m/health/",
-    "/api/v1/m/health/ready",
-    "/api/v1/m/health/live",
+    f"{_prefix}/m/health/",
+    f"{_prefix}/m/health/ready",
+    f"{_prefix}/m/health/live",
     # WebSocket 接口（WebSocket 握手不携带 Authorization 头，由各路由自行验证）
-    "/api/v1/ws/market",
-    "/api/v1/ws/trading",
-    "/api/v1/ws/strategy",
+    f"{_prefix}/ws/market",
+    f"{_prefix}/ws/trading",
+    f"{_prefix}/ws/strategy",
 }
 
 

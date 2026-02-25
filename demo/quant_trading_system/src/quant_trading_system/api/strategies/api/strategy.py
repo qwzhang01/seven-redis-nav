@@ -110,17 +110,6 @@ async def get_featured_strategies(
     strategies = PresetStrategyService.get_featured(db, limit)
     return {"strategies": strategies, "total": len(strategies)}
 
-
-@router.get("/types")
-async def get_strategy_types() -> dict[str, Any]:
-    """
-    获取可用的策略类型
-
-    返回所有策略类型枚举信息。
-    """
-    return {"types": StrategyType.to_list()}
-
-
 @router.get("/list")
 async def list_preset_strategies(
     keyword: Optional[str] = Query(None, description="按策略名称搜索"),

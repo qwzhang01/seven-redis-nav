@@ -21,25 +21,39 @@ from structlog.types import Processor
 
 def setup_logging(
     level: str | None = None,
-    log_format: str = "json",
+    log_format: str | None = None,
     log_file: Path | None = None,
 ) -> None:
     """
     配置日志系统
 
     Args:
-        level: 日志级别（默认从环境变量 LOG_LEVEL 读取，未设置则为 INFO）
-        log_format: 日志格式 (json/console)
-        log_file: 日志文件路径（默认从环境变量 LOG_FILE 读取，未设置则不写文件）
+        level: 日志级别（默认从配置 settings.LOG_LEVEL 读取，未设置则为 INFO）
+        log_format: 日志格式 (json/console)（默认从配置 settings.monitor.log_format 读取）
+        log_file: 日志文件路径（默认从配置 settings.LOG_FILE 读取）
     """
 
-    # 从环境变量读取配置（函数参数优先）
-    if level is None:
-        level = os.environ.get("LOG_LEVEL", "INFO")
-    if log_file is None:
-        env_log_file = os.environ.get("LOG_FILE")
-        if env_log_file:
-            log_file = Path(env_log_file)
+    # 从配置读取（函数参数优先）
+    try:
+        from quant_trading_system.core.config import settings as _settings
+        if level is None:
+            level = _settings.LOG_LEVEL
+        if log_format is None:
+            log_format = _settings.monitor.log_format
+        if log_file is None:
+            log_file_str = _settings.LOG_FILE
+            if log_file_str:
+                log_file = Path(log_file_str)
+    except Exception:
+        # 配置未初始化时回退到环境变量
+        if level is None:
+            level = os.environ.get("LOG_LEVEL", "INFO")
+        if log_format is None:
+            log_format = "json"
+        if log_file is None:
+            env_log_file = os.environ.get("LOG_FILE")
+            if env_log_file:
+                log_file = Path(env_log_file)
 
     # 设置日志级别
     log_level = getattr(logging, level.upper(), logging.INFO)

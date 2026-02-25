@@ -88,13 +88,6 @@ export function getStrategyTypes(): Promise<StrategyTypeListResponse> {
 }
 
 /**
- * 获取可用策略类型（C端）
- */
-export function getUserStrategyTypes(): Promise<any> {
-  return get<any>('/api/v1/c/strategy/types')
-}
-
-/**
  * 创建策略
  */
 export function createStrategy(data: CreateStrategyRequest): Promise<StrategyInfo> {
@@ -158,6 +151,57 @@ export function getStrategySignals(strategyId: string, params?: SignalListParams
 }
 
 // ==================== C端接口 ====================
+
+/**
+ * 获取系统预设策略列表（已上架的）
+ */
+export interface PresetStrategyListParams {
+  keyword?: string
+  market_type?: string
+  strategy_type?: string
+  risk_level?: string
+  page?: number
+  page_size?: number
+}
+
+export interface PresetStrategyListResponse {
+  items: any[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function getPresetStrategyList(params?: PresetStrategyListParams): Promise<PresetStrategyListResponse> {
+  return get<PresetStrategyListResponse>('/api/v1/c/strategy/list', params)
+}
+
+/**
+ * 获取预设策略详情（C端浏览用）
+ */
+export function getPresetStrategyDetail(strategyId: string): Promise<any> {
+  return get<any>(`/api/v1/c/strategy/preset/${strategyId}`)
+}
+
+/**
+ * 获取当前用户的策略实例列表（我的策略）
+ */
+export interface MyStrategyListParams {
+  mode?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+export interface MyStrategyListResponse {
+  items: any[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function getMyStrategies(params?: MyStrategyListParams): Promise<MyStrategyListResponse> {
+  return get<MyStrategyListResponse>('/api/v1/c/strategy/my', params)
+}
 
 /**
  * 获取首页优选策略
@@ -378,9 +422,11 @@ export default {
   unpublishStrategy,
   getStrategyPerformance,
   // C端接口
+  getPresetStrategyList,
+  getPresetStrategyDetail,
+  getMyStrategies,
   getFeaturedStrategies,
   getUserStrategies,
-  getUserStrategyTypes,
   createUserStrategy,
   createSimulateStrategy,
   getUserStrategy,

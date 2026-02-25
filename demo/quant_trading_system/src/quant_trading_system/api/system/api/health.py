@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from quant_trading_system.services.database.database import get_database
+from quant_trading_system.core.config import settings
 
 
 class HealthStatus(str, Enum):
@@ -26,7 +27,7 @@ class HealthResponse(BaseModel):
     status: HealthStatus
     message: str
     timestamp: datetime
-    version: str = "1.0.0"
+    version: str = ""  # 从配置中读取
     checks: Optional[Dict[str, Dict[str, Any]]] = None
 
 # 创建路由
@@ -43,7 +44,7 @@ async def health_check() -> HealthResponse:
         status=HealthStatus.HEALTHY,
         message="服务运行正常",
         timestamp=datetime.now(),
-        version="1.0.0",
+        version=settings.app_version,
         checks={
             "api": {"status": "healthy", "message": "API服务正常"}
         }
@@ -229,7 +230,7 @@ async def full_health_check() -> HealthResponse:
         status=overall_status,
         message=message,
         timestamp=datetime.now(),
-        version="1.0.0",
+        version=settings.app_version,
         checks=checks
     )
 

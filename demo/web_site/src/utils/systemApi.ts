@@ -3,7 +3,7 @@
  * 对接量化交易系统的系统管理接口
  */
 
-import { get } from './request'
+import { get, put } from './request'
 
 // ==================== 类型定义 ====================
 
@@ -249,16 +249,229 @@ export function getHealthMetrics(): Promise<MetricsResponse> {
   return get<MetricsResponse>('/api/v1/m/health/metrics')
 }
 
+// ==================== M端日志审计接口 ====================
+
+/**
+ * 日志查询基础参数
+ */
+export interface LogQueryParams {
+  level?: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL'
+  username?: string
+  start_time?: string
+  end_time?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 日志条目
+ */
+export interface LogEntry {
+  id: string
+  category: string
+  level: string
+  username?: string
+  action?: string
+  message: string
+  details?: Record<string, any>
+  timestamp: string
+}
+
+/**
+ * 日志列表响应
+ */
+export interface LogListResponse {
+  items: LogEntry[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/**
+ * 审计日志查询参数
+ */
+export interface AuditLogParams extends LogQueryParams {
+  category?: 'system' | 'trading' | 'strategy' | 'user' | 'risk' | 'market'
+  action?: string
+}
+
+/**
+ * 风控日志查询参数
+ */
+export interface RiskLogParams {
+  level?: string
+  start_time?: string
+  end_time?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 风控告警
+ */
+export interface RiskAlert {
+  id: string
+  severity: 'info' | 'warning' | 'critical'
+  alert_type: 'drawdown' | 'position_limit' | 'loss_limit' | 'volatility'
+  strategy_id?: string
+  message: string
+  details?: Record<string, any>
+  is_resolved: boolean
+  resolved_by?: string
+  resolved_at?: string
+  note?: string
+  created_at: string
+}
+
+/**
+ * 风控告警列表查询参数
+ */
+export interface RiskAlertParams {
+  severity?: 'info' | 'warning' | 'critical'
+  alert_type?: 'drawdown' | 'position_limit' | 'loss_limit' | 'volatility'
+  is_resolved?: boolean
+  strategy_id?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 风控告警列表响应
+ */
+export interface RiskAlertListResponse {
+  items: RiskAlert[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/**
+ * 标记告警已处理请求
+ */
+export interface ResolveAlertRequest {
+  resolved_by?: string
+  note?: string
+}
+
+/**
+ * 获取系统操作日志
+ */
+export function getSystemLogs(params?: LogQueryParams): Promise<LogListResponse> {
+  return get<LogListResponse>('/api/v1/m/logs/system', params)
+}
+
+/**
+ * 获取交易日志
+ */
+export function getTradingLogs(params?: LogQueryParams): Promise<LogListResponse> {
+  return get<LogListResponse>('/api/v1/m/logs/trading', params)
+}
+
+/**
+ * 获取风控日志
+ */
+export function getRiskLogs(params?: RiskLogParams): Promise<LogListResponse> {
+  return get<LogListResponse>('/api/v1/m/logs/risk', params)
+}
+
+/**
+ * 获取审计日志（全量）
+ */
+export function getAuditLogs(params?: AuditLogParams): Promise<LogListResponse> {
+  return get<LogListResponse>('/api/v1/m/logs/audit', params)
+}
+
+/**
+ * 获取风控告警列表
+ */
+export function getRiskAlerts(params?: RiskAlertParams): Promise<RiskAlertListResponse> {
+  return get<RiskAlertListResponse>('/api/v1/m/logs/risk/alerts', params)
+}
+
+/**
+ * 标记告警已处理
+ */
+export function resolveRiskAlert(alertId: string, data?: ResolveAlertRequest): Promise<{ success: boolean; message: string }> {
+  return put<{ success: boolean; message: string }>(`/api/v1/m/logs/risk/alerts/${alertId}/resolve`, data)
+}
+
+// ==================== C端枚举查询接口 ====================
+
+/**
+ * 枚举项
+ */
+export interface EnumItem {
+  value: string
+  label: string
+  description?: string
+}
+
+/**
+ * 枚举信息响应
+ */
+export interface EnumInfoResponse {
+  name: string
+  items: EnumItem[]
+}
+
+/**
+ * 枚举列表响应
+ */
+export interface EnumListResponse {
+  enums: string[]
+}
+
+/**
+ * 批量枚举响应
+ */
+export interface EnumBatchResponse {
+  enums: Record<string, EnumItem[]>
+}
+
+/**
+ * 获取所有可用枚举名称
+ */
+export function getEnumList(): Promise<EnumListResponse> {
+  return get<EnumListResponse>('/api/v1/c/enum/list')
+}
+
+/**
+ * 按名称获取枚举值
+ */
+export function getEnumByName(enumName: string): Promise<EnumInfoResponse> {
+  return get<EnumInfoResponse>(`/api/v1/c/enum/${enumName}`)
+}
+
+/**
+ * 批量获取枚举值
+ */
+export function getEnumBatch(enumNames: string[]): Promise<EnumBatchResponse> {
+  return get<EnumBatchResponse>(`/api/v1/c/enum/batch/${enumNames.join(',')}`)
+}
+
 // 导出所有API
 export default {
+  // 系统管理
   getSystemInfo,
   getSystemConfig,
   getSystemHealth,
   getSystemMetrics,
+  // 健康检查
   healthCheck,
   healthCheckDatabase,
   healthCheckFull,
   readyCheck,
   liveCheck,
   getHealthMetrics,
+  // 日志审计
+  getSystemLogs,
+  getTradingLogs,
+  getRiskLogs,
+  getAuditLogs,
+  getRiskAlerts,
+  resolveRiskAlert,
+  // C端枚举查询
+  getEnumList,
+  getEnumByName,
+  getEnumBatch,
 }

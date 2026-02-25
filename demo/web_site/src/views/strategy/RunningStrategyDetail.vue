@@ -310,7 +310,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   Zap, ChevronRight, TrendingUp, BarChart3, History, Pause, Play, Square, Activity, Package, FileText 
@@ -318,78 +318,86 @@ import {
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
 import StatusDot from '@/components/common/StatusDot.vue'
+import strategyApi from '@/utils/strategyApi'
 
 const route = useRoute()
 const router = useRouter()
+const strategyId = computed(() => route.params.id as string)
+const loading = ref(true)
 
-// Mock data for demonstration
+// 策略数据
 const strategy = ref({
-  id: route.params.id,
-  name: '网格交易 BTC #1',
-  market: 'BTC/USDT',
-  type: '网格交易',
+  id: '',
+  name: '',
+  market: '',
+  type: '',
   riskLevel: 'medium' as 'low' | 'medium' | 'high',
   status: 'running',
-  totalReturn: 12.45,
-  runDays: 72,
-  maxDrawdown: 3.2,
-  tradeCount: 156,
-  winRate: 68.5,
-  todayReturn: 0.8,
-  currentValue: 12456,
-  activePositions: 3,
-  signalsToday: 5,
-  sharpeRatio: 1.8,
-  calmarRatio: 2.1,
-  sortinoRatio: 2.4,
-  var: 1250,
-  maxDrawdownPeriod: 15,
-  volatility: 15.8
+  totalReturn: 0,
+  runDays: 0,
+  maxDrawdown: 0,
+  tradeCount: 0,
+  winRate: 0,
+  todayReturn: 0,
+  currentValue: 0,
+  activePositions: 0,
+  signalsToday: 0,
+  sharpeRatio: 0,
+  calmarRatio: 0,
+  sortinoRatio: 0,
+  var: 0,
+  maxDrawdownPeriod: 0,
+  volatility: 0,
 })
 
-const positions = ref([
-  {
-    id: 1,
-    symbol: 'BTC/USDT',
-    direction: 'long',
-    amount: '0.5 BTC',
-    entryPrice: 90123.45,
-    currentPrice: 91476.14,
-    pnl: 676.35,
-    pnlRatio: 1.5
-  },
-  {
-    id: 2,
-    symbol: 'ETH/USDT',
-    direction: 'long',
-    amount: '10 ETH',
-    entryPrice: 3456.78,
-    currentPrice: 3521.23,
-    pnl: 644.5,
-    pnlRatio: 1.86
-  }
-])
+const positions = ref<any[]>([])
+const recentTrades = ref<any[]>([])
+const logs = ref<any[]>([])
 
-const recentTrades = ref([
-  {
-    id: 1,
-    symbol: 'BTC/USDT',
-    side: 'buy',
-    price: 91000.00,
-    amount: '0.1 BTC',
-    pnl: 0,
-    time: '16:30:15'
-  },
-  {
-    id: 2,
-    symbol: 'ETH/USDT',
-    side: 'sell',
-    price: 3500.00,
-    amount: '5 ETH',
-    pnl: 215.5,
-    time: '16:25:30'
+/**
+ * 加载策略详情
+ */
+async function loadStrategyData() {
+  loading.value = true
+  try {
+    // 并行加载策略详情和性能数据
+    const [detail, performance, signals] = await Promise.all([
+      strategyApi.getUserStrategy(strategyId.value),
+      strategyApi.getUserStrategyPerformance(strategyId.value).catch(() => null),
+      strategyApi.getUserStrategySignals(strategyId.value, { limit: 10 }).catch(() => null),
+    ])
+
+    // 填充策略基本信息
+    strategy.value = {
+      id: detail.strategy_id || detail.id || strategyId.value,
+      name: detail.name || '策略',
+      market: detail.symbols?.[0] || detail.market || '',
+      type: detail.strategy_type || detail.type || '',
+      riskLevel: detail.risk_level || detail.riskLevel || 'medium',
+      status: detail.state || detail.status || 'running',
+      totalReturn: performance?.performance?.total_return ?? detail.total_return ?? 0,
+      runDays: performance?.performance?.running_seconds ? Math.floor(performance.performance.running_seconds / 86400) : (detail.running_days ?? 0),
+      maxDrawdown: performance?.performance?.max_drawdown ?? detail.max_drawdown ?? 0,
+      tradeCount: performance?.performance?.trade_count ?? detail.stats?.trade_count ?? 0,
+      winRate: performance?.performance?.win_rate ? (performance.performance.win_rate * 100) : (detail.win_rate ?? 0),
+      todayReturn: detail.daily_pnl_ratio ?? 0,
+      currentValue: detail.current_capital ?? detail.initial_capital ?? 10000,
+      activePositions: 0,
+      signalsToday: signals?.total ?? 0,
+      sharpeRatio: performance?.performance?.sharpe_ratio ?? 0,
+      calmarRatio: 0,
+      sortinoRatio: 0,
+      var: 0,
+      maxDrawdownPeriod: 0,
+      volatility: 0,
+    }
+  } catch (error: any) {
+    console.error('加载策略数据失败:', error)
+    MessagePlugin.error(error.message || '加载策略数据失败')
+  } finally {
+    loading.value = false
   }
-])
+}
 
 function getStatusText(status: string) {
   const statusMap: Record<string, string> = {
@@ -401,56 +409,70 @@ function getStatusText(status: string) {
   return statusMap[status] || status
 }
 
-function pauseStrategy() {
+async function pauseStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认暂停策略',
     body: '确定要暂停该策略吗？暂停后策略将停止交易，但保留当前持仓。',
     theme: 'warning' as const,
     confirmBtn: '确认暂停',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'paused'
-      MessagePlugin.success('策略已暂停')
+      try {
+        await strategyApi.pauseUserStrategy(strategyId.value)
+        strategy.value.status = 'paused'
+        MessagePlugin.success('策略已暂停')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '暂停策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
 
-function resumeStrategy() {
+async function resumeStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认恢复策略',
     body: '确定要恢复该策略吗？恢复后策略将继续执行交易逻辑。',
     theme: 'info' as const,
     confirmBtn: '确认恢复',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'running'
-      MessagePlugin.success('策略已恢复')
+      try {
+        await strategyApi.resumeUserStrategy(strategyId.value)
+        strategy.value.status = 'running'
+        MessagePlugin.success('策略已恢复')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '恢复策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
 
-function stopStrategy() {
+async function stopStrategy() {
   const dlg = DialogPlugin.confirm({
     header: '确认停止策略',
     body: '确定要停止该策略吗？停止后策略将平仓所有持仓并结束运行。此操作不可撤销。',
     theme: 'danger' as const,
     confirmBtn: '确认停止',
     cancelBtn: '取消',
-    onConfirm: () => {
+    onConfirm: async () => {
       dlg.hide()
-      strategy.value.status = 'stopped'
-      MessagePlugin.success('策略已停止')
+      try {
+        await strategyApi.stopUserStrategy(strategyId.value)
+        strategy.value.status = 'stopped'
+        MessagePlugin.success('策略已停止')
+      } catch (error: any) {
+        MessagePlugin.error(error.message || '停止策略失败')
+      }
     },
     onCancel: () => dlg.hide(),
   })
 }
 
 onMounted(() => {
-  // In real application, fetch strategy data based on route.params.id
-  console.log('Loading strategy details for:', route.params.id)
+  loadStrategyData()
 })
 </script>

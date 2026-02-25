@@ -529,13 +529,61 @@ const loading = ref(false)
 // 策略数据
 const strategy = ref<any>(null)
 
-// 加载策略详情
+// 加载策略详情（预设策略浏览页）
 async function loadStrategyDetail() {
   loading.value = true
   try {
     const strategyId = route.params.id as string
-    const response = await strategyApi.getUserStrategy(strategyId)
-    strategy.value = response
+    const response = await strategyApi.getPresetStrategyDetail(strategyId)
+    // 兼容接口返回的各种字段名
+    strategy.value = {
+      ...response,
+      id: response.id || response.strategy_id,
+      name: response.name || '',
+      description: response.description || response.detail || '',
+      market: response.symbols?.[0] || response.market || '',
+      type: response.strategy_type || response.type || '',
+      riskLevel: response.risk_level || response.riskLevel || 'medium',
+      returnRate: response.total_return ?? response.returnRate ?? 0,
+      maxDrawdown: response.max_drawdown ?? response.maxDrawdown ?? 0,
+      runDays: response.running_days ?? response.runDays ?? 0,
+      status: response.state || response.status || 'active',
+      logic: response.logic_description || response.logic || '',
+      riskTip: response.risk_warning || response.riskTip || '本策略存在市场风险，历史表现不代表未来收益。',
+      exchange: response.exchange || 'Binance',
+      tradingPair: response.symbols?.[0] || response.tradingPair || 'BTC/USDT',
+      timeframe: response.timeframe || '1h',
+      params: response.params_schema ? Object.entries(response.params_schema).map(([key, val]: [string, any]) => ({
+        name: key,
+        label: val.label || key,
+        type: val.type || 'number',
+        default: response.default_params?.[key] ?? val.default ?? '',
+        description: val.description || '',
+        required: val.required ?? false,
+      })) : response.params || [],
+      capitalAllocation: {
+        initialCapital: response.initial_capital ?? response.capitalAllocation?.initialCapital ?? 10000,
+        maxPositionSize: response.risk_params?.max_position_size ?? response.capitalAllocation?.maxPositionSize ?? 20,
+        riskPerTrade: response.risk_params?.risk_per_trade ?? response.capitalAllocation?.riskPerTrade ?? 2,
+        rebalancingFrequency: response.capitalAllocation?.rebalancingFrequency ?? 'daily',
+      },
+      riskManagement: {
+        stopLoss: response.risk_params?.stop_loss ?? response.riskManagement?.stopLoss ?? 5,
+        takeProfit: response.risk_params?.take_profit ?? response.riskManagement?.takeProfit ?? 10,
+        trailingStop: response.risk_params?.trailing_stop ?? response.riskManagement?.trailingStop ?? false,
+        maxConcurrentTrades: response.risk_params?.max_concurrent_trades ?? response.riskManagement?.maxConcurrentTrades ?? 5,
+        dailyLossLimit: response.risk_params?.daily_loss_limit ?? response.riskManagement?.dailyLossLimit ?? 5,
+        weeklyLossLimit: response.risk_params?.weekly_loss_limit ?? response.riskManagement?.weeklyLossLimit ?? 10,
+      },
+      advancedSettings: {
+        slippageTolerance: response.advanced_params?.slippage_tolerance ?? response.advancedSettings?.slippageTolerance ?? 0.5,
+        commissionRate: response.advanced_params?.commission_rate ?? response.advancedSettings?.commissionRate ?? 0.1,
+        useMarketOrders: response.advanced_params?.use_market_orders ?? response.advancedSettings?.useMarketOrders ?? true,
+        allowShortSelling: response.advanced_params?.allow_short_selling ?? response.advancedSettings?.allowShortSelling ?? false,
+        enableHedging: response.advanced_params?.enable_hedging ?? response.advancedSettings?.enableHedging ?? false,
+        backtestPeriod: response.advanced_params?.backtest_period ?? response.advancedSettings?.backtestPeriod ?? 90,
+      },
+    }
   } catch (error: any) {
     console.error('加载策略详情失败:', error)
     MessagePlugin.error(error.message || '加载策略详情失败')

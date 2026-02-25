@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 
-from quant_trading_system.config import settings
+from quant_trading_system.core.config import settings
 
 
 class JWTUtils:

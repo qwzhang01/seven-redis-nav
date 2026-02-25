@@ -150,7 +150,11 @@ import { ref, computed, onMounted } from 'vue'
 import { Zap, Search, LayoutGrid, List, ArrowRight, SearchX } from 'lucide-vue-next'
 import { MessagePlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
-import strategyApi from '@/utils/strategyApi'
+import strategyApi, {
+  getUserMarketType,
+  getUserRiskLevel
+} from '@/utils/strategyApi'
+import systemApi from "@/utils/systemApi.ts";
 
 const viewMode = ref<'grid' | 'list'>('grid')
 const currentPage = ref(1)
@@ -167,32 +171,35 @@ const filters = ref({
 })
 
 const markets = ref<string[]>([])
+const risks = ref<string[]>([])
 const types = ref<string[]>([])
 
-// 加载策略列表
+// 加载策略列表（系统预设策略）
 async function loadStrategies() {
   loading.value = true
   try {
-    const response = await strategyApi.getUserStrategies({
+    const params: Record<string, any> = {
       page: currentPage.value,
       page_size: pageSize,
-      state: filters.value.risk || undefined,
-    })
-    strategies.value = response.strategies.map((item: any) => ({
-      ...item,
-      id: item.strategy_id,
-      symbol: item.symbols?.[0] || '',
-      status: item.state,
-    }))
-    total.value = response.total
-    
-    // 提取市场和类型选项
-    if (response.strategies.length > 0) {
-      const uniqueMarkets = [...new Set(response.strategies.map((s: any) => s.market))]
-      const uniqueTypes = [...new Set(response.strategies.map((s: any) => s.type))]
-      if (markets.value.length === 0) markets.value = uniqueMarkets
-      if (types.value.length === 0) types.value = uniqueTypes
     }
+    if (filters.value.search) params.keyword = filters.value.search
+    if (filters.value.market) params.market_type = filters.value.market === '现货' ? 'spot' : filters.value.market === '合约' ? 'futures' : filters.value.market
+    if (filters.value.type) params.strategy_type = filters.value.type
+    if (filters.value.risk) params.risk_level = filters.value.risk
+
+    const response = await strategyApi.getPresetStrategyList(params)
+    strategies.value = (response.items || []).map((item: any) => ({
+      ...item,
+      id: item.id || item.strategy_id,
+      market: item.symbols?.[0] || item.market || '',
+      type: item.strategy_type || item.type || '',
+      riskLevel: item.risk_level || item.riskLevel || 'medium',
+      returnRate: item.total_return ?? item.returnRate ?? 0,
+      maxDrawdown: item.max_drawdown ?? item.maxDrawdown ?? 0,
+      runDays: item.running_days ?? item.runDays ?? 0,
+      status: item.state || item.status || 'active',
+    }))
+    total.value = response.total || 0
   } catch (error) {
     console.error('加载策略失败:', error)
     MessagePlugin.error('加载策略失败，请稍后重试')
@@ -204,8 +211,32 @@ async function loadStrategies() {
 // 加载策略类型
 async function loadStrategyTypes() {
   try {
-    const response = await strategyApi.getStrategyTypes()
-    types.value = response.items.map((t: any) => t.name)
+    const response = await systemApi.getEnumByName("StrategyType")
+    if (response?.items) {
+      types.value = response.items.map((t: any) => t.label || t.value || t.name)
+    }
+  } catch (error) {
+    console.error('加载策略类型失败:', error)
+  }
+}
+
+async function loadRiskLevel() {
+  try {
+    const response = await systemApi.getEnumByName("RiskLevel")
+    if (response?.items) {
+      risks.value = response.items.map((t: any) => t.label || t.value || t.name)
+    }
+  } catch (error) {
+    console.error('加载策略类型失败:', error)
+  }
+}
+
+async function loadMarketType() {
+  try {
+    const response = await systemApi.getEnumByName("MarketType")
+    if (response?.items) {
+      markets.value = response.items.map((t: any) => t.label || t.value || t.name)
+    }
   } catch (error) {
     console.error('加载策略类型失败:', error)
   }
@@ -226,6 +257,12 @@ const paginatedStrategies = computed(() => {
   return filteredStrategies.value
 })
 
+// 填充市场类型下拉数据
+const defaultMarkets = ['现货', '合约']
+if (markets.value.length === 0) {
+  markets.value = defaultMarkets
+}
+
 // 监听筛选条件变化
 function onFilterChange() {
   currentPage.value = 1
@@ -242,6 +279,8 @@ function onPageChange(page: number) {
 onMounted(() => {
   loadStrategies()
   loadStrategyTypes()
+  loadMarketType()
+  loadRiskLevel()
 })
 </script>
 

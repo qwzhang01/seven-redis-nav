@@ -9,6 +9,8 @@ import bcrypt
 import logging
 from typing import Union
 
+from quant_trading_system.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,8 +31,8 @@ class PasswordUtils:
         if not password:
             raise ValueError("密码不能为空")
 
-        # 生成盐值并哈希密码
-        salt = bcrypt.gensalt()
+        # 使用配置中的哈希轮数生成盐值并哈希密码
+        salt = bcrypt.gensalt(rounds=settings.PASSWORD_HASH_ROUNDS)
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
         return hashed_password.decode('utf-8')
 
@@ -66,8 +68,8 @@ class PasswordUtils:
         返回：
         - (是否通过验证, 错误消息)
         """
-        if len(password) < 8:
-            return False, "密码长度至少8位"
+        if len(password) < settings.PASSWORD_MIN_LENGTH:
+            return False, f"密码长度至少{settings.PASSWORD_MIN_LENGTH}位"
 
         if len(password) > 128:
             return False, "密码长度不能超过128位"

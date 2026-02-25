@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 
-from quant_trading_system.config import settings
+from quant_trading_system.core.config import settings
 from quant_trading_system.core.logging import setup_logging
 from quant_trading_system.api.middlewares import (
     RequestIDMiddleware,
@@ -177,12 +177,12 @@ async def lifespan(app: FastAPI):
 
 # 创建FastAPI应用实例
 app = FastAPI(
-    title="量化交易系统 API",
+    title=settings.app_name + " API",
     description="用户管理和交易所API管理系统",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/api/v1/openapi.json",
+    version=settings.app_version,
+    docs_url=settings.DOCS_URL or None,
+    redoc_url=settings.REDOC_URL or None,
+    openapi_url=f"{settings.API_PREFIX}/openapi.json",
     lifespan=lifespan
 )
 
@@ -202,8 +202,12 @@ app.add_middleware(
 # 2. 认证中间件：统一 JWT Token 校验，白名单路径自动跳过
 app.add_middleware(AuthMiddleware)
 
-# 3. 限流中间件：每 IP 每 60 秒最多 200 次请求
-app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
+# 3. 限流中间件：从配置读取限流参数
+app.add_middleware(
+    RateLimitMiddleware,
+    max_requests=settings.RATE_LIMIT_REQUESTS,
+    window_seconds=settings.RATE_LIMIT_WINDOW,
+)
 
 # 4. 请求日志中间件：记录方法、路径、状态码、耗时
 app.add_middleware(LoggingMiddleware)
@@ -244,20 +248,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 # 注册路由
 # C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
 #                  /api/v1/c/signal、/api/v1/c/leaderboard、/api/v1/c/user/signal-follows
-app.include_router(c_router, prefix="/api/v1/c")
+app.include_router(c_router, prefix=f"{settings.API_PREFIX}/c")
 
 # Admin 端（管理员）：/api/v1/m/strategy、/api/v1/m/system、/api/v1/m/health
 #                    /api/v1/m/stats、/api/v1/m/logs、/api/v1/m/signal、/api/v1/m/leaderboard
-app.include_router(m_router, prefix="/api/v1/m")
+app.include_router(m_router, prefix=f"{settings.API_PREFIX}/m")
 
 # WebSocket 路由：/api/v1/ws/market、/api/v1/ws/trading、/api/v1/ws/strategy
-app.include_router(market_ws_router, prefix="/api/v1/ws", tags=["WebSocket-行情推送"])
-app.include_router(trading_ws_router, prefix="/api/v1/ws", tags=["WebSocket-交易推送"])
-app.include_router(strategy_ws_router, prefix="/api/v1/ws", tags=["WebSocket-策略推送"])
+app.include_router(market_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-行情推送"])
+app.include_router(trading_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-交易推送"])
+app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-策略推送"])
 
 
 # 测试路由：验证异常处理器
-@app.get("/api/v1/test/exception")
+@app.get(f"{settings.API_PREFIX}/test/exception")
 async def test_exception_handler():
     """测试异常处理器 - 抛出HTTPException应该被专门的处理器捕获"""
     raise HTTPException(
@@ -274,10 +278,10 @@ async def root() -> Dict[str, Any]:
     返回系统基本信息
     """
     return {
-        "message": "欢迎使用量化交易系统 API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/api/v1/m/health"
+        "message": f"欢迎使用{settings.app_name} API",
+        "version": settings.app_version,
+        "docs": settings.DOCS_URL or "/docs",
+        "health": f"{settings.API_PREFIX}/m/health"
     }
 
 
@@ -286,8 +290,8 @@ async def root() -> Dict[str, Any]:
 async def custom_docs():
     """自定义Swagger UI文档"""
     return get_swagger_ui_html(
-        openapi_url="/api/v1/openapi.json",
-        title="量化交易系统 API - 文档",
+        openapi_url=f"{settings.API_PREFIX}/openapi.json",
+        title=f"{settings.app_name} API - 文档",
         swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
     )
 
