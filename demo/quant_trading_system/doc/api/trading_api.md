@@ -1,19 +1,14 @@
-# 交易管理 API 文档
+# 交易 API 文档
 
 ## 概述
 
-交易模块提供交易执行和订单管理相关的 API 接口，支持完整的交易生命周期管理，包括下单、撤单、订单查询、持仓管理、账户信息和风险查询。
+交易模块提供交易执行和订单管理相关的 API 接口，接入 TradingEngine 实例，支持完整的交易生命周期管理，包括下单、撤单、订单查询、持仓查询、账户信息和风险信息等功能。
 
 ## 基础信息
 
 - **基础URL**: `/api/v1/c/trading`
 - **认证方式**: JWT Bearer Token
 - **数据格式**: JSON
-
-> **认证说明**：所有交易接口均需要在请求头中携带有效的 JWT 令牌：
-> ```http
-> Authorization: Bearer <token>
-> ```
 
 > **注意**：交易接口依赖交易系统运行，若系统未启动将返回 `503` 错误。
 
@@ -44,16 +39,19 @@
 
 提交新的交易订单到交易引擎执行。
 
+- 市价单：立即按当前市场价格成交，无需指定价格
+- 限价单：按指定价格或更优价格成交
+
 #### 请求体
 
-| 字段 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| symbol | string | 是 | 交易对符号 |
-| side | string | 是 | 交易方向（buy/sell） |
-| order_type | string | 是 | 订单类型（market/limit） |
-| quantity | float | 是 | 交易数量 |
-| price | float | 否 | 限价单价格（限价单必填） |
-| strategy_id | string | 否 | 策略ID（可选，用于关联策略） |
+| 字段 | 类型 | 必填 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| symbol | string | 是 | - | 交易对符号 |
+| side | string | 是 | - | 交易方向（`buy` / `sell`） |
+| order_type | string | 是 | - | 订单类型（`market` / `limit`） |
+| quantity | float | 是 | - | 交易数量 |
+| price | float | 否 | `null` | 限价单价格（限价单必填） |
+| strategy_id | string | 否 | `""` | 策略ID（可选，用于关联策略） |
 
 #### 响应示例
 
@@ -69,7 +67,8 @@
 
 | HTTP 状态码 | 描述 |
 |-------------|------|
-| 400 | 订单被拒绝 |
+| 400 | 订单被拒绝（Order rejected） |
+| 503 | 交易系统未启动 |
 
 ---
 
@@ -78,6 +77,12 @@
 **DELETE** `/api/v1/c/trading/order/{order_id}`
 
 取消指定的未成交订单。
+
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| order_id | string | 是 | 要取消的订单ID |
 
 #### 响应示例
 
@@ -89,6 +94,13 @@
 }
 ```
 
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 取消失败（Cancel failed） |
+| 503 | 交易系统未启动 |
+
 ---
 
 ### 3. 取消所有订单
@@ -99,9 +111,9 @@
 
 #### 查询参数
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| symbol | string | 否 | 交易对，为空则取消所有订单 |
+| 参数 | 类型 | 必填 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| symbol | string | 否 | `null` | 交易对，为空则取消所有订单 |
 
 #### 响应示例
 
@@ -125,8 +137,8 @@
 
 | 参数 | 类型 | 必填 | 默认值 | 描述 |
 |------|------|------|--------|------|
-| status | string | 否 | `"active"` | 订单状态（active: 活跃订单, all: 所有订单） |
-| symbol | string | 否 | - | 交易对过滤 |
+| status | string | 否 | `"active"` | 订单状态（`active`: 仅活跃订单，`all`: 所有订单） |
+| symbol | string | 否 | `null` | 交易对过滤 |
 | limit | integer | 否 | `100` | 返回数量（1-1000） |
 
 #### 响应示例
@@ -139,10 +151,10 @@
       "symbol": "BTCUSDT",
       "side": "buy",
       "type": "limit",
-      "status": "pending",
+      "status": "open",
       "quantity": 0.1,
-      "price": 91000.0,
-      "strategy_id": "strategy_001"
+      "price": 50000.0,
+      "strategy_id": "manual"
     }
   ],
   "total": 1
@@ -157,6 +169,12 @@
 
 查询指定订单的详细信息。
 
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| order_id | string | 是 | 订单ID |
+
 #### 响应示例
 
 ```json
@@ -168,8 +186,8 @@
   "status": "filled",
   "quantity": 0.1,
   "filled_quantity": 0.1,
-  "price": 91000.0,
-  "avg_price": 90950.0
+  "price": 50000.0,
+  "avg_price": 49998.5
 }
 ```
 
@@ -177,7 +195,8 @@
 
 | HTTP 状态码 | 描述 |
 |-------------|------|
-| 404 | 订单不存在 |
+| 404 | 订单不存在（Order not found） |
+| 503 | 交易系统未启动 |
 
 ---
 
@@ -189,11 +208,11 @@
 
 #### 查询参数
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| symbol | string | 否 | 交易对过滤 |
-| order_id | string | 否 | 订单ID过滤 |
-| limit | integer | 否 | 返回数量（1-1000，默认100） |
+| 参数 | 类型 | 必填 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| symbol | string | 否 | `null` | 交易对过滤 |
+| order_id | string | 否 | `null` | 订单ID过滤 |
+| limit | integer | 否 | `100` | 返回数量（1-1000） |
 
 #### 响应示例
 
@@ -201,13 +220,13 @@
 {
   "trades": [
     {
-      "trade_id": "trade_001",
+      "trade_id": "trade_789",
       "order_id": "order_123456",
       "symbol": "BTCUSDT",
       "side": "buy",
-      "price": 91000.0,
+      "price": 49998.5,
       "quantity": 0.1,
-      "commission": 0.91
+      "commission": 1.9999
     }
   ],
   "total": 1
@@ -229,15 +248,15 @@
   "positions": [
     {
       "symbol": "BTCUSDT",
-      "quantity": 0.1,
-      "avg_price": 91000.0,
-      "last_price": 91500.0,
-      "unrealized_pnl": 50.0,
-      "realized_pnl": 120.0,
-      "value": 9150.0
+      "quantity": 0.5,
+      "avg_price": 50000.0,
+      "last_price": 51000.0,
+      "unrealized_pnl": 500.0,
+      "realized_pnl": 200.0,
+      "value": 25500.0
     }
   ],
-  "total_value": 9150.0
+  "total_value": 25500.0
 }
 ```
 
@@ -247,18 +266,37 @@
 
 **GET** `/api/v1/c/trading/position/{symbol}`
 
-查询指定交易对的持仓详细信息。
+查询指定交易对的持仓详细信息。若无持仓则返回零值。
+
+#### 路径参数
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| symbol | string | 是 | 交易对符号 |
 
 #### 响应示例
 
 ```json
 {
   "symbol": "BTCUSDT",
-  "quantity": 0.1,
-  "avg_price": 91000.0,
-  "current_price": 91500.0,
-  "unrealized_pnl": 50.0,
-  "realized_pnl": 120.0
+  "quantity": 0.5,
+  "avg_price": 50000.0,
+  "current_price": 51000.0,
+  "unrealized_pnl": 500.0,
+  "realized_pnl": 200.0
+}
+```
+
+#### 无持仓响应示例
+
+```json
+{
+  "symbol": "ETHUSDT",
+  "quantity": 0,
+  "avg_price": 0,
+  "current_price": 0,
+  "unrealized_pnl": 0,
+  "realized_pnl": 0
 }
 ```
 
@@ -275,11 +313,31 @@
 ```json
 {
   "total_equity": 100000.0,
-  "available_margin": 95000.0,
-  "used_margin": 5000.0,
+  "available_margin": 80000.0,
+  "used_margin": 20000.0,
   "balances": {
-    "USDT": {"free": 95000.0, "locked": 5000.0, "total": 100000.0}
+    "USDT": {
+      "free": 80000.0,
+      "locked": 20000.0,
+      "total": 100000.0
+    },
+    "BTC": {
+      "free": 0.5,
+      "locked": 0.0,
+      "total": 0.5
+    }
   }
+}
+```
+
+#### 无账户信息响应
+
+```json
+{
+  "total_equity": 0,
+  "available_margin": 0,
+  "used_margin": 0,
+  "balances": {}
 }
 ```
 
@@ -291,16 +349,29 @@
 
 查询风险管理器的统计信息和风险指标。
 
+#### 响应示例
+
+```json
+{
+  "max_drawdown": -5.2,
+  "risk_exposure": 0.25,
+  "leverage": 1.0,
+  "risk_level": "low"
+}
+```
+
+> **说明**：返回内容取决于风险管理器的具体实现，字段可能随配置不同而变化。
+
 ---
 
 ## 错误码说明
 
 | HTTP 状态码 | 描述 |
 |-------------|------|
-| 400 | 请求参数错误或操作失败 |
-| 401 | 未提供认证凭据 |
-| 404 | 资源不存在 |
+| 400 | 请求参数错误 / 订单被拒绝 / 取消失败 |
+| 404 | 订单不存在 |
 | 503 | 交易系统未启动 |
+| 500 | 服务器内部错误 |
 
 ## 订单状态说明
 

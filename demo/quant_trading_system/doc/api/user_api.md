@@ -2,11 +2,12 @@
 
 ## 概述
 
-用户管理模块提供用户注册登录、Token 刷新、个人信息维护、交易所 API 密钥管理等功能（C端），以及管理员对用户的查询和管理功能（M端）。
+用户管理模块提供用户注册登录、Token 刷新、密码管理、个人信息维护、交易所 API 密钥管理等功能（C端），信号跟单管理功能（C端），以及管理员对用户的查询和管理功能（M端）。
 
 ## 基础信息
 
-- **C端基础URL**: `/api/v1/c/user`
+- **C端用户基础URL**: `/api/v1/c/user`
+- **C端信号跟单URL**: `/api/v1/c/user/signal-follows`
 - **M端用户管理URL**: `/api/v1/m/users`
 - **认证方式**: JWT Bearer Token
   - `access_token`：短期有效（默认30分钟），用于接口认证
@@ -22,8 +23,8 @@
 | 方法 | 路径 | 描述 | 认证 |
 |------|------|------|------|
 | POST | `/api/v1/c/user/register` | 用户注册 | 否 |
-| POST | `/api/v1/c/user/login` | 用户登录，返回 access_token + refresh_token | 否 |
-| POST | `/api/v1/c/user/token/refresh` | 刷新 Token，换取新的 token 对 | 否 |
+| POST | `/api/v1/c/user/login` | 用户登录 | 否 |
+| POST | `/api/v1/c/user/token/refresh` | 刷新 Token | 否 |
 | POST | `/api/v1/c/user/password/change` | 修改密码 | 是 |
 | POST | `/api/v1/c/user/password/reset` | 重置密码 | 否 |
 | PUT | `/api/v1/c/user/profile` | 更新个人信息 | 是 |
@@ -63,19 +64,41 @@
 
 **POST** `/api/v1/c/user/register`
 
-注册新用户账户。
+注册新用户账户，成功后返回用户基本信息。注册时昵称将自动设置为用户名。
 
 #### 请求体
 
 | 字段 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| username | string | 是 | 用户名 |
+| username | string | 是 | 用户名（唯一） |
 | password | string | 是 | 密码 |
-| email | string | 否 | 邮箱 |
-| nickname | string | 否 | 昵称 |
+| email | string | 是 | 邮箱 |
+| invitation_code | string | 是 | 邀请码（用于验证邀请人身份） |
 | phone | string | 否 | 手机号 |
 
-#### 响应：`201 Created`，返回用户基本信息。
+> **注意**：邀请码必须有效且未被使用，系统会根据邀请码找到对应的邀请人，注册成功后邀请人ID将被记录在用户信息中。
+
+#### 响应：`201 Created`
+
+```json
+{
+  "id": 1,
+  "username": "alice",
+  "nickname": "alice",
+  "email": "alice@example.com",
+  "phone": null,
+  "user_type": "customer",
+  "registration_time": "2024-01-01T00:00:00",
+  "invitation_code": "ABC123",
+  "inviter_id": 2
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 参数错误（如用户名已存在、邀请码无效等） |
 
 ---
 
@@ -100,7 +123,7 @@
 | refresh_token | string | 长期有效令牌（默认7天），用于刷新 token |
 | token_type | string | 固定值 `"bearer"` |
 | expires_in | integer | access_token 有效时长（秒） |
-| user | object | 用户基本信息 |
+| user | object | 用户基本信息（UserResponse） |
 
 #### 响应示例
 
@@ -113,10 +136,22 @@
   "user": {
     "id": 1,
     "username": "alice",
-    "nickname": "Alice"
+    "nickname": "Alice",
+    "email": "alice@example.com",
+    "phone": null,
+    "user_type": "customer",
+    "registration_time": "2024-01-01T00:00:00",
+    "invitation_code": "ABC123",
+    "inviter_id": null
   }
 }
 ```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 401 | 用户名或密码错误 |
 
 ---
 
@@ -182,20 +217,52 @@
 | old_password | string | 是 | 当前密码 |
 | new_password | string | 是 | 新密码 |
 
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "message": "密码修改成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 参数校验失败 |
+| 401 | 原密码错误 |
+
 ---
 
 ### 5. 重置密码
 
 **POST** `/api/v1/c/user/password/reset`
 
-用于忘记密码场景，通过用户名重置密码。
+用于忘记密码场景，通过用户名重置密码。无需认证。
 
 #### 请求体
 
 | 字段 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| username | string | 是 | 用户名 |
+| username | string | 是 | 要重置密码的用户名 |
 | new_password | string | 是 | 新密码 |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "message": "密码重置成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 参数校验失败 |
+| 404 | 用户不存在 |
 
 ---
 
@@ -216,29 +283,182 @@
 | phone | string | 否 | 手机号 |
 | avatar_url | string | 否 | 头像URL |
 
+#### 响应：返回更新后的 `UserResponse` 对象
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 用户不存在 |
+
 ---
 
-### 7. 交易所 API 密钥管理
+### 7. 获取交易所信息
 
-| 方法 | 路径 | 描述 |
+**GET** `/api/v1/c/user/exchanges/{exchange_id}`
+
+> **需要认证**
+
+根据交易所 ID 获取交易所基本信息。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
 |------|------|------|
-| GET | `/api/v1/c/user/exchanges/{exchange_id}` | 获取交易所信息 |
-| POST | `/api/v1/c/user/api-keys` | 创建 API 密钥 |
-| GET | `/api/v1/c/user/api-keys` | 获取 API 密钥列表 |
-| GET | `/api/v1/c/user/api-keys/{api_key_id}` | 获取 API 密钥详情 |
-| PUT | `/api/v1/c/user/api-keys/{api_key_id}` | 更新 API 密钥（仅可更新标签） |
-| DELETE | `/api/v1/c/user/api-keys/{api_key_id}` | 删除 API 密钥（软删除） |
+| exchange_id | integer | 交易所 ID |
 
-#### 创建 API 密钥请求体
+#### 响应字段
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| id | integer | 交易所 ID |
+| name | string | 交易所名称 |
+| code | string | 交易所代码 |
+| region | string | 地区（可选） |
+| status | string | 状态 |
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 交易所不存在 |
+
+---
+
+### 8. 创建 API 密钥
+
+**POST** `/api/v1/c/user/api-keys`
+
+> **需要认证**
+
+创建交易所 API 密钥。
+
+#### 请求体
 
 | 字段 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| exchange_id | integer | 是 | 交易所ID |
-| label | string | 是 | 密钥标签 |
+| exchange_id | integer | 是 | 交易所 ID |
+| label | string | 是 | 密钥标签/备注名 |
 | api_key | string | 是 | API Key |
 | secret_key | string | 是 | Secret Key |
-| passphrase | string | 否 | Passphrase（部分交易所需要） |
-| permissions | list | 否 | 权限列表 |
+| passphrase | string | 否 | 密码短语（部分交易所需要，如 OKX） |
+| permissions | object | 否 | 权限列表 |
+
+#### 响应：`201 Created`
+
+```json
+{
+  "id": 1,
+  "exchange_id": 1,
+  "label": "我的币安Key",
+  "status": "active",
+  "created_at": "2024-01-01T00:00:00"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 参数校验失败 |
+
+---
+
+### 9. 获取 API 密钥列表
+
+**GET** `/api/v1/c/user/api-keys`
+
+> **需要认证**
+
+返回当前用户创建的所有交易所 API 密钥。
+
+#### 响应字段
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| items | array | API 密钥列表（APIKeyResponse 数组） |
+| total | integer | 总数量 |
+
+---
+
+### 10. 获取 API 密钥详情
+
+**GET** `/api/v1/c/user/api-keys/{api_key_id}`
+
+> **需要认证**
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| api_key_id | integer | API 密钥 ID |
+
+#### 响应：返回 `APIKeyResponse` 对象
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | API 密钥不存在或无权访问 |
+
+---
+
+### 11. 更新 API 密钥
+
+**PUT** `/api/v1/c/user/api-keys/{api_key_id}`
+
+> **需要认证**
+
+仅可更新密钥标签。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| api_key_id | integer | API 密钥 ID |
+
+#### 请求体
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| label | string | 否 | 新的标签名称 |
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | API 密钥不存在或无权修改 |
+
+---
+
+### 12. 删除 API 密钥
+
+**DELETE** `/api/v1/c/user/api-keys/{api_key_id}`
+
+> **需要认证**
+
+软删除 API 密钥。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| api_key_id | integer | 要删除的 API 密钥 ID |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "message": "API 密钥删除成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | API 密钥不存在或无权删除 |
 
 ---
 
@@ -248,19 +468,73 @@
 
 **GET** `/api/v1/c/user/signal-follows`
 
+> **需要认证**
+
+查询当前用户的所有跟单记录，支持按状态筛选和分页。
+
 #### 查询参数
 
 | 参数 | 类型 | 必填 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | status | string | 否 | - | 状态筛选: following/stopped/paused |
-| page | integer | 否 | `1` | 页码 |
+| page | integer | 否 | `1` | 页码（≥1） |
 | page_size | integer | 否 | `20` | 每页数量（1-100） |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "strategy_id": "S001",
+        "signal_name": "BTC趋势跟踪",
+        "exchange": "binance",
+        "follow_amount": 1000.0,
+        "current_value": 1050.0,
+        "follow_ratio": 1.0,
+        "stop_loss": 0.1,
+        "total_return": 5.0,
+        "max_drawdown": 2.0,
+        "current_drawdown": 0.5,
+        "today_return": 1.2,
+        "win_rate": 0.65,
+        "total_trades": 20,
+        "win_trades": 13,
+        "loss_trades": 7,
+        "avg_win": 50.0,
+        "avg_loss": 30.0,
+        "profit_factor": 1.5,
+        "risk_level": "low",
+        "status": "following",
+        "follow_days": 15,
+        "start_time": "2024-01-01T00:00:00",
+        "stop_time": null,
+        "return_curve": [],
+        "return_curve_labels": [],
+        "create_time": "2024-01-01T00:00:00",
+        "update_time": "2024-01-15T00:00:00"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pages": 1
+  }
+}
+```
 
 ---
 
 ### 2. 创建跟单
 
 **POST** `/api/v1/c/user/signal-follows`
+
+> **需要认证**
+
+为当前用户创建一条新的信号跟单记录。同一策略不允许存在多条活跃跟单。
 
 #### 请求体
 
@@ -269,9 +543,26 @@
 | strategy_id | string | 是 | - | 要跟单的策略ID |
 | signal_name | string | 是 | - | 信号/策略名称 |
 | exchange | string | 否 | `"binance"` | 交易所 |
-| follow_amount | float | 是 | - | 跟单资金(USDT)，必须>0 |
+| follow_amount | float | 是 | - | 跟单资金(USDT)，必须 > 0 |
 | follow_ratio | float | 否 | `1.0` | 跟单比例(0~1) |
 | stop_loss | float | 否 | - | 止损比例(0~1) |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": { "...跟单详细信息..." },
+  "message": "跟单创建成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 参数校验失败（跟单资金须>0、跟单比例须在0~1之间等） |
+| 400 | 已存在该策略的活跃跟单 |
 
 ---
 
@@ -279,7 +570,22 @@
 
 **GET** `/api/v1/c/user/signal-follows/{follow_id}`
 
-返回跟单完整信息，包含绩效统计、收益曲线等。
+> **需要认证**
+
+根据跟单ID查询完整的跟单详情，包含绩效统计、收益曲线、配置信息等。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| follow_id | integer | 跟单ID |
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 跟单记录不存在 |
+| 403 | 无权访问此跟单记录 |
 
 ---
 
@@ -287,15 +593,41 @@
 
 **PUT** `/api/v1/c/user/signal-follows/{follow_id}/config`
 
-修改跟单的资金、比例或止损设置。仅允许修改 `following` 状态的跟单。
+> **需要认证**
+
+修改跟单的资金、比例或止损设置。仅允许修改状态为 `following` 的跟单。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| follow_id | integer | 跟单ID |
 
 #### 请求体
 
 | 字段 | 类型 | 必填 | 描述 |
 |------|------|------|------|
-| follow_amount | float | 否 | 跟单资金 |
-| follow_ratio | float | 否 | 跟单比例 |
-| stop_loss | float | 否 | 止损比例 |
+| follow_amount | float | 否 | 跟单资金(USDT)，须 > 0 |
+| follow_ratio | float | 否 | 跟单比例(0~1) |
+| stop_loss | float | 否 | 止损比例(0~1) |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": { "...更新后的跟单信息..." },
+  "message": "跟单配置更新成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 跟单已停止，无法修改配置 / 参数校验失败 |
+| 403 | 无权操作此跟单记录 |
+| 404 | 跟单记录不存在 |
 
 ---
 
@@ -303,7 +635,33 @@
 
 **POST** `/api/v1/c/user/signal-follows/{follow_id}/stop`
 
-停止跟单并关闭所有未平仓持仓。
+> **需要认证**
+
+将指定跟单的状态设置为 `stopped`，同时关闭所有未平仓持仓。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| follow_id | integer | 跟单ID |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": { "...跟单信息..." },
+  "message": "跟单已停止"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 跟单已停止 |
+| 403 | 无权操作此跟单记录 |
+| 404 | 跟单记录不存在 |
 
 ---
 
@@ -311,13 +669,59 @@
 
 **GET** `/api/v1/c/user/signal-follows/{follow_id}/positions`
 
+> **需要认证**
+
+查询指定跟单的持仓记录。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| follow_id | integer | 跟单ID |
+
 #### 查询参数
 
 | 参数 | 类型 | 必填 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | status | string | 否 | - | 持仓状态: open/closed |
-| page | integer | 否 | `1` | 页码 |
-| page_size | integer | 否 | `20` | 每页数量 |
+| page | integer | 否 | `1` | 页码（≥1） |
+| page_size | integer | 否 | `20` | 每页数量（1-100） |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "follow_order_id": "123456",
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "amount": 0.01,
+        "entry_price": 42000.0,
+        "current_price": 43000.0,
+        "pnl": 10.0,
+        "pnl_percent": 2.38,
+        "status": "open",
+        "open_time": "2024-01-10T10:00:00",
+        "close_time": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pages": 1
+  }
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 403 | 无权访问此跟单记录 |
+| 404 | 跟单记录不存在 |
 
 ---
 
@@ -325,26 +729,72 @@
 
 **GET** `/api/v1/c/user/signal-follows/{follow_id}/trades`
 
+> **需要认证**
+
+查询指定跟单的历史成交记录，支持按交易对和方向筛选。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| follow_id | integer | 跟单ID |
+
 #### 查询参数
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| symbol | string | 否 | 交易对过滤 |
-| side | string | 否 | 方向过滤: buy/sell |
-| page | integer | 否 | 页码 |
-| page_size | integer | 否 | 每页数量 |
+| 参数 | 类型 | 必填 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| symbol | string | 否 | - | 交易对过滤 |
+| side | string | 否 | - | 方向过滤: buy/sell |
+| page | integer | 否 | `1` | 页码（≥1） |
+| page_size | integer | 否 | `20` | 每页数量（1-100） |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "follow_order_id": "123456",
+        "position_id": "789",
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "price": 42000.0,
+        "amount": 0.01,
+        "total": 420.0,
+        "pnl": null,
+        "fee": 0.42,
+        "signal_record_id": "S001",
+        "trade_time": "2024-01-10T10:00:00"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pages": 1
+  }
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 403 | 无权访问此跟单记录 |
+| 404 | 跟单记录不存在 |
 
 ---
 
 ## M端接口详情
 
-> **权限要求**：以下接口均需管理员权限。
+> **权限要求**：以下接口均需管理员权限（user_type 为 admin）。
 
 ### 1. 获取用户列表
 
 **GET** `/api/v1/m/users`
 
-支持搜索、状态/类型筛选、分页，同时返回顶部统计数据。
+支持按用户名/邮箱/昵称搜索，按状态和类型筛选，分页返回。同时返回全量统计数据（不受筛选条件影响）。
 
 #### 查询参数
 
@@ -353,7 +803,7 @@
 | search | string | 否 | - | 按用户名/邮箱/昵称模糊搜索 |
 | status | string | 否 | - | 状态筛选: active/inactive/locked |
 | user_type | string | 否 | - | 类型筛选: customer/admin |
-| page | integer | 否 | `1` | 页码 |
+| page | integer | 否 | `1` | 页码（≥1） |
 | page_size | integer | 否 | `20` | 每页数量（1-100） |
 
 #### 响应示例
@@ -365,7 +815,24 @@
     "total": 50,
     "page": 1,
     "page_size": 20,
-    "items": [...],
+    "items": [
+      {
+        "id": 1,
+        "username": "alice",
+        "nickname": "Alice",
+        "email": "alice@example.com",
+        "phone": "13800138000",
+        "avatar_url": null,
+        "user_type": "customer",
+        "email_verified": false,
+        "phone_verified": false,
+        "registration_time": "2024-01-01T00:00:00",
+        "last_login_time": "2024-01-15T10:00:00",
+        "status": "active",
+        "create_time": "2024-01-01T00:00:00",
+        "update_time": "2024-01-15T10:00:00"
+      }
+    ],
     "statistics": {
       "total_users": 100,
       "active_users": 80,
@@ -382,13 +849,57 @@
 
 **GET** `/api/v1/m/users/{user_id}`
 
+根据用户 ID 返回用户的完整信息。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| user_id | integer | 用户 ID |
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "username": "alice",
+    "nickname": "Alice",
+    "email": "alice@example.com",
+    "phone": "13800138000",
+    "avatar_url": null,
+    "user_type": "customer",
+    "email_verified": false,
+    "phone_verified": false,
+    "registration_time": "2024-01-01T00:00:00",
+    "last_login_time": "2024-01-15T10:00:00",
+    "status": "active",
+    "create_time": "2024-01-01T00:00:00",
+    "update_time": "2024-01-15T10:00:00"
+  }
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 404 | 用户不存在 |
+
 ---
 
 ### 3. 更新用户信息
 
 **PUT** `/api/v1/m/users/{user_id}`
 
-管理员可修改用户的昵称、邮箱、手机号和用户类型。
+管理员可修改用户的昵称、邮箱、手机号和用户类型。邮箱更新时会校验唯一性。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| user_id | integer | 用户 ID |
 
 #### 请求体
 
@@ -399,13 +910,36 @@
 | phone | string | 否 | 手机号 |
 | user_type | string | 否 | 用户类型: customer/admin |
 
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": { "...用户完整信息..." },
+  "message": "用户信息更新成功"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 邮箱地址已被其他用户使用 |
+| 404 | 用户不存在 |
+
 ---
 
 ### 4. 更新用户状态
 
 **PUT** `/api/v1/m/users/{user_id}/status`
 
-管理员可锁定/解锁用户。不允许管理员锁定自己。
+管理员可将用户状态设置为 active（解锁）、inactive 或 locked（锁定）。不允许管理员锁定自己。
+
+#### 路径参数
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| user_id | integer | 用户 ID |
 
 #### 请求体
 
@@ -413,15 +947,32 @@
 |------|------|------|------|
 | status | string | 是 | 用户状态: active/inactive/locked |
 
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": { "...用户完整信息..." },
+  "message": "用户已锁定"
+}
+```
+
+#### 错误响应
+
+| HTTP 状态码 | 描述 |
+|-------------|------|
+| 400 | 不能锁定自己的账户 |
+| 404 | 用户不存在 |
+
 ---
 
 ## 错误码说明
 
 | HTTP 状态码 | 描述 |
 |-------------|------|
-| 400 | 请求参数错误（如用户名已存在、密码不符合要求等） |
-| 401 | 未认证或认证失败（Token 过期、无效的 refresh_token 等） |
-| 403 | 权限不足 |
+| 400 | 请求参数错误（如用户名已存在、邀请码无效、密码不符合要求等） |
+| 401 | 未认证或认证失败（Token 过期、无效的 refresh_token、密码错误等） |
+| 403 | 权限不足（非管理员访问管理接口、访问他人跟单记录等） |
 | 404 | 用户/资源不存在 |
 
 ---

@@ -54,25 +54,27 @@ if [ ! -d "$LOGS_DIR" ]; then
     mkdir -p "$LOGS_DIR"
 fi
 
-# 设置目录权限
-log "设置日志目录权限..."
-chmod 755 "$LOGS_DIR"
+# 容器内 appuser 的 UID/GID
+CONTAINER_UID=1000
+CONTAINER_GID=1000
 
-# 获取当前用户ID和组ID
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
-log "当前用户ID: $USER_ID, 组ID: $GROUP_ID"
+# 设置日志目录权限，确保容器内 appuser 可写
+log "设置日志目录权限（容器内用户 UID=$CONTAINER_UID）..."
 
-# 设置目录所有者（如果用户ID为1000，则与容器内appuser用户匹配）
-if [ "$USER_ID" -eq 1000 ]; then
-    log "用户ID为1000，与容器内appuser用户匹配，设置目录所有者..."
-    chown -R $USER_ID:$GROUP_ID "$LOGS_DIR"
-else
-    warn "当前用户ID ($USER_ID) 与容器内appuser用户ID (1000) 不匹配"
-    warn "建议解决方案："
-    warn "1. 在Docker Compose中使用user参数指定用户映射"
-    warn "2. 或者手动设置日志目录权限：sudo chown -R 1000:1000 $LOGS_DIR"
+# 获取当前目录所有者 UID（兼容 Linux 和 macOS）
+DIR_OWNER_UID=$(stat -c '%u' "$LOGS_DIR" 2>/dev/null || stat -f '%u' "$LOGS_DIR")
+log "日志目录当前所有者 UID: $DIR_OWNER_UID"
+
+if [ "$DIR_OWNER_UID" -ne "$CONTAINER_UID" ]; then
+    log "目录所有者与容器用户不匹配，修正为 $CONTAINER_UID:$CONTAINER_GID ..."
+    if [ "$(id -u)" -eq 0 ]; then
+        chown -R $CONTAINER_UID:$CONTAINER_GID "$LOGS_DIR"
+    else
+        sudo chown -R $CONTAINER_UID:$CONTAINER_GID "$LOGS_DIR" \
+            || error "无法设置日志目录权限，请手动执行：sudo chown -R $CONTAINER_UID:$CONTAINER_GID $LOGS_DIR"
+    fi
 fi
+chmod 755 "$LOGS_DIR"
 
 # 检查权限设置
 log "检查权限设置..."
