@@ -192,6 +192,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         ④ 止盈 = 入场价 + 风险 × RR
         """
         # ---- ① 大周期趋势 ----
+        if len(trend_bars.close) < 1:
+            return None
+
         trend_open_last = float(trend_bars.open[-1])
         trend_close_last = float(trend_bars.close[-1])
         trend_ma_last = float(trend_ma[-1])
@@ -204,6 +207,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
             return None
 
         # ---- ② 小周期回调突破 ----
+        if len(entry_bars.close) < 2:
+            return None
+
         entry_close = entry_bars.close
         entry_open = entry_bars.open
         entry_low = entry_bars.low
@@ -232,6 +238,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         # ---- ③ 止损 = 回调区间最低价 ----
         # 回调区间为当前K线前面 pullback_count 根K线 + 前一根
         lookback = pullback_count + 1  # 包含前一根（突破前最后一根）
+        if len(entry_low) < lookback + 1:
+            return None
+
         pullback_lows = entry_low[-(lookback + 1):-1]  # 不含当前K线
         stop_loss = float(np.min(pullback_lows))
 
@@ -278,6 +287,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         ④ 止盈 = 入场价 - 风险 × RR
         """
         # ---- ① 大周期趋势 ----
+        if len(trend_bars.close) < 1:
+            return None
+
         trend_open_last = float(trend_bars.open[-1])
         trend_close_last = float(trend_bars.close[-1])
         trend_ma_last = float(trend_ma[-1])
@@ -290,6 +302,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
             return None
 
         # ---- ② 小周期反弹后向下突破 ----
+        if len(entry_bars.close) < 2:
+            return None
+
         entry_close = entry_bars.close
         entry_open = entry_bars.open
         entry_high = entry_bars.high
@@ -317,6 +332,9 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
 
         # ---- ③ 止损 = 反弹区间最高价 ----
         lookback = pullback_count + 1
+        if len(entry_high) < lookback + 1:
+            return None
+
         pullback_highs = entry_high[-(lookback + 1):-1]
         stop_loss = float(np.max(pullback_highs))
 

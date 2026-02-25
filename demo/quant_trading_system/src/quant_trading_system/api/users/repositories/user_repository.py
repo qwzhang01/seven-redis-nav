@@ -42,6 +42,13 @@ class UserRepository:
             User.enable_flag == True
         ).first()
 
+    def get_user_by_invitation_code(self, invitation_code: str) -> Optional[User]:
+        """根据邀请码获取用户"""
+        return self.db.query(User).filter(
+            User.invitation_code == invitation_code,
+            User.enable_flag == True
+        ).first()
+
     def create_user(self, user_data: dict) -> User:
         """创建新用户"""
         try:

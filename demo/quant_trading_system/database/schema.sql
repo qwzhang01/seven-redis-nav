@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS user_info (
     registration_time TIMESTAMPTZ DEFAULT NOW(),
     last_login_time TIMESTAMPTZ,
     status VARCHAR(32) DEFAULT 'active', -- active/inactive/locked
+    invitation_code VARCHAR(64) NOT NULL, -- 邀请码字段
+    inviter_id BIGINT REFERENCES user_info(id), -- 邀请人ID
     create_by VARCHAR(64) DEFAULT 'system',
     create_time TIMESTAMPTZ DEFAULT NOW(),
     update_by VARCHAR(64),
@@ -44,6 +46,26 @@ CREATE TABLE IF NOT EXISTS exchange_info (
     status VARCHAR(32) DEFAULT 'active', -- active/inactive
     supported_pairs JSONB,
     rate_limits JSONB,
+    create_by VARCHAR(64) DEFAULT 'system',
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_by VARCHAR(64),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+-- 创建邀请码管理表
+CREATE TABLE IF NOT EXISTS invitation_codes (
+    id BIGINT PRIMARY KEY,
+    code VARCHAR(64) UNIQUE NOT NULL, -- 邀请码（唯一）
+    type VARCHAR(32) DEFAULT 'user', -- user/admin/system
+    max_uses INTEGER DEFAULT 1, -- 最大使用次数
+    used_count INTEGER DEFAULT 0, -- 已使用次数
+    created_by BIGINT REFERENCES user_info(id), -- 创建者
+    created_for BIGINT REFERENCES user_info(id), -- 指定给特定用户使用
+    valid_from TIMESTAMPTZ DEFAULT NOW(), -- 生效时间
+    valid_until TIMESTAMPTZ, -- 过期时间
+    status VARCHAR(32) DEFAULT 'active', -- active/expired/disabled
+    description TEXT, -- 描述信息
     create_by VARCHAR(64) DEFAULT 'system',
     create_time TIMESTAMPTZ DEFAULT NOW(),
     update_by VARCHAR(64),
@@ -328,8 +350,32 @@ COMMENT ON COLUMN historical_sync_tasks.completed_at IS '任务完成时间';
 -- 用户信息表索引
 CREATE INDEX IF NOT EXISTS idx_user_info_username ON user_info (username);
 CREATE INDEX IF NOT EXISTS idx_user_info_email ON user_info (email);
+CREATE INDEX IF NOT EXISTS idx_user_info_invitation_code ON user_info (invitation_code);
+CREATE INDEX IF NOT EXISTS idx_user_info_inviter_id ON user_info (inviter_id);
 CREATE INDEX IF NOT EXISTS idx_user_info_status ON user_info (status);
 CREATE INDEX IF NOT EXISTS idx_user_info_user_type ON user_info (user_type);
+
+-- 邀请码表索引
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_code ON invitation_codes (code);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_status ON invitation_codes (status);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_type ON invitation_codes (type);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_valid_until ON invitation_codes (valid_until);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_created_by ON invitation_codes (created_by);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_created_for ON invitation_codes (created_for);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_valid_from ON invitation_codes (valid_from);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_max_uses ON invitation_codes (max_uses);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_used_count ON invitation_codes (used_count);
+
+-- 为invitation_code字段添加唯一性约束
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'user_info_invitation_code_unique'
+    ) THEN
+        ALTER TABLE user_info ADD CONSTRAINT user_info_invitation_code_unique
+        UNIQUE (invitation_code);
+    END IF;
+END $$;
 
 -- 交易所信息表索引
 CREATE INDEX IF NOT EXISTS idx_exchange_info_code ON exchange_info (exchange_code);

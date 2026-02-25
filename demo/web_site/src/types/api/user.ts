@@ -10,9 +10,9 @@
  */
 export interface RegisterRequest {
   username: string
-  nickname: string
   email: string
   password: string
+  invitation_code: string
   phone?: string
 }
 

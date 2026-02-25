@@ -188,7 +188,7 @@ async function loadStrategies() {
     if (filters.value.risk) params.risk_level = filters.value.risk
 
     const response = await strategyApi.getPresetStrategyList(params)
-    strategies.value = (response.items || []).map((item: any) => ({
+    strategies.value = (response.strategies || []).map((item: any) => ({
       ...item,
       id: item.id || item.strategy_id,
       market: item.symbols?.[0] || item.market || '',

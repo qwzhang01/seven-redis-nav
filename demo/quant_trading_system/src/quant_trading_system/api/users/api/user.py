@@ -85,9 +85,14 @@ async def register_user(
 
     - **username**: 用户名（唯一）
     - **password**: 密码
-    - **email**: 邮箱（可选）
-    - **nickname**: 昵称（可选）
+    - **email**: 邮箱
+    - **invitation_code**: 邀请码（必填，用于验证邀请人身份）
     - **phone**: 手机号（可选）
+
+    注意：
+    - 注册时昵称将自动设置为用户名
+    - 邀请码必须有效且未被使用，系统会根据邀请码找到对应的邀请人
+    - 注册成功后，邀请人ID将被记录在用户信息中
     """
     user_service = UserService(db)
 
@@ -96,7 +101,7 @@ async def register_user(
             username=request.username,
             password=request.password,
             email=request.email,
-            nickname=request.nickname,
+            invitation_code=request.invitation_code,
             phone=request.phone
         )
         return UserResponse(**user_info)

@@ -30,7 +30,7 @@ class UserService:
         self.api_key_repo = APIKeyRepository(db)
 
     def register_user(self, username: str, password: str, email: str,
-                     nickname: str, phone: Optional[str] = None) -> Dict[str, Any]:
+                     invitation_code: str, phone: Optional[str] = None) -> Dict[str, Any]:
         """用户注册业务逻辑"""
         # 检查用户名是否已存在
         if self.user_repo.get_user_by_username(username):
@@ -40,6 +40,11 @@ class UserService:
         if self.user_repo.get_user_by_email(email):
             raise ValueError("邮箱已存在")
 
+        # 验证邀请码并获取邀请人ID
+        inviter_id = self._validate_and_get_inviter_id(invitation_code)
+        if not inviter_id:
+            raise ValueError("邀请码无效或已被使用")
+
         # 验证密码强度
         is_valid, error_msg = PasswordUtils.validate_password_strength(password)
         if not is_valid:
@@ -48,14 +53,16 @@ class UserService:
         # 生成密码哈希
         password_hash = PasswordUtils.hash_password(password)
 
-        # 创建用户数据
+        # 创建用户数据（将username赋值给nickname）
         user_data = {
             "id": generate_snowflake_id(),
             "username": username,
-            "nickname": nickname,
+            "nickname": username,  # 将username赋值给nickname
             "password_hash": password_hash,
             "email": email,
             "phone": phone,
+            "invitation_code": invitation_code,  # 添加邀请码字段
+            "inviter_id": inviter_id,  # 邀请人ID
             "user_type": "customer",
             "registration_time": datetime.utcnow(),
             "create_time": datetime.utcnow(),
@@ -73,7 +80,39 @@ class UserService:
             "phone": user.phone,
             "user_type": user.user_type,
             "registration_time": user.registration_time.isoformat(),
+            "invitation_code": user.invitation_code,
+            "inviter_id": user.inviter_id,
         }
+
+    def _validate_and_get_inviter_id(self, invitation_code: str) -> Optional[int]:
+        """
+        验证邀请码并获取邀请人ID
+
+        验证逻辑：
+        1. 检查邀请码是否有效（格式、是否已被使用等）
+        2. 根据邀请码查找对应的邀请人用户
+        3. 返回邀请人ID，如果无效则返回None
+
+        TODO: 当invitation_codes表实现后，需要完善此方法
+        """
+        # 检查邀请码格式
+        if not invitation_code or len(invitation_code) < 6:
+            return None
+
+        # 检查邀请码是否已被使用
+        existing_user = self.user_repo.get_user_by_invitation_code(invitation_code)
+        if existing_user:
+            return None
+
+        # 根据邀请码查找邀请人用户
+        # 这里假设邀请码就是邀请人的用户名或特定标识
+        # 实际项目中应该查询invitation_codes表获取邀请人ID
+        inviter_user = self.user_repo.get_user_by_username(invitation_code)
+        if inviter_user:
+            return inviter_user.id
+
+        # 如果找不到对应的邀请人，返回None
+        return None
 
     def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
         """用户认证业务逻辑"""
@@ -106,6 +145,8 @@ class UserService:
                 "phone": user.phone,
                 "user_type": user.user_type,
                 "registration_time": user.registration_time.isoformat(),
+                "invitation_code": user.invitation_code,
+                "inviter_id": user.inviter_id,
             }
         }
 
@@ -195,6 +236,8 @@ class UserService:
             "phone": user.phone,
             "user_type": user.user_type,
             "registration_time": user.registration_time.isoformat(),
+            "invitation_code": user.invitation_code,
+            "inviter_id": user.inviter_id,
         }
 
     def get_exchange_info(self, exchange_id: int) -> Optional[Dict[str, Any]]:

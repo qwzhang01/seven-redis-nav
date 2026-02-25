@@ -292,7 +292,7 @@ async function loadStrategies() {
     if (filterTimeframe.value) params.timeframe = filterTimeframe.value
 
     const response = await strategyApi.getStrategies(params)
-    strategies.value = (response.strategies || response.items || []).map((s: any) => ({
+    strategies.value = (response.strategies || []).map((s: any) => ({
       id: s.id || s.strategy_id,
       name: s.name || '',
       exchange: s.exchange || '',

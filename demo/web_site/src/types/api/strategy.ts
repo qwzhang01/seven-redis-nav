@@ -132,6 +132,7 @@ export interface CreateUserStrategyRequest {
  * 创建模拟策略请求
  */
 export interface CreateSimulateStrategyRequest {
+  strategy_id: string
   strategy_type: string
   symbols: string[]
   params?: Record<string, any>

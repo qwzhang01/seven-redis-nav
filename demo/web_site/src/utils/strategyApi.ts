@@ -38,7 +38,7 @@ export interface StrategyListResponse {
   total: number
   page: number
   page_size: number
-  items: StrategyInfo[]
+  strategies: StrategyInfo[]
 }
 
 /**
@@ -165,7 +165,7 @@ export interface PresetStrategyListParams {
 }
 
 export interface PresetStrategyListResponse {
-  items: any[]
+  strategies: any[]
   total: number
   page: number
   page_size: number

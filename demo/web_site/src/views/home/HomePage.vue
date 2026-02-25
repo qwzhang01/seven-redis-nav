@@ -28,7 +28,8 @@
 
           <p class="text-lg md:text-xl text-dark-100 max-w-2xl mx-auto mb-10 animate-fade-in-up"
             style="animation-delay: 0.2s">
-            Quant Meta 的交易指标享誉全球并屡获殊荣是有原因的。融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。
+            Quanta
+            的交易指标享誉全球并屡获殊荣是有原因的。融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。
           </p>
 
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up"
@@ -77,7 +78,8 @@
                 <h3 class="text-2xl font-bold text-white">信号与警报</h3>
 
                 <p class="text-dark-100 text-lg leading-relaxed">
-                  Quant Meta 的交易指标融合了先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。无论是趋势信号、BOS/CHOCH
+                  Quanta
+                  的交易指标融合了先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。无论是趋势信号、BOS/CHOCH
                   警报、智能带量测还是流动性抢占，每个警报都经过精心设计，旨在提供清晰的提示、精准的时机和可靠的判断。
                 </p>
 

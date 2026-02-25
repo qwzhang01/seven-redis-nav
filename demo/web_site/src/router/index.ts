@@ -211,7 +211,7 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const title = to.meta.title as string
-  document.title = title ? `${title} - Quant Meta` : 'Quant Meta'
+  document.title = title ? `${title} - 量元 Quanta` : '量元 Quanta'
 
   const authStore = useAuthStore()
 

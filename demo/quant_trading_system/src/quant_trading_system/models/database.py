@@ -32,6 +32,8 @@ class User(Base):
     registration_time = Column(DateTime, default=datetime.utcnow)
     last_login_time = Column(DateTime)
     status = Column(String(32), default="active")
+    invitation_code = Column(String(64), nullable=False)  # 邀请码字段
+    inviter_id = Column(BigInteger, ForeignKey("user_info.id"))  # 邀请人ID
     create_by = Column(String(64), default="system")
     create_time = Column(DateTime, default=datetime.utcnow)
     update_by = Column(String(64))
@@ -40,6 +42,7 @@ class User(Base):
 
     # 关系
     api_keys = relationship("UserExchangeAPI", back_populates="user")
+    inviter = relationship("User", remote_side=[id], backref="invited_users")  # 自关联关系
 
 
 class Exchange(Base):

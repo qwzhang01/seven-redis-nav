@@ -714,6 +714,7 @@ async function handleSimLaunch() {
       simLaunching.value = true
       try {
         const response = await strategyApi.createSimulateStrategy({
+          strategy_id: strategy.value.id,
           strategy_type: strategy.value.type,
           symbols: [configValues.value.currencyPair],
           params: configValues.value,

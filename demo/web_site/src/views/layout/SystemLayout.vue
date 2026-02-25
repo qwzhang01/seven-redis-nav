@@ -9,7 +9,8 @@
             QM
           </div>
           <div>
-            <h1 class="text-white font-bold text-lg">Quant<span class="gradient-text ml-1">Meta</span></h1>
+            <h1 class="text-white font-bold text-lg">量元<span
+                class="gradient-text ml-1">Quanta</span></h1>
           </div>
         </div>
       </div>

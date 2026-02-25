@@ -39,7 +39,8 @@
 
       <!-- Bottom -->
       <div class="mt-12 pt-8 border-t border-white/[0.06] flex flex-col md:flex-row items-center justify-between gap-4">
-        <p class="text-sm text-dark-200">© {{ new Date().getFullYear() }} Quant Meta. All rights reserved.</p>
+        <p class="text-sm text-dark-200">© {{ new Date().getFullYear() }}
+          Quanta. All rights reserved.</p>
         <div class="flex items-center gap-6">
           <a href="#" class="text-sm text-dark-200 hover:text-primary-500 transition-colors">隐私政策</a>
           <a href="#" class="text-sm text-dark-200 hover:text-primary-500 transition-colors">服务条款</a>

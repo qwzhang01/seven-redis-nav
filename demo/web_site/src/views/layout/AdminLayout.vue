@@ -8,7 +8,7 @@
             QM
           </div>
           <div>
-            <span class="text-white font-bold text-lg">Quant Meta</span>
+            <span class="text-white font-bold text-lg">量元 Quanta</span>
             <span class="text-xs text-dark-100 block -mt-0.5">管理后台</span>
           </div>
         </router-link>

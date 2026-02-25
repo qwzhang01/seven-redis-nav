@@ -18,6 +18,8 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     user_type: str
     registration_time: str
+    invitation_code: str  # 邀请码
+    inviter_id: Optional[int] = None  # 邀请人ID
 
 
 class RegisterRequest(BaseModel):
@@ -25,7 +27,7 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     email: EmailStr
-    nickname: str
+    invitation_code: str  # 邀请码字段（必填）
     phone: Optional[str] = None
 
 
