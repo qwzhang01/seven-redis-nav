@@ -54,6 +54,7 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
     做空完全镜像。
     """
 
+    id: int = 152410378779754496
     name: ClassVar[str] = "mtf_ma_breakout"
     description: ClassVar[str] = "多周期趋势+MA(11)回调突破+固定盈亏比策略"
     version: ClassVar[str] = "1.0.0"

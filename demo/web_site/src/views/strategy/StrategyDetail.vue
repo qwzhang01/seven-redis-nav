@@ -538,7 +538,7 @@ async function loadStrategyDetail() {
     // 兼容接口返回的各种字段名
     strategy.value = {
       ...response,
-      id: response.id || response.strategy_id,
+      id: response.id || response.strategy_id || (route.params.id as string),
       name: response.name || '',
       description: response.description || response.detail || '',
       market: response.symbols?.[0] || response.market || '',
@@ -677,15 +677,16 @@ async function handleLaunch() {
       launching.value = true
       try {
         // 创建策略实例
-        await strategyApi.createUserStrategy({
+        const response = await strategyApi.createUserStrategy({
           name: `${strategy.value.name}_${Date.now()}`,
           strategy_type: strategy.value.type,
           symbols: [configValues.value.currencyPair],
           params: configValues.value
         })
         
-        MessagePlugin.success('策略已成功启动！可在「我的」页面查看运行状态。')
-        router.push('/user/center')
+        MessagePlugin.success('策略已成功启动！正在跳转到策略运行详情...')
+        const runningStrategyId = response?.strategy_id || strategy.value.id || (route.params.id as string)
+        router.push(`/system/running-strategies/${runningStrategyId}`)
       } catch (error: any) {
         console.error('启动策略失败:', error)
         MessagePlugin.error(error.message || '启动策略失败')
@@ -722,7 +723,8 @@ async function handleSimLaunch() {
         })
         
         MessagePlugin.success('模拟交易已成功启动！正在跳转到模拟交易页面...')
-        router.push(`/system/simulation/${response.strategy_id}`)
+        const simStrategyId = response?.strategy_id || strategy.value.id || (route.params.id as string)
+        router.push(`/system/simulation/${simStrategyId}`)
       } catch (error: any) {
         console.error('启动模拟交易失败:', error)
         MessagePlugin.error(error.message || '启动模拟交易失败')

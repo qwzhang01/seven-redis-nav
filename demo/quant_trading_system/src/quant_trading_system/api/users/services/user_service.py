@@ -100,15 +100,10 @@ class UserService:
         if not invitation_code or len(invitation_code) < 4:
             return None
 
-        # 检查邀请码是否已被使用
-        existing_user = self.user_repo.get_user_by_invitation_code(invitation_code)
-        if existing_user:
-            return None
-
         # 根据邀请码查找邀请人用户
         # 这里假设邀请码就是邀请人的用户名或特定标识
         # 实际项目中应该查询invitation_codes表获取邀请人ID
-        inviter_user = self.user_repo.get_user_by_username(invitation_code)
+        inviter_user = self.user_repo.get_user_by_invitation_code(invitation_code)
         if inviter_user:
             return inviter_user.id
 

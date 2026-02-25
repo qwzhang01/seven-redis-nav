@@ -923,7 +923,7 @@ INSERT INTO user_info (
     1000000000000000001, -- 使用固定的雪花ID，便于测试
     'test001',
     'test001',
-    '$2b$12$rqW3z4t5u6v7w8x9y0z1A.abcdefghijklmnopqrstuvwxyz123456', -- bcrypt哈希示例，密码:00000000
+    '$2b$12$eglYi6i.BJMp1Y/gLOhmxuY6PgjvKAK5u4mzUV61qyMKmMtyf2.S6', -- 哈希示例，密码:00000000
     'test001@example.com',
     NULL,
     'TEST001', -- 用户自己的邀请码
@@ -935,7 +935,7 @@ INSERT INTO user_info (
     'system',
     '2026-02-25 18:20:57+00',
     TRUE
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- 2. 插入邀请码记录（用于test001用户邀请其他人）
 INSERT INTO invitation_codes (
@@ -972,4 +972,4 @@ INSERT INTO invitation_codes (
     'system',
     '2026-02-25 18:20:57+00',
     TRUE
-);
+) ON CONFLICT (id) DO NOTHING;
