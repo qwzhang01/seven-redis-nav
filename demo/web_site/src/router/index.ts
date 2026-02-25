@@ -65,6 +65,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '策略运行详情', requiresAuth: true },
       },
       {
+        path: 'simulation/:id',
+        name: 'SimulationDetail',
+        component: () => import('@/views/strategy/SimulationDetail.vue'),
+        meta: { title: '模拟交易详情', requiresAuth: true },
+      },
+      {
         path: 'signals',
         name: 'SignalList',
         component: () => import('@/views/signal/SignalList.vue'),

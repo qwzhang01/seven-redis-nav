@@ -706,6 +706,192 @@ CREATE INDEX IF NOT EXISTS idx_follow_trades_user_id ON signal_follow_trades (us
 CREATE INDEX IF NOT EXISTS idx_follow_trades_symbol ON signal_follow_trades (symbol);
 CREATE INDEX IF NOT EXISTS idx_follow_trades_trade_time ON signal_follow_trades (trade_time DESC);
 
+-- ============================================================
+-- 新增表：系统预设策略、用户策略实例、模拟交易记录、模拟持仓、模拟日志
+-- ============================================================
+
+-- 创建系统预设策略表
+CREATE TABLE IF NOT EXISTS preset_strategies (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    description TEXT,
+    detail TEXT,
+    strategy_type VARCHAR(32) NOT NULL,         -- grid/trend/mean_reversion/momentum/arbitrage/martingale/dca/swing
+    market_type VARCHAR(16) NOT NULL DEFAULT 'spot', -- spot/futures/margin
+    risk_level VARCHAR(16) NOT NULL DEFAULT 'medium', -- low/medium/high
+    exchange VARCHAR(32) DEFAULT 'binance',
+    symbols JSONB,
+    timeframe VARCHAR(8) DEFAULT '1h',
+    logic_description TEXT,
+    params_schema JSONB,
+    default_params JSONB,
+    risk_params JSONB,
+    advanced_params JSONB,
+    risk_warning TEXT,
+    total_return DECIMAL(10, 6),
+    max_drawdown DECIMAL(10, 6),
+    sharpe_ratio DECIMAL(10, 6),
+    win_rate DECIMAL(10, 6),
+    running_days INTEGER DEFAULT 0,
+    status VARCHAR(16) DEFAULT 'draft',         -- draft/testing/running/paused/stopped/error
+    is_published BOOLEAN DEFAULT FALSE,
+    is_featured BOOLEAN DEFAULT FALSE,
+    sort_order INTEGER DEFAULT 0,
+    create_by VARCHAR(64) DEFAULT 'system',
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_by VARCHAR(64),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE preset_strategies IS '系统预设策略表';
+COMMENT ON COLUMN preset_strategies.name IS '策略名称';
+COMMENT ON COLUMN preset_strategies.strategy_type IS '策略类型: grid/trend/mean_reversion/momentum/arbitrage/martingale/dca/swing';
+COMMENT ON COLUMN preset_strategies.market_type IS '市场类型: spot/futures/margin';
+COMMENT ON COLUMN preset_strategies.risk_level IS '风险等级: low/medium/high';
+COMMENT ON COLUMN preset_strategies.status IS '策略状态: draft/testing/running/paused/stopped/error';
+COMMENT ON COLUMN preset_strategies.is_published IS '是否已上架（对C端可见）';
+COMMENT ON COLUMN preset_strategies.is_featured IS '是否推荐（首页展示）';
+COMMENT ON COLUMN preset_strategies.params_schema IS '可配置参数schema（JSON Schema格式）';
+
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_type ON preset_strategies (strategy_type);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_market ON preset_strategies (market_type);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_risk ON preset_strategies (risk_level);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_status ON preset_strategies (status);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_published ON preset_strategies (is_published);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_featured ON preset_strategies (is_featured);
+CREATE INDEX IF NOT EXISTS idx_preset_strategies_create_time ON preset_strategies (create_time DESC);
+
+-- 创建用户策略实例表
+CREATE TABLE IF NOT EXISTS user_strategies (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    preset_strategy_id BIGINT NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    mode VARCHAR(16) NOT NULL DEFAULT 'live',   -- live/simulate
+    exchange VARCHAR(32) DEFAULT 'binance',
+    symbols JSONB,
+    timeframe VARCHAR(8) DEFAULT '1h',
+    leverage INTEGER DEFAULT 1,
+    initial_capital DECIMAL(20, 2) DEFAULT 10000,
+    params JSONB,
+    trade_mode VARCHAR(16) DEFAULT 'both',      -- both/long_only/short_only
+    take_profit DECIMAL(10, 6),
+    stop_loss DECIMAL(10, 6),
+    stop_mode VARCHAR(16) DEFAULT 'both',       -- both/tp_only/sl_only
+    max_positions INTEGER DEFAULT 10,
+    max_orders INTEGER DEFAULT 50,
+    max_consecutive_losses INTEGER,
+    auto_cancel_orders BOOLEAN DEFAULT FALSE,
+    auto_close_reverse BOOLEAN DEFAULT FALSE,
+    reverse_open BOOLEAN DEFAULT FALSE,
+    running_days JSONB,
+    running_time_start VARCHAR(8),
+    running_time_end VARCHAR(8),
+    filters JSONB,
+    status VARCHAR(16) DEFAULT 'stopped',       -- draft/running/paused/stopped/error
+    current_value DECIMAL(20, 2),
+    total_return DECIMAL(10, 6) DEFAULT 0,
+    today_return DECIMAL(10, 6) DEFAULT 0,
+    max_drawdown DECIMAL(10, 6) DEFAULT 0,
+    sharpe_ratio DECIMAL(10, 6),
+    calmar_ratio DECIMAL(10, 6),
+    sortino_ratio DECIMAL(10, 6),
+    win_rate DECIMAL(10, 6) DEFAULT 0,
+    total_trades INTEGER DEFAULT 0,
+    signal_count INTEGER DEFAULT 0,
+    var_value DECIMAL(10, 6),
+    volatility DECIMAL(10, 6),
+    started_at TIMESTAMPTZ,
+    stopped_at TIMESTAMPTZ,
+    create_by VARCHAR(64),
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_by VARCHAR(64),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE user_strategies IS '用户策略实例表';
+COMMENT ON COLUMN user_strategies.user_id IS '用户ID';
+COMMENT ON COLUMN user_strategies.preset_strategy_id IS '关联的预设策略ID';
+COMMENT ON COLUMN user_strategies.mode IS '运行模式: live(实盘)/simulate(模拟)';
+COMMENT ON COLUMN user_strategies.trade_mode IS '开仓模式: both/long_only/short_only';
+COMMENT ON COLUMN user_strategies.stop_mode IS '止盈止损模式: both/tp_only/sl_only';
+COMMENT ON COLUMN user_strategies.status IS '策略状态: draft/running/paused/stopped/error';
+
+CREATE INDEX IF NOT EXISTS idx_user_strategies_user_id ON user_strategies (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_strategies_preset_id ON user_strategies (preset_strategy_id);
+CREATE INDEX IF NOT EXISTS idx_user_strategies_mode ON user_strategies (mode);
+CREATE INDEX IF NOT EXISTS idx_user_strategies_status ON user_strategies (status);
+CREATE INDEX IF NOT EXISTS idx_user_strategies_create_time ON user_strategies (create_time DESC);
+
+-- 创建模拟交易记录表
+CREATE TABLE IF NOT EXISTS simulation_trades (
+    id BIGINT PRIMARY KEY,
+    user_strategy_id BIGINT NOT NULL,
+    symbol VARCHAR(32) NOT NULL,
+    side VARCHAR(16) NOT NULL,                  -- buy/sell
+    price DECIMAL(20, 8) NOT NULL,
+    amount DECIMAL(20, 8) NOT NULL,
+    value DECIMAL(20, 8),
+    fee DECIMAL(20, 8) DEFAULT 0,
+    pnl DECIMAL(20, 8),
+    trade_time TIMESTAMPTZ DEFAULT NOW(),
+    create_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE simulation_trades IS '模拟交易记录表';
+COMMENT ON COLUMN simulation_trades.user_strategy_id IS '关联的用户策略ID';
+COMMENT ON COLUMN simulation_trades.side IS '交易方向: buy/sell';
+COMMENT ON COLUMN simulation_trades.pnl IS '盈亏金额(USDT)';
+
+CREATE INDEX IF NOT EXISTS idx_sim_trades_strategy_id ON simulation_trades (user_strategy_id);
+CREATE INDEX IF NOT EXISTS idx_sim_trades_symbol ON simulation_trades (symbol);
+CREATE INDEX IF NOT EXISTS idx_sim_trades_trade_time ON simulation_trades (trade_time DESC);
+
+-- 创建模拟持仓表
+CREATE TABLE IF NOT EXISTS simulation_positions (
+    id BIGINT PRIMARY KEY,
+    user_strategy_id BIGINT NOT NULL,
+    symbol VARCHAR(32) NOT NULL,
+    direction VARCHAR(8) NOT NULL,              -- long/short
+    amount DECIMAL(20, 8) NOT NULL,
+    entry_price DECIMAL(20, 8) NOT NULL,
+    current_price DECIMAL(20, 8),
+    pnl DECIMAL(20, 8) DEFAULT 0,
+    pnl_ratio DECIMAL(10, 6) DEFAULT 0,
+    status VARCHAR(16) DEFAULT 'open',          -- open/closed
+    open_time TIMESTAMPTZ DEFAULT NOW(),
+    close_time TIMESTAMPTZ,
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE simulation_positions IS '模拟持仓表';
+COMMENT ON COLUMN simulation_positions.direction IS '持仓方向: long/short';
+COMMENT ON COLUMN simulation_positions.status IS '持仓状态: open/closed';
+
+CREATE INDEX IF NOT EXISTS idx_sim_positions_strategy_id ON simulation_positions (user_strategy_id);
+CREATE INDEX IF NOT EXISTS idx_sim_positions_status ON simulation_positions (status);
+CREATE INDEX IF NOT EXISTS idx_sim_positions_symbol ON simulation_positions (symbol);
+
+-- 创建模拟运行日志表
+CREATE TABLE IF NOT EXISTS simulation_logs (
+    id BIGINT PRIMARY KEY,
+    user_strategy_id BIGINT NOT NULL,
+    level VARCHAR(16) DEFAULT 'info',           -- info/warn/error/trade
+    message TEXT NOT NULL,
+    log_time TIMESTAMPTZ DEFAULT NOW(),
+    create_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE simulation_logs IS '模拟运行日志表';
+COMMENT ON COLUMN simulation_logs.level IS '日志级别: info/warn/error/trade';
+
+CREATE INDEX IF NOT EXISTS idx_sim_logs_strategy_id ON simulation_logs (user_strategy_id);
+CREATE INDEX IF NOT EXISTS idx_sim_logs_level ON simulation_logs (level);
+CREATE INDEX IF NOT EXISTS idx_sim_logs_log_time ON simulation_logs (log_time DESC);
+
 -- 查看表结构
 \d user_info;
 \d exchange_info;

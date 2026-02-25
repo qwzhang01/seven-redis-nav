@@ -474,15 +474,25 @@
               </div>
             </div>
             
-            <button
-              class="btn-primary w-full mt-6 !py-3 text-base rounded-xl flex items-center justify-center gap-2"
-              :disabled="launching"
-              @click="handleLaunch"
-            >
-              <Play :size="18" />
-              {{ launching ? '启动中...' : '启动策略' }}
-            </button>
-            <p class="text-xs text-dark-200 text-center mt-3">启动前请确认参数配置并了解相关风险</p>
+            <div class="flex gap-3 mt-6">
+              <button
+                class="btn-primary flex-1 !py-3 text-base rounded-xl flex items-center justify-center gap-2"
+                :disabled="launching"
+                @click="handleLaunch"
+              >
+                <Play :size="18" />
+                {{ launching ? '启动中...' : '实盘交易' }}
+              </button>
+              <button
+                class="flex-1 !py-3 text-base rounded-xl flex items-center justify-center gap-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors"
+                :disabled="simLaunching"
+                @click="handleSimLaunch"
+              >
+                <FlaskConical :size="18" />
+                {{ simLaunching ? '启动中...' : '模拟交易' }}
+              </button>
+            </div>
+            <p class="text-xs text-dark-200 text-center mt-3">实盘交易连接真实交易所，模拟交易使用虚拟资金</p>
           </div>
         </div>
       </div>
@@ -501,7 +511,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Zap, ChevronRight, BookOpen, Brain, Settings, AlertTriangle, Play, Building, TrendingUp, Clock, DollarSign, Shield, Cog } from 'lucide-vue-next'
+import { Zap, ChevronRight, BookOpen, Brain, Settings, AlertTriangle, Play, Building, TrendingUp, Clock, DollarSign, Shield, Cog, FlaskConical } from 'lucide-vue-next'
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
 import StatusDot from '@/components/common/StatusDot.vue'
@@ -513,6 +523,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const launching = ref(false)
+const simLaunching = ref(false)
 const loading = ref(false)
 
 // 策略数据
@@ -632,6 +643,42 @@ async function handleLaunch() {
         MessagePlugin.error(error.message || '启动策略失败')
       } finally {
         launching.value = false
+      }
+    },
+    onCancel: () => dlg.hide(),
+  })
+}
+
+async function handleSimLaunch() {
+  if (!authStore.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  
+  const dlg = DialogPlugin.confirm({
+    header: '确认启动模拟交易',
+    body: `即将以模拟模式启动「${strategy.value?.name}」，初始模拟资金 ${configValues.value.investment || 10000} USDT。模拟交易不会连接真实交易所，使用虚拟资金进行策略验证。确认启动？`,
+    theme: 'info',
+    confirmBtn: '确认启动模拟',
+    cancelBtn: '取消',
+    onConfirm: async () => {
+      dlg.hide()
+      simLaunching.value = true
+      try {
+        const response = await strategyApi.createSimulateStrategy({
+          strategy_type: strategy.value.type,
+          symbols: [configValues.value.currencyPair],
+          params: configValues.value,
+          initial_capital: Number(configValues.value.investment) || 10000,
+        })
+        
+        MessagePlugin.success('模拟交易已成功启动！正在跳转到模拟交易页面...')
+        router.push(`/system/simulation/${response.strategy_id}`)
+      } catch (error: any) {
+        console.error('启动模拟交易失败:', error)
+        MessagePlugin.error(error.message || '启动模拟交易失败')
+      } finally {
+        simLaunching.value = false
       }
     },
     onCancel: () => dlg.hide(),
