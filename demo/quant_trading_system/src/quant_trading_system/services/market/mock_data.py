@@ -57,7 +57,7 @@ def generate_mock_klines(
     # 生成时间序列
     timestamps = []
     current_dt = start_dt
-    
+
     # 对于日线及以上周期，按天生成
     if timeframe in [TimeFrame.D1, TimeFrame.W1]:
         while current_dt <= end_dt:
@@ -69,7 +69,7 @@ def generate_mock_klines(
     else:
         # 对于日内周期，生成完整的天数数据
         total_days = (end_dt - start_dt).days + 1
-        
+
         # 计算每个周期在一天内的K线数量
         if timeframe == TimeFrame.M1:
             bars_per_day = 1440
@@ -85,9 +85,9 @@ def generate_mock_klines(
             bars_per_day = 6
         else:
             bars_per_day = 24  # 默认
-        
+
         n = total_days * bars_per_day
-        
+
         # 生成时间戳序列
         for day in range(total_days):
             day_start = start_dt + timedelta(days=day)
@@ -108,20 +108,27 @@ def generate_mock_klines(
     # 添加更明显的趋势（先上涨后下跌，确保产生交叉）
     trend = np.zeros(n)
     mid_point = n // 2
-    
+
     # 前半部分：上涨趋势
     trend[:mid_point] = np.linspace(0, 0.2, mid_point)  # 20%上涨
     # 后半部分：下跌趋势
     trend[mid_point:] = np.linspace(0.2, -0.1, n - mid_point)  # 下跌到-10%
-    
+
     returns += trend / n
-    
+
     # 添加周期性波动，确保产生更多的交叉信号
     periodic_wave = np.sin(np.linspace(0, 10 * np.pi, n)) * volatility * 0.5
     returns += periodic_wave
 
-    # 计算价格
-    prices = initial_price * np.exp(np.cumsum(returns))
+    # 计算价格（使用累积乘法避免数值溢出）
+    # 将收益率转换为价格乘数，然后进行累积乘法
+    # 限制收益率范围，避免价格变得过于极端
+    returns_clipped = np.clip(returns, -0.1, 0.1)  # 限制单期收益率在±10%以内
+    price_multipliers = 1 + returns_clipped
+    prices = initial_price * np.cumprod(price_multipliers)
+
+    # 进一步限制价格范围，避免极端值
+    prices = np.clip(prices, initial_price * 0.01, initial_price * 100)  # 限制在初始价格的1%到100倍之间
 
     # 生成OHLC
     opens = prices.copy()

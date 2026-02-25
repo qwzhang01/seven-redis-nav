@@ -6,10 +6,12 @@
 """
 
 from typing import Any, ClassVar
+import numpy as np
 
 from quant_trading_system.models.market import Bar, TimeFrame
 from quant_trading_system.services.strategy.base import Strategy, register_strategy
 from quant_trading_system.services.strategy.signal import Signal
+from quant_trading_system.services.indicators.technical import EMA
 
 
 @register_strategy
@@ -19,7 +21,7 @@ class DualMAStrategy(Strategy):
 
     当快线上穿慢线时买入，下穿时卖出
     """
-
+    id:int = 152410378779754498
     name: ClassVar[str] = "ma_cross"
     description: ClassVar[str] = "双均线交叉策略"
     version: ClassVar[str] = "1.0.0"
@@ -37,35 +39,53 @@ class DualMAStrategy(Strategy):
         super().__init__(**params)
         self._prev_fast_ma: float | None = None
         self._prev_slow_ma: float | None = None
-        self._bar_counter: int = 0  # 添加K线计数器
+        self._close_prices: list[float] = []
 
     def on_bar(self, bar: Bar) -> Signal | list[Signal] | None:
-        # 简化实现：直接使用传入的bar数据
-        # 在回测环境中，我们不需要从context获取数据，因为bar已经包含了当前价格
+        # 收集收盘价数据
+        self._close_prices.append(bar.close)
 
-        # 使用一个简单的计数器来跟踪K线数量
-        if not hasattr(self, '_bar_count'):
-            self._bar_count = 0
-        self._bar_count += 1
+        # 确保有足够的数据计算双均线
+        if len(self._close_prices) < self.params["slow_period"]:
+            return None
 
-        # 模拟MA计算：使用简单的趋势模拟
-        # 为了确保产生信号，我们使用一个简单的逻辑
-        # 当bar_count达到一定数量时产生买入信号，再达到一定数量时产生卖出信号
+        # 计算快慢均线
+        close_array = np.array(self._close_prices)
+
+        # 计算快线EMA
+        fast_ema = EMA._calculate_ema(close_array, self.params["fast_period"])
+        fast_ma_current = fast_ema[-1]
+
+        # 计算慢线EMA
+        slow_ema = EMA._calculate_ema(close_array, self.params["slow_period"])
+        slow_ma_current = slow_ema[-1]
+
+        # 检查是否为NaN（数据不足时）
+        if np.isnan(fast_ma_current) or np.isnan(slow_ma_current):
+            return None
 
         signal = None
 
-        # 模拟金叉：在bar_count为50时买入
-        if self._bar_count == 50:
-            signal = self.buy(
-                bar.symbol,
-                reason="Simulated MA golden cross at bar 50"
-            )
+        # 检查均线交叉
+        if self._prev_fast_ma is not None and self._prev_slow_ma is not None:
+            # 金叉：快线上穿慢线
+            if (self._prev_fast_ma <= self._prev_slow_ma and
+                fast_ma_current > slow_ma_current):
+                signal = self.buy(
+                    bar.symbol,
+                    reason=f"EMA golden cross: fast({fast_ma_current:.2f}) > slow({slow_ma_current:.2f})"
+                )
 
-        # 模拟死叉：在bar_count为150时卖出
-        elif self._bar_count == 150:
-            signal = self.sell(
-                bar.symbol,
-                reason="Simulated MA death cross at bar 150"
-            )
+            # 死叉：快线下穿慢线
+            elif (self._prev_fast_ma >= self._prev_slow_ma and
+                  fast_ma_current < slow_ma_current):
+                signal = self.sell(
+                    bar.symbol,
+                    reason=f"EMA death cross: fast({fast_ma_current:.2f}) < slow({slow_ma_current:.2f})"
+                )
+
+        # 更新前值
+        self._prev_fast_ma = fast_ma_current
+        self._prev_slow_ma = slow_ma_current
 
         return signal

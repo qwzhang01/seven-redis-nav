@@ -592,10 +592,10 @@ class BacktestEngine:
         # 创建订单
         import uuid
         from datetime import datetime
-        from quant_trading_system.core.snowflake import generate_snowflake_id
+        from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 
         order = Order(
-            id=str(generate_snowflake_id()),
+            id=str(generate_backtest_snowflake_id()),
             symbol=symbol,
             side=OrderSide.BUY if signal.is_buy else OrderSide.SELL,
             type=OrderType.MARKET,
@@ -609,7 +609,7 @@ class BacktestEngine:
 
         # 创建成交记录
         trade = Trade(
-            id=str(generate_snowflake_id()),  # 添加Trade ID
+            id=str(generate_backtest_snowflake_id()),  # 添加Trade ID
             symbol=symbol,
             exchange="backtest",
             order_id=order.id,
@@ -783,9 +783,15 @@ class BacktestEngine:
         ) / result.initial_capital
 
         if result.duration_days > 0:
-            result.annual_return = (
-                (1 + result.total_return) ** (365 / result.duration_days) - 1
-            )
+            # 使用对数计算年化收益率，避免复数问题
+            if result.total_return > -1:  # 确保底数为正数
+                annualized_factor = 365 / result.duration_days
+                # 使用对数计算避免复数
+                result.annual_return = float(np.exp(np.log(1 + result.total_return) * annualized_factor) - 1)
+            else:
+                result.annual_return = -1.0  # 如果总收益率为-100%或更低，年化收益率为-100%
+        else:
+            result.annual_return = 0.0  # 如果duration_days <= 0，年化收益率为0
 
         # 权益曲线转为numpy数组
         equity_array = np.array([e[1] for e in self._equity_curve])

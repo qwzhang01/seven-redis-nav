@@ -903,39 +903,9 @@ SELECT username, nickname, email, user_type FROM user_info;
 -- 创建时间: 2026-02-25
 
 -- 1. 插入初始用户 test001
-INSERT INTO user_info (
-    id,
-    username,
-    nickname,
-    password_hash,
-    email,
-    phone,
-    invitation_code,
-    inviter_id,
-    user_type,
-    registration_time,
-    create_by,
-    create_time,
-    update_by,
-    update_time,
-    enable_flag
-) VALUES (
-    1000000000000000001, -- 使用固定的雪花ID，便于测试
-    'test001',
-    'test001',
-    '$2b$12$eglYi6i.BJMp1Y/gLOhmxuY6PgjvKAK5u4mzUV61qyMKmMtyf2.S6', -- 哈希示例，密码:00000000
-    'test001@example.com',
-    NULL,
-    'TEST001', -- 用户自己的邀请码
-    0, -- 上级邀请人ID为0（系统用户）
-    'customer',
-    '2026-02-25 18:20:57+00',
-    'system',
-    '2026-02-25 18:20:57+00',
-    'system',
-    '2026-02-25 18:20:57+00',
-    TRUE
-) ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.user_info (id,username,nickname,password_hash,email,email_verified,phone,phone_verified,avatar_url,user_type,registration_time,last_login_time,status,invitation_code,inviter_id,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (1000000000000000001,'test001','test001','$2b$12$eglYi6i.BJMp1Y/gLOhmxuY6PgjvKAK5u4mzUV61qyMKmMtyf2.S6','test001@example.com',false,NULL,false,NULL,'admin','2026-02-26 02:20:57.000',NULL,'active','WEALTH',0,'system','2026-02-26 02:20:57.000','system','2026-02-26 02:20:57.000',true)
+ ON CONFLICT (id) DO NOTHING;
 
 -- 2. 插入邀请码记录（用于test001用户邀请其他人）
 INSERT INTO invitation_codes (
@@ -973,3 +943,54 @@ INSERT INTO invitation_codes (
     '2026-02-25 18:20:57+00',
     TRUE
 ) ON CONFLICT (id) DO NOTHING;
+
+
+-- 预设策略数据插入脚本
+
+-- 布林带策略
+INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type,market_type,risk_level,exchange,symbols,timeframe,logic_description,params_schema,default_params,risk_params,advanced_params,risk_warning,total_return,max_drawdown,sharpe_ratio,win_rate,running_days,status,is_published,is_featured,sort_order,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (152410378779754497,'布林带策略','布林带策略','价格触及下轨买入，触及上轨卖出','trend','spot','medium','binance','["BTCUSDT"]','1h','本策略基于布林带指标进行交易决策：
+1. 布林带计算：使用20周期移动平均线和2倍标准差构建上下轨
+2. 买入信号：当价格触及或跌破布林带下轨时，视为超卖状态，产生买入信号
+3. 卖出信号：当价格触及或突破布林带上轨时，视为超买状态，产生卖出信号
+4. 风险控制：通过布林带的自然波动范围自动调整止损止盈位置
+5. 趋势过滤：在明显的单边趋势中，布林带会扩张，策略会自动适应市场波动性变化','{"period": {"type": "int", "default":
+20, "min": 5, "max": 100}, "std_dev": {"type": "float", "default": 2.0, "min": 1.0, "max": 3.0}}','{"period": 20, "std_dev": 2.0}','{}','{}','本策略在震荡市中表现较好，但在单边趋势行情中可能出现连续亏损。布林带指标对市场波动性敏感，在低波动期可能产生较多假信号。价格触及上下轨后可能继续沿趋势方向运行，导致过早入场或过早离场。建议结合其他趋势指标进行过滤，并严格控制单笔交易风险。',35.000000,42.000000,8.500000,45.000000,286,'running',true,false,1,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true) ON CONFLICT (id) DO NOTHING;
+
+-- 双均线策略
+INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type,market_type,risk_level,exchange,symbols,timeframe,logic_description,params_schema,default_params,risk_params,advanced_params,risk_warning,total_return,max_drawdown,sharpe_ratio,win_rate,running_days,status,is_published,is_featured,sort_order,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (152410378779754498,'双均线交叉','双均线交叉策略','当快线上穿慢线时买入，下穿时卖出','trend','spot','medium','binance','["BTCUSDT"]','15m','本策略基于双均线交叉原理进行交易：
+1. 均线配置：使用5周期快线和20周期慢线，快线反映短期趋势，慢线反映长期趋势
+2. 金叉信号：当快线上穿慢线时，视为短期趋势转强，产生买入信号
+3. 死叉信号：当快线下穿慢线时，视为短期趋势转弱，产生卖出信号
+4. 趋势确认：均线排列方向确认当前市场的主要趋势方向
+5. 过滤机制：避免在震荡市中频繁交易，只在明确的趋势信号出现时入场','{"fast_period": {"type": "int", "default":
+5, "min": 3, "max": 10}, "slow_period": {"type": "int", "default": 20, "min": 10, "max": 30}}','{"fast_period": 5, "slow_period": 20}','{}','{}','双均线策略在趋势明显的市场中表现优异，但在震荡市中可能产生较多假信号。均线交叉存在滞后性，可能导致入场时机较晚。建议结合成交量或其他动量指标进行确认，减少假信号干扰。在横盘整理期间应降低交易频率或暂停策略运行。',28.000000,35.000000,6.200000,38.000000,312,'running',true,false,2,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true) ON CONFLICT (id) DO NOTHING;
+
+-- MACD策略
+INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type,market_type,risk_level,exchange,symbols,timeframe,logic_description,params_schema,default_params,risk_params,advanced_params,risk_warning,total_return,max_drawdown,sharpe_ratio,win_rate,running_days,status,is_published,is_featured,sort_order,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (152410378779754499,'MACD交叉','MACD交叉策略','基于MACD金叉死叉的交易策略','trend','spot','medium','binance','["BTCUSDT"]','1h','本策略基于MACD指标的交叉信号进行交易：
+1. MACD计算：使用12周期快线、26周期慢线和9周期信号线
+2. 金叉信号：当MACD线上穿信号线时，视为多头信号，产生买入指令
+3. 死叉信号：当MACD线下穿信号线时，视为空头信号，产生卖出指令
+4. 柱状图分析：MACD柱状图的正负和大小反映趋势的强度和动量
+5. 背离检测：价格与MACD指标的背离可作为趋势反转的预警信号','{"fast_period": {"type": "int", "default": 12, "min": 8, "max": 20}, "slow_period": {"type": "int", "default": 26, "min": 20, "max": 30}, "signal_period": {"type": "int", "default": 9, "min": 5, "max": 15}}','{"fast_period": 12, "slow_period": 26, "signal_period": 9}','{}','{}','MACD策略在趋势行情中表现稳定，但对市场噪音较为敏感，在震荡市中可能产生较多假信号。MACD指标的滞后性可能导致入场时机偏晚，错过部分趋势利润。建议结合价格行为分析或波动率过滤来优化信号质量。极端行情下MACD可能出现钝化现象，需要额外风险控制措施。',41.000000,48.000000,9.800000,52.000000,298,'running',true,true,3,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true)ON CONFLICT (id) DO NOTHING;
+
+-- 多时间框架均线突破策略（已存在示例）
+INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type,market_type,risk_level,exchange,symbols,timeframe,logic_description,params_schema,default_params,risk_params,advanced_params,risk_warning,total_return,max_drawdown,sharpe_ratio,win_rate,running_days,status,is_published,is_featured,sort_order,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (152410378779754496,'多周期趋势','多周期趋势+MA11回调突破+固定盈亏比交易策略','大周期定趋势方向，小周期等MA11回调，突破后顺势进场，结构止损，固定盈亏比止盈，只做顺势单，不逆市','trend','spot','medium','binance','["BTCUSDT", "ETHUSDT"]','1h','本策略采用多周期共振+均线回调突破的交易框架，核心思路为"大周期定方向，小周期找入场"：
+1. 大周期趋势判断： 在4H或日线级别，通过EMA50与EMA200的排列关系判断主趋势方向。EMA50位于EMA200上方视为多头趋势，反之为空头趋势。仅在趋势明确时参与交易，震荡市自动过滤。
+2. 小周期回调等待： 确认大周期趋势后，切换至15分钟或1小时级别，等待价格回调至MA11（11周期移动平均线）附近。回调的定义为价格从趋势方向的极值回撤并触及或穿越MA11。
+3. 突破进场信号： 当价格在MA11附近企稳并重新突破MA11（多头趋势中向上突破，空头趋势中向下突破），确认回调结束，顺势开仓。突破需伴随K线实体收盘确认，避免假突破。
+4. 结构止损设置： 止损设置在回调波段的结构低点（做多）或结构高点（做空）外侧，通常为最近一次回调的极值价格±一定缓冲点数，确保止损具有市场结构支撑。
+5. 固定盈亏比止盈： 采用固定盈亏比（默认1:2）进行止盈，即止盈距离为止损距离的2
+倍。不设移动止损，触及止盈或止损即平仓。严格遵守"只做顺势单，不逆市操作"的原则。','{"ma_period": {"type": "int", "default": 11, "min": 2, "max": 200, "description": "移动平均线周期"}, "risk_reward_ratio": {"type": "float", "default": 2.0, "min": 0.5, "max": 10.0, "description": "盈亏比（止盈 = 风险 × 该值）"}, "min_pullback_bars": {"type": "int", "default": 3, "min": 1, "max": 20, "description": "回调结构最少K线根数（收盘在MA另一侧）"}, "max_pullback_bars": {"type": "int", "default": 5, "min": 2, "max": 50, "description": "回调结构最多K线根数（收盘在MA另一侧）"}}','{"ma_period": 11, "risk_reward_ratio": 2.0, "min_pullback_bars": 3, "max_pullback_bars": 5}','{"max_position_size": 0.02, "max_daily_loss": 0.05, "max_consecutive_losses": 5, "stop_loss_mode": "structure", "take_profit_mode": "fixed_ratio"}','{"timeframe_mapping": {"M15": "H1", "M30": "H4", "H1": "H4", "H4": "D1"}, "trend_confirmation": true, "pullback_validation": true, "signal_quality_filter": 0.7}','本策略基于趋势跟踪逻辑，在单边趋势行情中表现较优，但在横盘震荡市中可能产生连续止损。大小周期的趋势判断存在滞后性，极端行情（如插针、闪崩）可能导致止损滑点超出预期。固定盈亏比止盈方式在强趋势中可能过早离场，无法捕获全部利润。历史回测收益不代表未来实际表现，加密货币市场波动剧烈，杠杆交易会放大风险与收益。请根据自身风险承受能力合理配置资金，建议单笔交易风险不超过总资金的2%，并确保充分了解策略逻辑后再投入使用。',43.000000,58.000000,12.000000,26.000000,354,'running',true,true,0,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true) ON CONFLICT (id) DO NOTHING;
+
+-- RSI策略
+INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type,market_type,risk_level,exchange,symbols,timeframe,logic_description,params_schema,default_params,risk_params,advanced_params,risk_warning,total_return,max_drawdown,sharpe_ratio,win_rate,running_days,status,is_published,is_featured,sort_order,create_by,create_time,update_by,update_time,enable_flag) VALUES
+	 (152410378779754500,'RSI超买超卖','RSI超买超卖策略','RSI低于超卖线买入，高于超买线卖出','momentum','spot','medium','binance','["BTCUSDT"]','4h','本策略基于RSI指标的超买超卖现象进行交易：
+1. RSI计算：使用14周期RSI指标，衡量价格变化的幅度和速度
+2. 超卖买入：当RSI低于30时，视为市场处于超卖状态，价格可能反弹，产生买入信号
+3. 超买卖出：当RSI高于70时，视为市场处于超买状态，价格可能回调，产生卖出信号
+4. 背离确认：结合价格与RSI的背离现象，提高信号的可靠性
+5. 趋势过滤：在强势趋势中，RSI可能长时间停留在超买或超卖区域，需要结合趋势判断','{"period": {"type": "int", "default": 14, "min": 10, "max": 20}, "overbought": {"type": "float", "default": 70.0, "min": 60.0, "max": 80.0}, "oversold": {"type": "float", "default": 30.0, "min": 20.0, "max": 40.0}}','{"period": 14, "overbought": 70.0, "oversold": 30.0}','{}','{}','RSI策略在区间震荡市场中表现良好，但在强势趋势行情中可能出现连续亏损。RSI指标的超买超卖阈值需要根据市场特性进行调整，不同品种和周期可能需要不同的参数设置。在极端行情中，RSI可能出现钝化现象，失去参考价值。建议结合趋势分析和成交量确认，避免在单边市中逆势操作。',32.000000,39.000000,7.500000,42.000000,275,'running',true,false,4,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true)ON CONFLICT (id) DO NOTHING;

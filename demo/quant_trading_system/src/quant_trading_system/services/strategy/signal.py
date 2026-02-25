@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from quant_trading_system.core.snowflake import generate_snowflake_id
+from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 
 
 class SignalType(Enum):
@@ -38,7 +38,7 @@ class Signal:
     signal_type: SignalType
 
     # 信号ID
-    signal_id: str = field(default_factory=lambda: str(generate_snowflake_id()))
+    signal_id: str = field(default_factory=lambda: str(generate_backtest_snowflake_id()))
 
     # 策略信息
     strategy_id: str = ""

@@ -124,8 +124,53 @@ class SnowflakeGenerator:
         }
 
 
+class BacktestSnowflakeGenerator(SnowflakeGenerator):
+    """
+    回测专用的雪花ID生成器
+
+    允许时钟回拨，适用于回测环境中的历史时间模拟
+    """
+
+    def __init__(self, datacenter_id: int = 0, machine_id: int = 0):
+        super().__init__(datacenter_id, machine_id)
+        # 重置起始时间戳为更早的时间，以适应回测环境
+        self.twepoch = 1609459200000  # 2021-01-01 00:00:00 UTC
+
+    def generate_id(self) -> int:
+        """
+        生成雪花ID（回测专用版本）
+
+        允许时钟回拨，适用于回测环境
+
+        Returns:
+            int: 雪花ID
+        """
+        with self.lock:
+            timestamp = self._current_timestamp()
+
+            # 回测环境允许时钟回拨，不检查时间戳顺序
+            # 直接使用当前时间戳，即使它小于上次记录的时间戳
+
+            # 同一毫秒内生成
+            if timestamp == self.last_timestamp:
+                self.sequence = (self.sequence + 1) & self.max_sequence
+                if self.sequence == 0:
+                    timestamp = self._wait_next_millis(self.last_timestamp)
+            else:
+                self.sequence = 0
+
+            self.last_timestamp = timestamp
+
+            # 生成ID
+            return ((timestamp - self.twepoch) << self.timestamp_shift) | \
+                   (self.datacenter_id << self.datacenter_id_shift) | \
+                   (self.machine_id << self.machine_id_shift) | \
+                   self.sequence
+
+
 # 全局雪花ID生成器实例
 _snowflake_instance: Optional[SnowflakeGenerator] = None
+_backtest_snowflake_instance: Optional[SnowflakeGenerator] = None
 
 
 def get_snowflake_generator(datacenter_id: int = 0, machine_id: int = 0) -> SnowflakeGenerator:
@@ -145,6 +190,24 @@ def get_snowflake_generator(datacenter_id: int = 0, machine_id: int = 0) -> Snow
     return _snowflake_instance
 
 
+def get_backtest_snowflake_generator(datacenter_id: int = 0, machine_id: int = 0) -> SnowflakeGenerator:
+    """
+    获取回测专用的雪花ID生成器实例（单例模式）
+    该生成器允许时钟回拨，适用于回测环境
+
+    Args:
+        datacenter_id: 数据中心ID
+        machine_id: 机器ID
+
+    Returns:
+        SnowflakeGenerator: 雪花ID生成器实例
+    """
+    global _backtest_snowflake_instance
+    if _backtest_snowflake_instance is None:
+        _backtest_snowflake_instance = BacktestSnowflakeGenerator(datacenter_id, machine_id)
+    return _backtest_snowflake_instance
+
+
 def generate_snowflake_id() -> int:
     """
     生成雪花ID（便捷函数）
@@ -153,6 +216,17 @@ def generate_snowflake_id() -> int:
         int: 雪花ID
     """
     return get_snowflake_generator().generate_id()
+
+
+def generate_backtest_snowflake_id() -> int:
+    """
+    生成回测专用的雪花ID（便捷函数）
+    该函数允许时钟回拨，适用于回测环境
+
+    Returns:
+        int: 雪花ID
+    """
+    return get_backtest_snowflake_generator().generate_id()
 
 
 def parse_snowflake_id(snowflake_id: int) -> dict:

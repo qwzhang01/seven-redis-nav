@@ -18,7 +18,7 @@ from quant_trading_system.models.trading import Order, Position, Trade
 from quant_trading_system.models.account import Account
 from quant_trading_system.services.strategy.signal import Signal, SignalType
 from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
-from quant_trading_system.core.snowflake import generate_snowflake_id
+from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 
 logger = structlog.get_logger(__name__)
 
@@ -158,7 +158,7 @@ class Strategy(ABC):
             strategy_id: 策略ID
             **params: 策略参数
         """
-        self.strategy_id = strategy_id or str(generate_snowflake_id())
+        self.strategy_id = strategy_id or str(generate_backtest_snowflake_id())
         self.params = self._validate_params(params)
         self.state = StrategyState.CREATED
 

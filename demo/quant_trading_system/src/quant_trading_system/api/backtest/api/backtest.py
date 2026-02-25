@@ -69,8 +69,8 @@ class BacktestRequest(BaseModel):
 
 def _create_backtest_id() -> str:
     """生成回测ID"""
-    from quant_trading_system.core.snowflake import generate_snowflake_id
-    return f"backtest_{generate_snowflake_id()}"
+    from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
+    return f"backtest_{generate_backtest_snowflake_id()}"
 
 
 def _parse_datetime(dt_str: str) -> datetime:
