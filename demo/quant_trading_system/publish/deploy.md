@@ -51,6 +51,66 @@ quant_trading_system/
 | Docker | 24.0+ | 最新稳定版 |
 | Docker Compose | 2.20+ | 最新稳定版 |
 
+### 3.4 权限问题解决方案
+
+在生产环境Docker部署时，可能会出现以下权限错误：
+```
+PermissionError: [Errno 13] Permission denied: '/app/logs/quant_trading.log'
+```
+
+**问题原因**：Docker容器内的用户（appuser，UID 1000）没有权限写入挂载的宿主机日志目录。
+
+**解决方案**：
+
+#### 方法1：使用权限设置脚本（推荐）
+1. 在项目根目录运行权限设置脚本：
+```bash
+chmod +x publish/setup_logs_permission.sh
+./publish/setup_logs_permission.sh
+```
+
+2. 启动Docker容器：
+```bash
+APP_VERSION=1.0.0 docker compose -f publish/docker-compose.prod.yml up -d
+```
+
+#### 方法2：手动设置权限
+1. 创建日志目录并设置权限：
+```bash
+mkdir -p logs
+chmod 755 logs
+sudo chown -R 1000:1000 logs
+```
+
+2. 启动Docker容器：
+```bash
+APP_VERSION=1.0.0 docker compose -f publish/docker-compose.prod.yml up -d
+```
+
+#### 方法3：使用环境变量覆盖日志路径
+如果不想使用卷挂载，可以通过环境变量将日志写入容器内部：
+
+1. 在 `.env.prod` 文件中添加：
+```bash
+LOG_FILE=/tmp/quant_trading.log
+```
+
+2. 启动容器（不挂载日志目录）：
+```bash
+# 注释掉docker-compose.prod.yml中的volumes部分
+# volumes:
+#   - ../logs:/app/logs
+
+APP_VERSION=1.0.0 docker compose -f publish/docker-compose.prod.yml up -d
+```
+
+#### 快速修复命令
+如果遇到权限问题，可以运行以下命令快速修复：
+```bash
+sudo chown -R 1000:1000 logs/
+sudo chmod 755 logs/
+```
+
 ### 3.2 网络规划
 
 ```
@@ -609,6 +669,49 @@ docker stats quant_app
 # 重启应用（不重建镜像）
 docker restart quant_app
 ```
+
+### 8.4 权限问题故障排除
+
+#### 检查权限状态
+```bash
+# 检查宿主机目录权限
+ls -la logs/
+
+# 检查容器内用户
+docker exec quant_app id
+
+# 检查容器内目录权限
+docker exec quant_app ls -la /app/logs/
+```
+
+#### 权限问题诊断
+1. **宿主机目录权限检查**：
+   - 确保 `logs/` 目录存在且权限为 `755`
+   - 所有者应为 `1000:1000`（与容器内appuser用户匹配）
+
+2. **容器内权限检查**：
+   - 确认容器内用户为 `appuser (uid=1000)`
+   - 确认 `/app/logs/` 目录可写入
+
+3. **快速修复**：
+```bash
+# 修复权限问题
+sudo chown -R 1000:1000 logs/
+sudo chmod 755 logs/
+
+# 重启容器
+docker restart quant_app
+```
+
+#### 常见权限错误场景
+- **首次部署**：日志目录不存在或权限不正确
+- **用户变更**：宿主机用户ID与容器内用户ID不匹配
+- **目录挂载**：Docker Compose中volume配置导致权限冲突
+
+#### 安全注意事项
+- 生产环境中，确保日志目录有适当的权限设置，避免敏感信息泄露
+- 定期清理日志文件，避免磁盘空间耗尽
+- 重要日志应定期备份到安全存储
 
 ### 8.2 数据库备份
 

@@ -46,7 +46,39 @@ if ! docker network inspect "$PROD_NETWORK" > /dev/null 2>&1; then
     error "网络 $PROD_NETWORK 不存在，请确认基础服务（redis/postgres/kafka/minio）已正常运行"
 fi
 
-# ---- 5. 构建镜像 ----
+# ---- 5. 检查并设置日志目录权限 ----
+LOGS_DIR="$PROJECT_DIR/logs"
+log "检查日志目录权限..."
+if [ ! -d "$LOGS_DIR" ]; then
+    log "创建日志目录: $LOGS_DIR"
+    mkdir -p "$LOGS_DIR"
+fi
+
+# 设置目录权限
+log "设置日志目录权限..."
+chmod 755 "$LOGS_DIR"
+
+# 获取当前用户ID和组ID
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
+log "当前用户ID: $USER_ID, 组ID: $GROUP_ID"
+
+# 设置目录所有者（如果用户ID为1000，则与容器内appuser用户匹配）
+if [ "$USER_ID" -eq 1000 ]; then
+    log "用户ID为1000，与容器内appuser用户匹配，设置目录所有者..."
+    chown -R $USER_ID:$GROUP_ID "$LOGS_DIR"
+else
+    warn "当前用户ID ($USER_ID) 与容器内appuser用户ID (1000) 不匹配"
+    warn "建议解决方案："
+    warn "1. 在Docker Compose中使用user参数指定用户映射"
+    warn "2. 或者手动设置日志目录权限：sudo chown -R 1000:1000 $LOGS_DIR"
+fi
+
+# 检查权限设置
+log "检查权限设置..."
+ls -la "$LOGS_DIR"
+
+# ---- 6. 构建镜像 ----
 log "构建镜像 ${IMAGE_NAME}:${APP_VERSION} ..."
 docker build \
     -f "$PUBLISH_DIR/Dockerfile.prod" \

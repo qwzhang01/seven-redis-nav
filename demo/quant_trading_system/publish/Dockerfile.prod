@@ -51,7 +51,8 @@ COPY pyproject.toml .
 # 创建非 root 用户，提升安全性
 RUN useradd -m -u 1000 -s /bin/bash appuser \
     && mkdir -p /app/logs \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app \
+    && chmod 755 /app/logs
 
 USER appuser
 
