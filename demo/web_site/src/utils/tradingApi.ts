@@ -29,17 +29,14 @@ export type PositionSide = 'long' | 'short'
 
 /**
  * 下单请求
+ * 文档字段：symbol, side, order_type, quantity, price, strategy_id
  */
 export interface PlaceOrderRequest {
-  exchange_id: string
   symbol: string
   side: OrderSide
-  type: OrderType
+  order_type: OrderType
   quantity: number
   price?: number
-  stop_price?: number
-  time_in_force?: 'GTC' | 'IOC' | 'FOK'
-  client_order_id?: string
   strategy_id?: string
 }
 
@@ -75,27 +72,20 @@ export interface OrderInfo {
 
 /**
  * 订单列表查询参数
+ * 文档中只支持 status, symbol, limit
  */
 export interface OrderListParams {
-  exchange_id?: string
+  status?: 'active' | 'all'
   symbol?: string
-  side?: OrderSide
-  status?: OrderStatus
-  strategy_id?: string
-  start_time?: string
-  end_time?: string
-  page?: number
-  page_size?: number
+  limit?: number
 }
 
 /**
  * 订单列表响应
  */
 export interface OrderListResponse {
+  orders: OrderInfo[]
   total: number
-  page: number
-  page_size: number
-  items: OrderInfo[]
 }
 
 /**
@@ -123,26 +113,20 @@ export interface TradeInfo {
 
 /**
  * 成交记录查询参数
+ * 文档中只支持 symbol, order_id, limit
  */
 export interface TradeListParams {
-  exchange_id?: string
   symbol?: string
-  side?: OrderSide
-  strategy_id?: string
-  start_time?: string
-  end_time?: string
-  page?: number
-  page_size?: number
+  order_id?: string
+  limit?: number
 }
 
 /**
  * 成交记录列表响应
  */
 export interface TradeListResponse {
+  trades: TradeInfo[]
   total: number
-  page: number
-  page_size: number
-  items: TradeInfo[]
 }
 
 /**
@@ -174,20 +158,18 @@ export interface PositionInfo {
 
 /**
  * 持仓列表查询参数
+ * 文档中无查询参数
  */
 export interface PositionListParams {
-  exchange_id?: string
-  symbol?: string
-  side?: PositionSide
-  strategy_id?: string
+  // 文档中无查询参数
 }
 
 /**
  * 持仓列表响应
  */
 export interface PositionListResponse {
-  total: number
-  items: PositionInfo[]
+  positions: PositionInfo[]
+  total_value: number
 }
 
 /**
@@ -257,9 +239,10 @@ export function cancelOrder(orderId: string): Promise<{ message: string }> {
 
 /**
  * 取消所有订单
+ * 文档中 symbol 作为查询参数而非Body
  */
-export function cancelAllOrders(params?: { exchange_id?: string; symbol?: string }): Promise<{ message: string; cancelled_count: number }> {
-  return post<{ message: string; cancelled_count: number }>('/api/v1/c/trading/order/cancel-all', params)
+export function cancelAllOrders(params?: { symbol?: string }): Promise<{ success: boolean; cancelled_count: number; message: string }> {
+  return post<{ success: boolean; cancelled_count: number; message: string }>('/api/v1/c/trading/order/cancel-all', params)
 }
 
 /**
@@ -285,23 +268,26 @@ export function getTrades(params?: TradeListParams): Promise<TradeListResponse> 
 
 /**
  * 获取持仓列表
+ * 文档中无查询参数
  */
-export function getPositions(params?: PositionListParams): Promise<PositionListResponse> {
-  return get<PositionListResponse>('/api/v1/c/trading/positions', params)
+export function getPositions(): Promise<PositionListResponse> {
+  return get<PositionListResponse>('/api/v1/c/trading/positions')
 }
 
 /**
  * 获取单个持仓详情
+ * 文档中无额外查询参数
  */
-export function getPositionBySymbol(symbol: string, params?: { exchange_id?: string }): Promise<PositionInfo> {
-  return get<PositionInfo>(`/api/v1/c/trading/position/${symbol}`, params)
+export function getPositionBySymbol(symbol: string): Promise<PositionInfo> {
+  return get<PositionInfo>(`/api/v1/c/trading/position/${symbol}`)
 }
 
 /**
  * 获取账户信息
+ * 文档中无查询参数
  */
-export function getAccount(params?: { exchange_id?: string }): Promise<AccountInfo> {
-  return get<AccountInfo>('/api/v1/c/trading/account', params)
+export function getAccount(): Promise<AccountInfo> {
+  return get<AccountInfo>('/api/v1/c/trading/account')
 }
 
 /**

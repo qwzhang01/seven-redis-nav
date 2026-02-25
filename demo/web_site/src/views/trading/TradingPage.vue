@@ -569,10 +569,9 @@ async function placeOrder() {
   loading.value = true
   try {
     const order = await tradingApi.placeOrder({
-      exchange_id: 'binance',
       symbol: 'BTCUSDT',
       side: activeTradeTab.value === '买入' ? 'buy' : 'sell',
-      type: 'limit',
+      order_type: 'limit',
       quantity: parseFloat(tradeAmount.value),
       price: parseFloat(tradePrice.value.replace(/,/g, ''))
     })
@@ -614,7 +613,6 @@ async function cancelAllOrders() {
   
   try {
     await tradingApi.cancelAllOrders({
-      exchange_id: 'binance',
       symbol: 'BTCUSDT'
     })
     MessagePlugin.success('所有订单已撤销')

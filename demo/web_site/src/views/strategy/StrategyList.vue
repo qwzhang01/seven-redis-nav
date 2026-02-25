@@ -150,11 +150,8 @@ import { ref, computed, onMounted } from 'vue'
 import { Zap, Search, LayoutGrid, List, ArrowRight, SearchX } from 'lucide-vue-next'
 import { MessagePlugin } from 'tdesign-vue-next'
 import RiskBadge from '@/components/common/RiskBadge.vue'
-import strategyApi, {
-  getUserMarketType,
-  getUserRiskLevel
-} from '@/utils/strategyApi'
 import systemApi from "@/utils/systemApi.ts";
+import strategyApi from "@/utils/strategyApi";
 
 const viewMode = ref<'grid' | 'list'>('grid')
 const currentPage = ref(1)

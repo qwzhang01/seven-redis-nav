@@ -14,17 +14,18 @@ export type BacktestStatus = 'pending' | 'running' | 'completed' | 'failed' | 'c
 
 /**
  * 运行回测请求
+ * 文档字段：strategy_type, symbol, timeframe, start_time, end_time, initial_capital, commission_rate, slippage_rate, params
  */
 export interface RunBacktestRequest {
-  strategy_id: string
-  exchange_id: string
+  strategy_type: string
   symbol: string
+  timeframe?: string
   start_time: string
   end_time: string
-  initial_capital: number
-  parameters?: Record<string, any>
+  initial_capital?: number
   commission_rate?: number
   slippage_rate?: number
+  params?: Record<string, any>
 }
 
 /**
@@ -71,26 +72,18 @@ export interface BacktestResult {
 
 /**
  * 回测历史列表查询参数
+ * 文档中只支持 limit 参数
  */
 export interface BacktestListParams {
-  strategy_id?: string
-  exchange_id?: string
-  symbol?: string
-  status?: BacktestStatus
-  start_time?: string
-  end_time?: string
-  page?: number
-  page_size?: number
+  limit?: number
 }
 
 /**
  * 回测历史列表响应
  */
 export interface BacktestListResponse {
+  backtests: BacktestResult[]
   total: number
-  page: number
-  page_size: number
-  items: BacktestResult[]
 }
 
 /**
@@ -137,12 +130,10 @@ export interface BacktestTrade {
 
 /**
  * 回测交易记录查询参数
+ * 文档中只支持 limit 参数
  */
 export interface BacktestTradesParams {
-  side?: 'buy' | 'sell'
-  type?: 'open' | 'close'
-  page?: number
-  page_size?: number
+  limit?: number
 }
 
 /**
@@ -150,19 +141,18 @@ export interface BacktestTradesParams {
  */
 export interface BacktestTradesResponse {
   backtest_id: string
-  total: number
-  page: number
-  page_size: number
   trades: BacktestTrade[]
+  total: number
 }
 
 // ==================== API方法 ====================
 
 /**
  * 运行策略回测
+ * 响应包含 success, backtest_id, message
  */
-export function runBacktest(data: RunBacktestRequest): Promise<BacktestResult> {
-  return post<BacktestResult>('/api/v1/c/backtest/run', data)
+export function runBacktest(data: RunBacktestRequest): Promise<{ success: boolean; backtest_id: string; message: string }> {
+  return post<{ success: boolean; backtest_id: string; message: string }>('/api/v1/c/backtest/run', data)
 }
 
 /**
@@ -196,8 +186,8 @@ export function getBacktestTrades(backtestId: string, params?: BacktestTradesPar
 /**
  * 删除回测记录
  */
-export function deleteBacktest(backtestId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/api/v1/c/backtest/${backtestId}`)
+export function deleteBacktest(backtestId: string): Promise<{ success: boolean; backtest_id: string; message: string }> {
+  return del<{ success: boolean; backtest_id: string; message: string }>(`/api/v1/c/backtest/${backtestId}`)
 }
 
 // 导出所有API

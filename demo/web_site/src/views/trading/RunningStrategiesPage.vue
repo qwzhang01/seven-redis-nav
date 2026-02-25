@@ -469,10 +469,8 @@ async function loadRunningStrategies() {
 // 加载持仓信息
 async function loadPositions() {
   try {
-    const response = await tradingApi.getPositions({
-      exchange_id: 'binance'
-    })
-    positions.value = response.items.map((pos: any) => ({
+    const response = await tradingApi.getPositions()
+    positions.value = (response.positions || []).map((pos: any) => ({
       id: pos.position_id,
       strategy: pos.strategy_name || '未知策略',
       pair: pos.symbol,

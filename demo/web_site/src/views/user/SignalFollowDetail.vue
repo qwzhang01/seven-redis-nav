@@ -219,6 +219,42 @@
             </div>
           </div>
 
+          <!-- 跟单 vs 信号源收益对比 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              <GitCompare :size="18" class="text-blue-400" />
+              跟单 vs 信号源收益对比
+            </h2>
+            <div class="rounded-xl bg-dark-800/30 p-4">
+              <DualReturnChart
+                :data1="followReturnCurve"
+                :data2="signalReturnCurve"
+                :labels="followDetail.returnCurveLabels"
+                :height="280"
+                color1="#10b981"
+                color2="#3b82f6"
+                name1="我的跟单"
+                name2="信号源"
+              />
+            </div>
+            <div class="grid grid-cols-3 gap-4 mt-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">收益差异</div>
+                <div class="font-medium" :class="returnDiff >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  {{ returnDiff >= 0 ? '+' : '' }}{{ returnDiff.toFixed(2) }}%
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">平均滑点</div>
+                <div class="text-amber-400 font-medium">0.12%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">跟单复制率</div>
+                <div class="text-white font-medium">98.7%</div>
+              </div>
+            </div>
+          </div>
+
           <!-- 当前持仓 -->
           <div class="glass-card p-8">
             <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -308,6 +344,35 @@
               </div>
             </div>
           </div>
+
+          <!-- 事件日志 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              <ScrollText :size="18" class="text-primary-400" />
+              事件日志
+            </h2>
+            <div class="space-y-1">
+              <div 
+                v-for="event in eventLog" 
+                :key="event.id"
+                class="flex items-start gap-3 p-3 rounded-lg hover:bg-dark-800/30 transition-colors"
+              >
+                <div 
+                  class="w-7 h-7 rounded-lg flex items-center justify-center mt-0.5 shrink-0"
+                  :class="eventTypeStyle[event.type].bg"
+                >
+                  <component :is="eventTypeStyle[event.type].icon" :size="13" :class="eventTypeStyle[event.type].text" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm text-white">{{ event.message }}</div>
+                  <div class="text-xs text-dark-200 mt-0.5">{{ event.time }}</div>
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded shrink-0" :class="eventTypeStyle[event.type].badge">
+                  {{ event.typeLabel }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Sidebar -->
@@ -331,6 +396,27 @@
               <div class="p-3 rounded-lg bg-dark-800/50">
                 <div class="text-sm text-dark-200">开始时间</div>
                 <div class="text-white font-medium">{{ followDetail.startTime }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 资金使用率 / 仓位分布 -->
+          <div class="glass-card p-6">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <PieChart :size="18" class="text-primary-400" />
+              仓位分布
+            </h3>
+            <PositionPieChart
+              :data="positionDistribution"
+              :height="220"
+            />
+            <div class="mt-3 p-3 rounded-lg bg-dark-800/50">
+              <div class="flex justify-between text-sm">
+                <span class="text-dark-200">资金使用率</span>
+                <span class="text-white font-medium">{{ capitalUsageRate.toFixed(1) }}%</span>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-dark-700 mt-2 overflow-hidden">
+                <div class="h-full rounded-full bg-primary-500" :style="{ width: capitalUsageRate + '%' }"></div>
               </div>
             </div>
           </div>
@@ -414,11 +500,14 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { 
   Radio, ChevronRight, TrendingUp, Layers, History, BarChart3, Shield, 
-  Settings, StopCircle, Target, ArrowUpCircle, ArrowDownCircle, AlertTriangle 
+  Settings, StopCircle, Target, ArrowUpCircle, ArrowDownCircle, AlertTriangle,
+  GitCompare, PieChart, ScrollText, Zap, ShieldAlert, CheckCircle, XCircle
 } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
+import DualReturnChart from '@/components/charts/DualReturnChart.vue'
+import PositionPieChart from '@/components/charts/PositionPieChart.vue'
 import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
 
 const route = useRoute()
@@ -712,4 +801,68 @@ const followDetail = computed(() => {
     ],
   }
 })
+
+// ==================== 跟单 vs 信号源 收益对比 ====================
+
+const followReturnCurve = computed(() => followDetail.value?.returnCurve || [])
+const signalReturnCurve = computed(() => {
+  // 模拟信号源的收益曲线（通常比跟单稍高，因为没有滑点）
+  return (followDetail.value?.returnCurve || []).map((v: number, i: number) => {
+    return parseFloat((v + 0.5 + Math.sin(i / 6) * 0.8).toFixed(2))
+  })
+})
+const returnDiff = computed(() => {
+  const follow = followReturnCurve.value
+  const signal = signalReturnCurve.value
+  if (follow.length && signal.length) {
+    return follow[follow.length - 1] - signal[signal.length - 1]
+  }
+  return 0
+})
+
+// ==================== 仓位分布 ====================
+
+const positionDistribution = computed(() => {
+  const positions = followDetail.value?.positions || []
+  const totalValue = followDetail.value?.currentValue || 1
+  const used = positions.reduce((sum: number, p: any) => sum + p.entryPrice * p.amount, 0)
+  const free = totalValue - used
+
+  const items = positions.map((p: any) => ({
+    name: p.symbol,
+    value: parseFloat((p.entryPrice * p.amount).toFixed(2)),
+  }))
+  items.push({ name: '可用资金', value: parseFloat(Math.max(0, free).toFixed(2)) })
+  return items
+})
+
+const capitalUsageRate = computed(() => {
+  const total = followDetail.value?.currentValue || 1
+  const positions = followDetail.value?.positions || []
+  const used = positions.reduce((sum: number, p: any) => sum + p.entryPrice * p.amount, 0)
+  return Math.min(100, (used / total) * 100)
+})
+
+// ==================== 事件日志 ====================
+
+const eventTypeStyle: Record<string, { bg: string; text: string; badge: string; icon: any }> = {
+  trade: { bg: 'bg-primary-500/10', text: 'text-primary-400', badge: 'bg-primary-500/10 text-primary-400', icon: Zap },
+  risk: { bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/10 text-amber-400', icon: ShieldAlert },
+  success: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', badge: 'bg-emerald-500/10 text-emerald-400', icon: CheckCircle },
+  error: { bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/10 text-red-400', icon: XCircle },
+  system: { bg: 'bg-blue-500/10', text: 'text-blue-400', badge: 'bg-blue-500/10 text-blue-400', icon: Settings },
+}
+
+const eventLog = [
+  { id: '1', type: 'trade', typeLabel: '交易', message: '跟单买入 BTC/USDT 0.055个，成交价 $89,234.50', time: '2025-02-20 14:30:12' },
+  { id: '2', type: 'success', typeLabel: '成交', message: '卖出 ETH/USDT 1.42个已成交，盈利 +$91.52', time: '2025-02-20 10:15:35' },
+  { id: '3', type: 'risk', typeLabel: '风控', message: '当前回撤达到 3.21%，距离止损线还有 11.79%', time: '2025-02-20 08:00:00' },
+  { id: '4', type: 'trade', typeLabel: '交易', message: '跟单买入 ETH/USDT 1.45个，成交价 $3,456.78', time: '2025-02-19 16:45:22' },
+  { id: '5', type: 'success', typeLabel: '成交', message: '卖出 BTC/USDT 0.05个已成交，盈利 +$156.78', time: '2025-02-19 09:20:18' },
+  { id: '6', type: 'system', typeLabel: '系统', message: '跟单参数更新：止损比例调整为 15%', time: '2025-02-18 20:00:00' },
+  { id: '7', type: 'trade', typeLabel: '交易', message: '跟单买入 BTC/USDT 0.05个，成交价 $86,993.80', time: '2025-02-18 11:20:45' },
+  { id: '8', type: 'risk', typeLabel: '风控', message: '信号源发出高风险预警，建议关注仓位', time: '2025-02-17 15:30:00' },
+  { id: '9', type: 'error', typeLabel: '异常', message: '跟单延迟：ETH/USDT买入信号延迟 2.3s 执行，滑点 0.15%', time: '2025-02-16 09:12:33' },
+  { id: '10', type: 'system', typeLabel: '系统', message: '跟单服务启动成功，初始资金 5,000 USDT', time: '2025-01-06 10:30:00' },
+]
 </script>

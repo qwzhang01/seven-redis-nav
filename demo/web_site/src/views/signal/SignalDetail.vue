@@ -183,6 +183,52 @@
             </div>
           </div>
 
+          <!-- 信号提供者信息 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              <User :size="18" class="text-primary-400" />
+              信号提供者
+            </h2>
+            <div class="flex items-start gap-5">
+              <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-purple/20 flex items-center justify-center shrink-0">
+                <span class="text-2xl font-bold text-primary-400">{{ signalProvider.name.charAt(0) }}</span>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="text-lg font-bold text-white">{{ signalProvider.name }}</span>
+                  <span v-if="signalProvider.verified" class="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                    <Award :size="12" /> 认证交易员
+                  </span>
+                </div>
+                <p class="text-sm text-dark-100 mb-3">{{ signalProvider.bio }}</p>
+                <div class="grid grid-cols-4 gap-3">
+                  <div class="text-center p-2 rounded-lg bg-dark-800/50">
+                    <div class="text-sm font-bold text-white">{{ signalProvider.totalSignals }}</div>
+                    <div class="text-xs text-dark-200">信号数</div>
+                  </div>
+                  <div class="text-center p-2 rounded-lg bg-dark-800/50">
+                    <div class="text-sm font-bold text-emerald-400">{{ signalProvider.avgReturn }}%</div>
+                    <div class="text-xs text-dark-200">平均收益</div>
+                  </div>
+                  <div class="text-center p-2 rounded-lg bg-dark-800/50">
+                    <div class="text-sm font-bold text-white">{{ signalProvider.totalFollowers.toLocaleString() }}</div>
+                    <div class="text-xs text-dark-200">总粉丝</div>
+                  </div>
+                  <div class="text-center p-2 rounded-lg bg-dark-800/50">
+                    <div class="text-sm font-bold text-amber-400 flex items-center justify-center gap-1">
+                      <Star :size="12" /> {{ signalProvider.rating }}
+                    </div>
+                    <div class="text-xs text-dark-200">评分</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-4 mt-3 text-xs text-dark-200">
+                  <span class="flex items-center gap-1"><Calendar :size="12" /> 入驻 {{ signalProvider.joinDate }}</span>
+                  <span>交易经验: {{ signalProvider.experience }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Risk Parameters -->
           <div class="glass-card p-8">
             <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -273,6 +319,64 @@
             </div>
           </div>
 
+          <!-- 月度收益分布 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Calendar :size="18" class="text-primary-400" />
+              月度收益分布
+            </h2>
+            <div class="rounded-xl bg-dark-800/30 p-4">
+              <MonthlyReturnChart
+                :data="monthlyReturnData"
+                :labels="monthlyReturnLabels"
+                :height="220"
+              />
+            </div>
+            <div class="grid grid-cols-3 gap-3 mt-4">
+              <div class="p-3 rounded-lg bg-dark-800/50 text-center">
+                <div class="text-sm font-bold text-emerald-400">{{ monthlyStats.profitMonths }}</div>
+                <div class="text-xs text-dark-200">盈利月份</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50 text-center">
+                <div class="text-sm font-bold text-red-400">{{ monthlyStats.lossMonths }}</div>
+                <div class="text-xs text-dark-200">亏损月份</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50 text-center">
+                <div class="text-sm font-bold text-white">{{ monthlyStats.bestMonth }}%</div>
+                <div class="text-xs text-dark-200">最佳月份</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 回撤分析 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <TrendingDown :size="18" class="text-red-400" />
+              回撤分析
+            </h2>
+            <div class="rounded-xl bg-dark-800/30 p-4">
+              <DrawdownChart
+                :data="drawdownData"
+                :labels="drawdownLabels"
+                :height="200"
+              />
+            </div>
+            <div class="grid grid-cols-3 gap-3 mt-4">
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">当前回撤</div>
+                <div class="text-red-400 font-medium">{{ drawdownStats.current.toFixed(2) }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">最大回撤</div>
+                <div class="text-red-400 font-medium">{{ drawdownStats.max.toFixed(2) }}%</div>
+              </div>
+              <div class="p-3 rounded-lg bg-dark-800/50">
+                <div class="text-sm text-dark-200">平均回撤</div>
+                <div class="text-amber-400 font-medium">{{ drawdownStats.avg.toFixed(2) }}%</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Performance -->
           <div class="glass-card p-8">
             <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -351,6 +455,66 @@
             </div>
             <div v-if="!signal.positions?.length" class="text-center py-8 text-dark-100 text-sm">暂无持仓数据</div>
           </div>
+
+          <!-- 用户评价 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              <MessageSquare :size="18" class="text-primary-400" />
+              用户评价
+              <span class="text-xs text-dark-100 font-normal ml-2">({{ userReviews.length }}条评价)</span>
+            </h2>
+
+            <!-- 评分概览 -->
+            <div class="flex items-center gap-6 mb-6 p-4 rounded-xl bg-dark-800/50">
+              <div class="text-center">
+                <div class="text-3xl font-bold text-amber-400">4.6</div>
+                <div class="flex items-center gap-0.5 mt-1">
+                  <Star v-for="s in 5" :key="s" :size="12" :class="s <= 4 ? 'text-amber-400 fill-amber-400' : 'text-dark-300'" />
+                </div>
+                <div class="text-xs text-dark-200 mt-1">{{ userReviews.length }}条评价</div>
+              </div>
+              <div class="flex-1 space-y-1.5">
+                <div v-for="star in [5,4,3,2,1]" :key="star" class="flex items-center gap-2">
+                  <span class="text-xs text-dark-200 w-3">{{ star }}</span>
+                  <Star :size="10" class="text-amber-400" />
+                  <div class="flex-1 h-1.5 rounded-full bg-dark-700 overflow-hidden">
+                    <div class="h-full rounded-full bg-amber-400" :style="{ width: ratingDistribution[star] + '%' }"></div>
+                  </div>
+                  <span class="text-xs text-dark-200 w-8 text-right">{{ ratingDistribution[star] }}%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 评价列表 -->
+            <div class="space-y-4">
+              <div 
+                v-for="review in userReviews" 
+                :key="review.id"
+                class="p-4 rounded-lg bg-dark-800/50"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-purple/30 flex items-center justify-center">
+                      <span class="text-xs font-bold text-primary-400">{{ review.user.charAt(0) }}</span>
+                    </div>
+                    <div>
+                      <div class="text-sm font-medium text-white">{{ review.user }}</div>
+                      <div class="text-xs text-dark-200">{{ review.date }}</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-0.5">
+                    <Star v-for="s in 5" :key="s" :size="10" :class="s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-dark-300'" />
+                  </div>
+                </div>
+                <p class="text-sm text-dark-100 leading-relaxed">{{ review.content }}</p>
+                <div class="flex items-center gap-3 mt-2">
+                  <button class="flex items-center gap-1 text-xs text-dark-200 hover:text-primary-400 transition-colors">
+                    <ThumbsUp :size="12" /> {{ review.likes }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Sidebar: Follow Panel -->
@@ -413,10 +577,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Radio, ChevronRight, TrendingUp, Layers, Copy, Building, Clock, Activity, Shield, BarChart3, Bell, ArrowUpCircle, ArrowDownCircle } from 'lucide-vue-next'
+import { Radio, ChevronRight, TrendingUp, Layers, Copy, Building, Clock, Activity, Shield, BarChart3, Bell, ArrowUpCircle, ArrowDownCircle, User, Star, MessageSquare, ThumbsUp, Calendar, Award, TrendingDown } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
+import MonthlyReturnChart from '@/components/charts/MonthlyReturnChart.vue'
+import DrawdownChart from '@/components/charts/DrawdownChart.vue'
 import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
 import { signals } from '@/utils/mockData'
 
@@ -610,4 +776,65 @@ const signalHistory = computed(() => {
     { id: '8', action: 'sell', symbol: pair, price: 88650.00, amount: 0.06, time: '2025-02-18 12:00:00', strength: '强', pnl: 225.60 },
   ]
 })
+
+// ==================== 信号提供者信息 ====================
+
+const signalProvider = {
+  name: 'CryptoMaster',
+  verified: true,
+  bio: '8年加密货币交易经验，擅长趋势跟踪和量化分析。前对冲基金量化研究员，专注于BTC/ETH主流币种交易。',
+  totalSignals: 12,
+  avgReturn: 23.5,
+  totalFollowers: 8420,
+  rating: 4.6,
+  joinDate: '2023-06-15',
+  experience: '8年',
+}
+
+// ==================== 月度收益分布 ====================
+
+const monthlyReturnData = [5.2, -1.8, 8.3, 3.1, -4.5, 12.6, 7.8, -2.3, 6.4, 9.1, -0.8, 4.7]
+const monthlyReturnLabels = ['2024-03', '2024-04', '2024-05', '2024-06', '2024-07', '2024-08', '2024-09', '2024-10', '2024-11', '2024-12', '2025-01', '2025-02']
+
+const monthlyStats = computed(() => {
+  const profitMonths = monthlyReturnData.filter(v => v >= 0).length
+  const lossMonths = monthlyReturnData.filter(v => v < 0).length
+  const bestMonth = Math.max(...monthlyReturnData).toFixed(1)
+  return { profitMonths, lossMonths, bestMonth }
+})
+
+// ==================== 回撤分析 ====================
+
+const drawdownLabels = computed(() => signal.value?.returnCurveLabels || [])
+const drawdownData = computed(() => {
+  // 从收益曲线计算回撤
+  const curve = signal.value?.returnCurve || []
+  const dd: number[] = []
+  let peak = -Infinity
+  for (const val of curve) {
+    if (val > peak) peak = val
+    dd.push(peak > 0 ? Math.min(0, val - peak) : 0)
+  }
+  return dd
+})
+
+const drawdownStats = computed(() => {
+  const data = drawdownData.value
+  const max = data.length ? Math.min(...data) : 0
+  const avg = data.length ? data.reduce((a, b) => a + b, 0) / data.length : 0
+  const current = data.length ? data[data.length - 1] : 0
+  return { max, avg, current }
+})
+
+// ==================== 用户评价 ====================
+
+const ratingDistribution: Record<number, number> = { 5: 45, 4: 30, 3: 15, 2: 7, 1: 3 }
+
+const userReviews = [
+  { id: '1', user: 'Trader_John', date: '2025-02-20', rating: 5, content: '信号质量很高，跟单两个月了收益很稳定。止损设置合理，回撤控制得很好。强烈推荐！', likes: 24 },
+  { id: '2', user: 'CryptoFan88', date: '2025-02-18', rating: 4, content: '整体不错，信号准确率很高。偶尔有延迟，希望能优化一下推送速度。', likes: 15 },
+  { id: '3', user: 'InvestorPro', date: '2025-02-15', rating: 5, content: '已跟单3个月，累计收益超过20%，非常满意。信号频率适中，不会过度交易。', likes: 31 },
+  { id: '4', user: 'NewbieTD', date: '2025-02-12', rating: 4, content: '作为新手来说很友好，信号说明清晰，风险控制也很到位。扣一星是因为有时候信号来的时候价格已经变了。', likes: 12 },
+  { id: '5', user: 'WhaleHunter', date: '2025-02-08', rating: 3, content: '信号不错但近期表现一般，希望后续能恢复之前的水平。', likes: 8 },
+]
 </script>

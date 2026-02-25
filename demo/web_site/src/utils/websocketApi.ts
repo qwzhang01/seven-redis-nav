@@ -42,6 +42,7 @@ export type WSMessageType =
 
 /**
  * WebSocket消息
+ * 交易WS连接成功时会额外返回 user_id 和 subscribed_channels
  */
 export interface WSMessage {
   type: WSMessageType
@@ -50,6 +51,10 @@ export interface WSMessage {
   message?: string
   channels?: string[]
   timestamp?: string
+  /** 交易WS连接成功时返回的用户ID */
+  user_id?: string
+  /** 交易WS连接成功时返回的已订阅频道列表 */
+  subscribed_channels?: string[]
 }
 
 /**
@@ -138,7 +143,8 @@ export class WebSocketManager {
       this.stopHeartbeat()
       this.config.onClose?.(event)
 
-      if (!this.isManualClose && this.config.reconnect) {
+      // 关闭码4001表示认证失败，不应重连
+      if (!this.isManualClose && this.config.reconnect && event.code !== 4001) {
         this.handleReconnect()
       }
     }
@@ -232,7 +238,8 @@ export class WebSocketManager {
     }
 
     this.reconnectAttempts++
-    const delay = this.config.reconnectInterval! * this.reconnectAttempts
+    // 使用指数退避策略（文档建议）
+    const delay = this.config.reconnectInterval! * Math.pow(2, this.reconnectAttempts - 1)
 
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})...`)
 
@@ -284,7 +291,7 @@ export function createMarketWebSocket(config: Omit<WebSocketConfig, 'url'>): Web
   const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
   return new WebSocketManager({
     ...config,
-    url: `${baseUrl}/ws/market`,
+    url: `${baseUrl}/api/v1/ws/market`,
   })
 }
 
@@ -295,7 +302,7 @@ export function createStrategyWebSocket(config: Omit<WebSocketConfig, 'url'>): W
   const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
   return new WebSocketManager({
     ...config,
-    url: `${baseUrl}/ws/strategy`,
+    url: `${baseUrl}/api/v1/ws/strategy`,
   })
 }
 
@@ -306,7 +313,7 @@ export function createTradingWebSocket(token: string, config?: Omit<WebSocketCon
   const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
   return new WebSocketManager({
     ...config,
-    url: `${baseUrl}/ws/trading`,
+    url: `${baseUrl}/api/v1/ws/trading`,
     token,
   })
 }
@@ -341,6 +348,13 @@ export function strategyChannel(strategyId: string): string {
   return `strategy/${strategyId}`
 }
 
+/**
+ * 构建交易频道名称（私有频道）
+ */
+export function tradingChannel(userId: string): string {
+  return `trading/${userId}`
+}
+
 // 导出所有API
 export default {
   WebSocketManager,
@@ -351,4 +365,5 @@ export default {
   klineChannel,
   depthChannel,
   strategyChannel,
+  tradingChannel,
 }

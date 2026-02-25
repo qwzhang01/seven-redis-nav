@@ -51,24 +51,19 @@ export interface StrategyTypeListResponse {
 
 /**
  * 策略信号查询参数
+ * 文档中M端和C端都只支持 limit 参数
  */
 export interface SignalListParams {
-  signal_type?: string
-  executed?: boolean
-  start_time?: string
-  end_time?: string
-  page?: number
-  page_size?: number
+  limit?: number
 }
 
 /**
  * 策略信号列表响应
  */
 export interface SignalListResponse {
+  strategy_id: string
+  signals: StrategySignal[]
   total: number
-  page: number
-  page_size: number
-  items: StrategySignal[]
 }
 
 // ==================== API方法 ====================
