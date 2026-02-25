@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS user_info (
     last_login_time TIMESTAMPTZ,
     status VARCHAR(32) DEFAULT 'active', -- active/inactive/locked
     invitation_code VARCHAR(64) NOT NULL, -- 邀请码字段
-    inviter_id BIGINT REFERENCES user_info(id), -- 邀请人ID
+    inviter_id BIGINT, -- 邀请人ID（不强制外键约束）
     create_by VARCHAR(64) DEFAULT 'system',
     create_time TIMESTAMPTZ DEFAULT NOW(),
     update_by VARCHAR(64),
@@ -896,3 +896,80 @@ CREATE INDEX IF NOT EXISTS idx_sim_logs_log_time ON simulation_logs (log_time DE
 -- 查看示例数据
 SELECT * FROM exchange_info;
 SELECT username, nickname, email, user_type FROM user_info;
+
+
+-- 量化交易系统 - 初始用户插入脚本
+-- 用户名: test001, 密码: 00000000, 上级邀请人: 0
+-- 创建时间: 2026-02-25
+
+-- 1. 插入初始用户 test001
+INSERT INTO user_info (
+    id,
+    username,
+    nickname,
+    password_hash,
+    email,
+    phone,
+    invitation_code,
+    inviter_id,
+    user_type,
+    registration_time,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    enable_flag
+) VALUES (
+    1000000000000000001, -- 使用固定的雪花ID，便于测试
+    'test001',
+    'test001',
+    '$2b$12$rqW3z4t5u6v7w8x9y0z1A.abcdefghijklmnopqrstuvwxyz123456', -- bcrypt哈希示例，密码:00000000
+    'test001@example.com',
+    NULL,
+    'TEST001', -- 用户自己的邀请码
+    0, -- 上级邀请人ID为0（系统用户）
+    'customer',
+    '2026-02-25 18:20:57+00',
+    'system',
+    '2026-02-25 18:20:57+00',
+    'system',
+    '2026-02-25 18:20:57+00',
+    TRUE
+);
+
+-- 2. 插入邀请码记录（用于test001用户邀请其他人）
+INSERT INTO invitation_codes (
+    id,
+    code,
+    type,
+    max_uses,
+    used_count,
+    created_by,
+    created_for,
+    valid_from,
+    valid_until,
+    status,
+    description,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    enable_flag
+) VALUES (
+    1000000000000000002, -- 邀请码ID
+    'TEST001', -- 邀请码
+    'user', -- 类型
+    10, -- 最大使用次数
+    0, -- 已使用次数
+    1000000000000000001, -- 创建者（test001用户）
+    1000000000000000001, -- 指定给test001用户使用
+    '2026-02-25 18:20:57+00', -- 生效时间
+    '2027-02-25 18:20:57+00', -- 过期时间（1年后）
+    'active', -- 状态
+    'test001用户的邀请码，用于邀请新用户注册', -- 描述
+    'system',
+    '2026-02-25 18:20:57+00',
+    'system',
+    '2026-02-25 18:20:57+00',
+    TRUE
+);

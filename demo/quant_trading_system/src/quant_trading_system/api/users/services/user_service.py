@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
+from quant_trading_system.core.invitation_utils import InvitationUtils
 from quant_trading_system.core.password_utils import PasswordUtils
 from quant_trading_system.core.jwt_utils import JWTUtils
 from quant_trading_system.core.config import settings
@@ -61,7 +62,7 @@ class UserService:
             "password_hash": password_hash,
             "email": email,
             "phone": phone,
-            "invitation_code": invitation_code,  # 添加邀请码字段
+            "invitation_code": InvitationUtils.generate_invitation_code(5),  # 添加邀请码字段
             "inviter_id": inviter_id,  # 邀请人ID
             "user_type": "customer",
             "registration_time": datetime.utcnow(),
@@ -96,7 +97,7 @@ class UserService:
         TODO: 当invitation_codes表实现后，需要完善此方法
         """
         # 检查邀请码格式
-        if not invitation_code or len(invitation_code) < 6:
+        if not invitation_code or len(invitation_code) < 4:
             return None
 
         # 检查邀请码是否已被使用
