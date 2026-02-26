@@ -210,10 +210,6 @@ class WebSocketClient:
 
     async def _receive_loop(self) -> None:
         """接收消息循环"""
-        logger.info(f"WebSocket receive loop started",
-                   name=self.name,
-                   running=self._running,
-                   connected=self._connected)
         while self._running and self._connected:
             try:
                 if not self._ws:
@@ -662,7 +658,6 @@ class BinanceDataCollector(DataCollector):
         await self._notify("depth", depth_data)
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
-        logger.info(f"Processing Binance kline data", data=data)
         """处理K线数据"""
         from datetime import datetime
         from quant_trading_system.models.market import Bar, TimeFrame
