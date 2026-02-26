@@ -1,6 +1,6 @@
 <template>
   <div class="pt-24 pb-16">
-    <div class="page-container" v-if="signal">
+    <div class="page-container max-w-none" v-if="signal">
       <!-- Breadcrumb -->
       <div class="flex items-center gap-2 text-sm text-dark-100 mb-8">
         <router-link to="/system/signals" class="hover:text-primary-500 transition-colors">信号广场</router-link>
@@ -567,7 +567,7 @@
     </div>
 
     <!-- Not Found -->
-    <div v-else class="page-container pt-24 text-center py-20">
+    <div v-else class="page-container max-w-none pt-24 text-center py-20">
       <p class="text-dark-100 text-lg">信号不存在</p>
       <router-link to="/system/signals" class="btn-outline mt-4 inline-block">返回信号广场</router-link>
     </div>

@@ -994,3 +994,166 @@ INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type
 3. 超买卖出：当RSI高于70时，视为市场处于超买状态，价格可能回调，产生卖出信号
 4. 背离确认：结合价格与RSI的背离现象，提高信号的可靠性
 5. 趋势过滤：在强势趋势中，RSI可能长时间停留在超买或超卖区域，需要结合趋势判断','{"period": {"type": "int", "default": 14, "min": 10, "max": 20}, "overbought": {"type": "float", "default": 70.0, "min": 60.0, "max": 80.0}, "oversold": {"type": "float", "default": 30.0, "min": 20.0, "max": 40.0}}','{"period": 14, "overbought": 70.0, "oversold": 30.0}','{}','{}','RSI策略在区间震荡市场中表现良好，但在强势趋势行情中可能出现连续亏损。RSI指标的超买超卖阈值需要根据市场特性进行调整，不同品种和周期可能需要不同的参数设置。在极端行情中，RSI可能出现钝化现象，失去参考价值。建议结合趋势分析和成交量确认，避免在单边市中逆势操作。',32.000000,39.000000,7.500000,42.000000,275,'running',true,false,4,'admin','2026-02-25 13:44:25.953',NULL,'2026-02-25 13:44:25.953',true)ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================
+-- 新增表：信号跟单核心扩展表
+-- ============================================================
+
+-- 信号提供者表（信号源的创建者/交易员信息）
+CREATE TABLE IF NOT EXISTS signal_providers (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    name VARCHAR(128) NOT NULL,                    -- 提供者昵称
+    avatar VARCHAR(512),                           -- 头像URL
+    verified BOOLEAN DEFAULT FALSE,                -- 是否认证交易员
+    bio TEXT,                                      -- 个人简介
+    total_signals INTEGER DEFAULT 0,               -- 发布的信号总数
+    avg_return DECIMAL(10, 6) DEFAULT 0,           -- 平均收益率
+    total_followers INTEGER DEFAULT 0,             -- 总粉丝数
+    rating DECIMAL(3, 2) DEFAULT 0,                -- 评分 1.00~5.00
+    experience VARCHAR(64),                        -- 交易经验描述
+    badges JSONB DEFAULT '[]',                     -- 徽章列表
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE signal_providers IS '信号提供者表';
+COMMENT ON COLUMN signal_providers.user_id IS '关联用户ID';
+COMMENT ON COLUMN signal_providers.verified IS '是否认证交易员';
+COMMENT ON COLUMN signal_providers.avg_return IS '平均收益率（小数）';
+COMMENT ON COLUMN signal_providers.rating IS '评分 1.00~5.00';
+COMMENT ON COLUMN signal_providers.badges IS '徽章列表（JSON数组）';
+
+CREATE INDEX IF NOT EXISTS idx_signal_providers_user_id ON signal_providers (user_id);
+CREATE INDEX IF NOT EXISTS idx_signal_providers_rating ON signal_providers (rating DESC);
+
+-- 用户评价表（信号评论与评分）
+CREATE TABLE IF NOT EXISTS signal_reviews (
+    id BIGINT PRIMARY KEY,
+    signal_id BIGINT NOT NULL REFERENCES signal_records(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),   -- 评分 1~5
+    content TEXT NOT NULL,                                          -- 评价内容
+    likes INTEGER DEFAULT 0,                                        -- 点赞数
+    status VARCHAR(16) DEFAULT 'active',                            -- active/hidden/deleted
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_reviews IS '用户评价表';
+COMMENT ON COLUMN signal_reviews.rating IS '评分 1~5';
+COMMENT ON COLUMN signal_reviews.likes IS '点赞数';
+COMMENT ON COLUMN signal_reviews.status IS '评价状态: active/hidden/deleted';
+
+CREATE INDEX IF NOT EXISTS idx_signal_reviews_signal_id ON signal_reviews (signal_id);
+CREATE INDEX IF NOT EXISTS idx_signal_reviews_user_id ON signal_reviews (user_id);
+CREATE INDEX IF NOT EXISTS idx_signal_reviews_create_time ON signal_reviews (create_time DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_reviews_unique ON signal_reviews (signal_id, user_id);
+
+-- 评价点赞表
+CREATE TABLE IF NOT EXISTS signal_review_likes (
+    id BIGINT PRIMARY KEY,
+    review_id BIGINT NOT NULL REFERENCES signal_reviews(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    create_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_review_likes IS '评价点赞表';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_review_likes_unique ON signal_review_likes (review_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_review_likes_review_id ON signal_review_likes (review_id);
+
+-- 信号跟单事件日志表（完整的跟单操作日志）
+CREATE TABLE IF NOT EXISTS signal_follow_events (
+    id BIGINT PRIMARY KEY,
+    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    event_type VARCHAR(16) NOT NULL,               -- trade/success/risk/error/system
+    type_label VARCHAR(32) NOT NULL,               -- 类型中文标签
+    message TEXT NOT NULL,                          -- 事件描述文本
+    event_meta JSONB,                               -- 事件附加数据
+    event_time TIMESTAMPTZ DEFAULT NOW(),
+    create_time TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_follow_events IS '信号跟单事件日志表';
+COMMENT ON COLUMN signal_follow_events.event_type IS '事件类型: trade/success/risk/error/system';
+COMMENT ON COLUMN signal_follow_events.type_label IS '类型中文标签';
+COMMENT ON COLUMN signal_follow_events.event_meta IS '事件附加数据（JSON）';
+
+CREATE INDEX IF NOT EXISTS idx_follow_events_order_id ON signal_follow_events (follow_order_id);
+CREATE INDEX IF NOT EXISTS idx_follow_events_user_id ON signal_follow_events (user_id);
+CREATE INDEX IF NOT EXISTS idx_follow_events_type ON signal_follow_events (event_type);
+CREATE INDEX IF NOT EXISTS idx_follow_events_time ON signal_follow_events (event_time DESC);
+
+-- 交易所跟单账户表（用于跟踪交易所真实账户的跟单）
+CREATE TABLE IF NOT EXISTS exchange_copy_accounts (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    exchange VARCHAR(32) NOT NULL DEFAULT 'binance',    -- 交易所
+    account_type VARCHAR(16) NOT NULL DEFAULT 'spot',   -- spot/futures
+    target_account_id VARCHAR(256) NOT NULL,             -- 被跟单的交易所账户ID/交易员UID
+    target_account_name VARCHAR(256),                    -- 被跟单账户名称
+    api_key_id BIGINT REFERENCES user_exchange_api(id),  -- 用户自己的API Key
+    follow_order_id BIGINT REFERENCES signal_follow_orders(id), -- 关联的跟单记录
+    sync_interval INTEGER DEFAULT 5,                     -- 同步间隔（秒）
+    last_sync_time TIMESTAMPTZ,                          -- 最后同步时间
+    last_sync_order_id VARCHAR(256),                     -- 最后同步的订单ID（用于增量同步）
+    status VARCHAR(16) DEFAULT 'active',                 -- active/paused/stopped
+    error_count INTEGER DEFAULT 0,                       -- 连续错误次数
+    last_error TEXT,                                      -- 最近错误信息
+    config JSONB DEFAULT '{}',                           -- 额外配置（跟单比例、过滤规则等）
+    create_time TIMESTAMPTZ DEFAULT NOW(),
+    update_time TIMESTAMPTZ DEFAULT NOW(),
+    enable_flag BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE exchange_copy_accounts IS '交易所跟单账户表';
+COMMENT ON COLUMN exchange_copy_accounts.target_account_id IS '被跟单的交易所账户ID/交易员UID';
+COMMENT ON COLUMN exchange_copy_accounts.account_type IS '账户类型: spot/futures';
+COMMENT ON COLUMN exchange_copy_accounts.sync_interval IS '订单同步间隔（秒）';
+COMMENT ON COLUMN exchange_copy_accounts.last_sync_order_id IS '最后同步的订单ID（增量同步标记）';
+COMMENT ON COLUMN exchange_copy_accounts.status IS '状态: active/paused/stopped';
+COMMENT ON COLUMN exchange_copy_accounts.config IS '额外配置（跟单比例、交易对过滤等）';
+
+CREATE INDEX IF NOT EXISTS idx_copy_accounts_user_id ON exchange_copy_accounts (user_id);
+CREATE INDEX IF NOT EXISTS idx_copy_accounts_target ON exchange_copy_accounts (target_account_id);
+CREATE INDEX IF NOT EXISTS idx_copy_accounts_status ON exchange_copy_accounts (status);
+CREATE INDEX IF NOT EXISTS idx_copy_accounts_follow_order ON exchange_copy_accounts (follow_order_id);
+
+-- 为signal_records表新增provider_id字段（如果不存在则添加）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'provider_id') THEN
+        ALTER TABLE signal_records ADD COLUMN provider_id BIGINT REFERENCES signal_providers(id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'signal_source') THEN
+        ALTER TABLE signal_records ADD COLUMN signal_source VARCHAR(32) DEFAULT 'internal';
+        COMMENT ON COLUMN signal_records.signal_source IS '信号来源: internal(内部研究)/exchange_copy(交易所跟单)';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'trading_pair') THEN
+        ALTER TABLE signal_records ADD COLUMN trading_pair VARCHAR(32);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'signal_strength') THEN
+        ALTER TABLE signal_records ADD COLUMN signal_strength VARCHAR(16) DEFAULT 'medium';
+        COMMENT ON COLUMN signal_records.signal_strength IS '信号强度: strong/medium/weak';
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_signal_provider_id ON signal_records (provider_id);
+CREATE INDEX IF NOT EXISTS idx_signal_source ON signal_records (signal_source);
+
+-- 为signal_follow_orders表新增signal_time字段（交叉跟单需记录信号原始时间）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_trades' AND column_name = 'signal_time') THEN
+        ALTER TABLE signal_follow_trades ADD COLUMN signal_time TIMESTAMPTZ;
+        COMMENT ON COLUMN signal_follow_trades.signal_time IS '信号源发出时间';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_trades' AND column_name = 'slippage') THEN
+        ALTER TABLE signal_follow_trades ADD COLUMN slippage DECIMAL(10, 6) DEFAULT 0;
+        COMMENT ON COLUMN signal_follow_trades.slippage IS '滑点百分比';
+    END IF;
+END $$;

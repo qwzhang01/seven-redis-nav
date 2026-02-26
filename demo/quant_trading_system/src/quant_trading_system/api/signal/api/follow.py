@@ -1,0 +1,231 @@
+"""
+信号跟单详情页路由模块
+=======================
+
+提供跟单详情页的全部 API 接口：
+
+C 端接口（需登录）：
+- GET  /{follow_id}              : 获取跟单详情
+- GET  /{follow_id}/comparison   : 获取跟单收益对比数据
+- GET  /{follow_id}/trades       : 获取跟单交易记录
+- GET  /{follow_id}/events       : 获取事件日志
+- GET  /{follow_id}/positions    : 获取仓位分布
+- PUT  /{follow_id}/config       : 更新跟单配置
+- POST /{follow_id}/stop         : 停止跟单
+"""
+
+import logging
+from typing import Any, Optional
+
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from quant_trading_system.models.database import User
+from quant_trading_system.services.database.database import get_db
+from quant_trading_system.api.signal.services.follow_service import FollowService
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+# ── 权限校验 ──────────────────────────────────────────────────────────────────
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """从拦截器验证后的request.state中获取当前用户"""
+    username = getattr(request.state, 'username', None)
+    if not username:
+        raise HTTPException(status_code=401, detail="未认证的用户")
+    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在或已被禁用")
+    return user
+
+
+# ── 请求模型 ──────────────────────────────────────────────────────────────────
+
+class UpdateFollowConfigRequest(BaseModel):
+    """更新跟单配置请求"""
+    followRatio: Optional[float] = Field(None, description="跟单比例")
+    stopLoss: Optional[float] = Field(None, ge=1, le=50, description="止损百分比")
+    followAmount: Optional[float] = Field(None, gt=0, description="跟单资金(USDT)")
+
+
+class StopFollowRequest(BaseModel):
+    """停止跟单请求"""
+    closePositions: bool = Field(True, description="是否同时平仓所有持仓")
+    reason: Optional[str] = Field(None, max_length=200, description="停止原因")
+
+
+# ── 跟单详情页接口 ────────────────────────────────────────────────────────────
+
+@router.get("/{follow_id}")
+async def get_follow_detail(
+    follow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取跟单详情
+
+    获取跟单的完整详情，包括配置、收益、持仓、绩效统计。
+    """
+    try:
+        result = FollowService.get_follow_detail(db, follow_id, current_user.id)
+        if not result:
+            raise HTTPException(status_code=404, detail="跟单记录不存在")
+        return {"code": 0, "message": "success", "data": result}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此跟单记录")
+
+
+@router.get("/{follow_id}/comparison")
+async def get_follow_comparison(
+    follow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取跟单收益对比数据
+
+    获取跟单收益曲线与信号源收益曲线的对比数据，
+    包含收益差异、平均滑点、跟单复制率等统计指标。
+    """
+    try:
+        result = FollowService.get_comparison(db, follow_id, current_user.id)
+        return {"code": 0, "message": "success", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此跟单记录")
+
+
+@router.get("/{follow_id}/trades")
+async def get_follow_trades(
+    follow_id: int,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    side: Optional[str] = Query(None, description="过滤方向: buy/sell"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取跟单交易记录
+
+    查询跟单的历史成交记录，支持按方向过滤和分页。
+    """
+    try:
+        result = FollowService.get_trades(
+            db, follow_id, current_user.id,
+            page=page, page_size=page_size, side=side,
+        )
+        return {"code": 0, "message": "success", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此跟单记录")
+
+
+@router.get("/{follow_id}/events")
+async def get_follow_events(
+    follow_id: int,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    type: Optional[str] = Query(None, alias="type", description="过滤类型: trade/risk/success/error/system"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取事件日志
+
+    查询跟单操作的完整事件日志，包括交易、风控、异常、系统事件。
+    """
+    try:
+        result = FollowService.get_events(
+            db, follow_id, current_user.id,
+            page=page, page_size=page_size, event_type=type,
+        )
+        return {"code": 0, "message": "success", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此跟单记录")
+
+
+@router.get("/{follow_id}/positions")
+async def get_follow_positions(
+    follow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取仓位分布
+
+    获取跟单的当前持仓分布，包括各交易对占比、资金使用率等。
+    """
+    try:
+        result = FollowService.get_positions(db, follow_id, current_user.id)
+        return {"code": 0, "message": "success", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此跟单记录")
+
+
+@router.put("/{follow_id}/config")
+async def update_follow_config(
+    follow_id: int,
+    body: UpdateFollowConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    更新跟单配置
+
+    修改跟单的比例、止损和资金设置。仅允许修改进行中的跟单。
+    """
+    try:
+        result = FollowService.update_config(
+            db, follow_id, current_user.id,
+            follow_ratio=body.followRatio,
+            stop_loss=body.stopLoss,
+            follow_amount=body.followAmount,
+        )
+        return {"code": 0, "message": "配置更新成功", "data": result}
+    except ValueError as e:
+        error_msg = str(e)
+        if "不存在" in error_msg:
+            raise HTTPException(status_code=404, detail=error_msg)
+        if "已停止" in error_msg:
+            raise HTTPException(status_code=400, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权操作此跟单记录")
+
+
+@router.post("/{follow_id}/stop")
+async def stop_follow(
+    follow_id: int,
+    body: StopFollowRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    停止跟单
+
+    将跟单设为停止状态，可选择是否同时平仓。
+    """
+    try:
+        result = FollowService.stop_follow(
+            db, follow_id, current_user.id,
+            close_positions=body.closePositions,
+            reason=body.reason,
+        )
+        return {"code": 0, "message": "跟单已停止", "data": result}
+    except ValueError as e:
+        error_msg = str(e)
+        if "不存在" in error_msg:
+            raise HTTPException(status_code=404, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权操作此跟单记录")

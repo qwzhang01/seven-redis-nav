@@ -24,6 +24,7 @@ from quant_trading_system.api.market.api.market import router as market_router
 from quant_trading_system.api.trading.api.trading import router as trading_router
 from quant_trading_system.api.backtest.api.backtest import router as backtest_router
 from quant_trading_system.api.signal.api.signal import router as signal_router
+from quant_trading_system.api.signal.api.follow import router as signal_follow_detail_router
 from quant_trading_system.api.leaderboard.api.leaderboard import router as leaderboard_router
 from quant_trading_system.api.strategies.api.strategy import router as strategy_c_router
 from quant_trading_system.api.strategies.api.simulation import router as simulation_router
@@ -38,6 +39,7 @@ c_router.include_router(market_router, prefix="/market", tags=["C端-行情数�
 c_router.include_router(trading_router, prefix="/trading", tags=["C端-交易管理"])
 c_router.include_router(backtest_router, prefix="/backtest", tags=["C端-策略回测"])
 c_router.include_router(signal_router, prefix="/signal", tags=["C端-信号广场"])
+c_router.include_router(signal_follow_detail_router, prefix="/follows", tags=["C端-跟单详情"])
 c_router.include_router(leaderboard_router, prefix="/leaderboard", tags=["C端-排行榜"])
 c_router.include_router(strategy_c_router, prefix="/strategy", tags=["C端-策略管理"])
 c_router.include_router(simulation_router, prefix="/simulation", tags=["C端-模拟交易"])

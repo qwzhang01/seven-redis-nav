@@ -1,6 +1,6 @@
 <template>
   <div class="pt-24 pb-16">
-    <div class="page-container" v-if="followDetail">
+    <div class="page-container max-w-none" v-if="followDetail">
       <!-- Breadcrumb -->
       <div class="flex items-center gap-2 text-sm text-dark-100 mb-8">
         <router-link to="/system/user" class="hover:text-primary-500 transition-colors">我的账户</router-link>
@@ -488,7 +488,7 @@
     </div>
 
     <!-- Not Found -->
-    <div v-else class="page-container pt-24 text-center py-20">
+    <div v-else class="page-container max-w-none pt-24 text-center py-20">
       <p class="text-dark-100 text-lg">跟单记录不存在</p>
       <router-link to="/system/user" class="btn-outline mt-4 inline-block">返回我的账户</router-link>
     </div>

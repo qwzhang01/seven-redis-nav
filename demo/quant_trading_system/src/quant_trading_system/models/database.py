@@ -354,8 +354,106 @@ class SignalFollowTrade(Base):
     pnl = Column(Numeric(20, 8))                                 # 盈亏金额（已平仓时有值）
     fee = Column(Numeric(20, 8), default=0)                      # 手续费
     signal_record_id = Column(BigInteger, ForeignKey("signal_records.id"))
+    signal_time = Column(DateTime)                               # 信号源发出时间
+    slippage = Column(Numeric(10, 6), default=0)                 # 滑点百分比
     trade_time = Column(DateTime, default=datetime.utcnow)
     create_time = Column(DateTime, default=datetime.utcnow)
 
     # 关系
     follow_order = relationship("SignalFollowOrder", back_populates="trades")
+
+
+class SignalProvider(Base):
+    """信号提供者模型"""
+    __tablename__ = "signal_providers"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(128), nullable=False)
+    avatar = Column(String(512))
+    verified = Column(Boolean, default=False)
+    bio = Column(Text)
+    total_signals = Column(Integer, default=0)
+    avg_return = Column(Numeric(10, 6), default=0)
+    total_followers = Column(Integer, default=0)
+    rating = Column(Numeric(3, 2), default=0)
+    experience = Column(String(64))
+    badges = Column(JSONB, default=[])
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+    # 关系
+    user = relationship("User")
+
+
+class SignalReview(Base):
+    """用户评价模型"""
+    __tablename__ = "signal_reviews"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal_records.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    rating = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    likes = Column(Integer, default=0)
+    status = Column(String(16), default="active")
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow)
+
+    # 关系
+    user = relationship("User")
+
+
+class SignalReviewLike(Base):
+    """评价点赞模型"""
+    __tablename__ = "signal_review_likes"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    review_id = Column(BigInteger, ForeignKey("signal_reviews.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    create_time = Column(DateTime, default=datetime.utcnow)
+
+
+class SignalFollowEvent(Base):
+    """信号跟单事件日志模型"""
+    __tablename__ = "signal_follow_events"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String(16), nullable=False)        # trade/success/risk/error/system
+    type_label = Column(String(32), nullable=False)
+    message = Column(Text, nullable=False)
+    event_meta = Column(JSONB)
+    event_time = Column(DateTime, default=datetime.utcnow)
+    create_time = Column(DateTime, default=datetime.utcnow)
+
+
+class ExchangeCopyAccount(Base):
+    """交易所跟单账户模型"""
+    __tablename__ = "exchange_copy_accounts"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    exchange = Column(String(32), nullable=False, default="binance")
+    account_type = Column(String(16), nullable=False, default="spot")
+    target_account_id = Column(String(256), nullable=False)
+    target_account_name = Column(String(256))
+    api_key_id = Column(BigInteger, ForeignKey("user_exchange_api.id"))
+    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id"))
+    sync_interval = Column(Integer, default=5)
+    last_sync_time = Column(DateTime)
+    last_sync_order_id = Column(String(256))
+    status = Column(String(16), default="active")
+    error_count = Column(Integer, default=0)
+    last_error = Column(Text)
+    config = Column(JSONB, default={})
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+    # 关系
+    user = relationship("User")
+    api_key = relationship("UserExchangeAPI")
+    follow_order = relationship("SignalFollowOrder")
