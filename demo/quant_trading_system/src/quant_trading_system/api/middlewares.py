@@ -52,6 +52,17 @@ AUTH_WHITELIST: set[str] = {
     f"{_prefix}/ws/strategy",
 }
 
+LOG_IGNORE: set[str] = {
+    "/",
+    "/docs",
+    "/redoc",
+    f"{_prefix}/openapi.json",
+    f"{_prefix}/info",
+    # Admin 端健康探针（供运维/K8s 使用，无需登录）
+    f"{_prefix}/m/health/",
+    f"{_prefix}/m/health/ready",
+    f"{_prefix}/m/health/live",
+}
 
 # ──────────────────────────────────────────────
 # 1. 请求 ID 中间件
@@ -85,6 +96,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # 白名单直接放行
+        if path in LOG_IGNORE:
+            return await call_next(request)
+
         from fastapi import HTTPException
         start = time.perf_counter()
         request_id = getattr(request.state, "request_id", "-")

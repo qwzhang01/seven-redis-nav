@@ -7,6 +7,7 @@
 - 多输出目标
 - 日志级别过滤
 - 上下文绑定
+- 按级别分文件写入（info / warning / error）
 """
 
 import logging
@@ -21,6 +22,39 @@ import structlog
 from structlog.types import Processor
 
 
+class LevelRangeFilter(logging.Filter):
+    """日志级别范围过滤器，只允许指定范围内的日志通过"""
+
+    def __init__(self, min_level: int, max_level: int = logging.CRITICAL) -> None:
+        super().__init__()
+        self.min_level = min_level
+        self.max_level = max_level
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return self.min_level <= record.levelno <= self.max_level
+
+
+def _create_file_handler(
+    log_dir: Path,
+    stem: str,
+    suffix: str,
+    timestamp: str,
+    formatter: logging.Formatter,
+    level_filter: LevelRangeFilter,
+) -> logging.handlers.RotatingFileHandler:
+    """创建带级别过滤的文件日志处理器"""
+    file_path = log_dir / f"{stem}_{timestamp}{suffix}"
+    handler = logging.handlers.RotatingFileHandler(
+        file_path,
+        maxBytes=500 * 1024,  # 500KB
+        backupCount=100,  # 最多保留100个备份文件
+        encoding="utf-8",
+    )
+    handler.setFormatter(formatter)
+    handler.addFilter(level_filter)
+    return handler
+
+
 def setup_logging(
     level: str | None = None,
     log_format: str | None = None,
@@ -33,6 +67,11 @@ def setup_logging(
         level: 日志级别（默认从配置 settings.LOG_LEVEL 读取，未设置则为 INFO）
         log_format: 日志格式 (json/console)（默认从配置 settings.monitor.log_format 读取）
         log_file: 日志文件路径（默认从配置 settings.LOG_FILE 读取）
+
+    日志文件按级别分别写入：
+        - {stem}_info_{timestamp}.log    : DEBUG + INFO 级别
+        - {stem}_warning_{timestamp}.log : WARNING 级别
+        - {stem}_error_{timestamp}.log   : ERROR + CRITICAL 级别
     """
 
     # 从配置读取（函数参数优先）
@@ -98,26 +137,41 @@ def setup_logging(
         ],
     )
 
-    # 控制台处理器
+    # 控制台处理器（输出所有级别）
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
 
-    handlers = [console_handler]
+    handlers: list[logging.Handler] = [console_handler]
 
-    # 文件处理器（按大小轮转，每个文件最大 500KB，文件名使用时间戳）
+    # 按级别分文件写入日志
     if log_file:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        # 使用时间戳作为日志文件名
+        log_dir = log_file.parent
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        stem = log_file.stem
+        suffix = log_file.suffix or ".log"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file_with_ts = log_file.parent / f"{log_file.stem}_{timestamp}{log_file.suffix}"
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file_with_ts,
-            maxBytes=500 * 1024,  # 500KB
-            backupCount=100,  # 最多保留100个备份文件
-            encoding="utf-8",
+
+        # INFO 文件：记录 DEBUG ~ INFO 级别
+        info_handler = _create_file_handler(
+            log_dir, f"{stem}_info", suffix, timestamp, formatter,
+            LevelRangeFilter(min_level=logging.DEBUG, max_level=logging.INFO),
         )
-        file_handler.setFormatter(formatter)
-        handlers.append(file_handler)
+        handlers.append(info_handler)
+
+        # WARNING 文件：仅记录 WARNING 级别
+        warning_handler = _create_file_handler(
+            log_dir, f"{stem}_warning", suffix, timestamp, formatter,
+            LevelRangeFilter(min_level=logging.WARNING, max_level=logging.WARNING),
+        )
+        handlers.append(warning_handler)
+
+        # ERROR 文件：记录 ERROR ~ CRITICAL 级别
+        error_handler = _create_file_handler(
+            log_dir, f"{stem}_error", suffix, timestamp, formatter,
+            LevelRangeFilter(min_level=logging.ERROR, max_level=logging.CRITICAL),
+        )
+        handlers.append(error_handler)
 
     # 配置根日志器
     root_logger = logging.getLogger()
