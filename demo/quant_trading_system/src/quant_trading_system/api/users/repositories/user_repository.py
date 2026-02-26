@@ -118,6 +118,16 @@ class ExchangeRepository:
             Exchange.enable_flag == True
         ).all()
 
+    def get_exchanges(self, exchange_type: Optional[str] = None,
+                      status: Optional[str] = None) -> List[Exchange]:
+        """获取交易所列表（支持按类型和状态过滤）"""
+        query = self.db.query(Exchange).filter(Exchange.enable_flag == True)
+        if exchange_type:
+            query = query.filter(Exchange.exchange_type == exchange_type)
+        if status:
+            query = query.filter(Exchange.status == status)
+        return query.all()
+
 
 class APIKeyRepository:
     """API密钥数据访问类"""

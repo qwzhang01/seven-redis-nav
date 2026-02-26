@@ -6,7 +6,7 @@
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from quant_trading_system.core.invitation_utils import InvitationUtils
@@ -235,6 +235,63 @@ class UserService:
             "invitation_code": user.invitation_code,
             "inviter_id": user.inviter_id,
         }
+
+    def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取用户信息"""
+        user = self.user_repo.get_user_by_id(user_id)
+        if not user:
+            return None
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "nickname": user.nickname,
+            "email": user.email,
+            "phone": user.phone,
+            "user_type": user.user_type,
+            "registration_time": user.registration_time.isoformat(),
+            "invitation_code": user.invitation_code,
+            "inviter_id": user.inviter_id,
+        }
+
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """根据用户名获取用户信息"""
+        user = self.user_repo.get_user_by_username(username)
+        if not user:
+            return None
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "nickname": user.nickname,
+            "email": user.email,
+            "phone": user.phone,
+            "user_type": user.user_type,
+            "registration_time": user.registration_time.isoformat(),
+            "invitation_code": user.invitation_code,
+            "inviter_id": user.inviter_id,
+        }
+
+    def get_exchanges(self, exchange_type: Optional[str] = None,
+                      status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取交易所列表（支持按类型和状态过滤）"""
+        exchanges = self.exchange_repo.get_exchanges(exchange_type, status)
+        return [
+            {
+                "id": exchange.id,
+                "exchange_code": exchange.exchange_code,
+                "exchange_name": exchange.exchange_name,
+                "exchange_type": exchange.exchange_type,
+                "base_url": exchange.base_url,
+                "api_doc_url": exchange.api_doc_url,
+                "status": exchange.status,
+                "supported_pairs": exchange.supported_pairs,
+                "rate_limits": exchange.rate_limits,
+                "create_time": exchange.create_time,
+                "update_time": exchange.update_time,
+            }
+            for exchange in exchanges
+        ]
 
     def get_exchange_info(self, exchange_id: int) -> Optional[Dict[str, Any]]:
         """获取交易所信息业务逻辑"""
