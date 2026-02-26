@@ -100,11 +100,7 @@
       </t-select>
       <t-select v-model="filterDataType" placeholder="数据类型" clearable
                 size="medium" style="width: 140px">
-        <t-option label="K线" value="kline"/>
-        <t-option label="Ticker" value="ticker"/>
-        <t-option label="深度" value="depth"/>
-        <t-option label="成交" value="trade"/>
-        <t-option label="订单簿" value="orderbook"/>
+        <t-option v-for="dt in dataTypes" :key="dt.value" :label="dt.label" :value="dt.value"/>
       </t-select>
     </div>
 
@@ -329,11 +325,7 @@
               class="block text-sm font-medium text-white mb-2">数据类型</label>
           <t-select v-model="formData.dataType" placeholder="选择数据类型"
                     style="width: 100%">
-            <t-option label="K线" value="kline"/>
-            <t-option label="Ticker" value="ticker"/>
-            <t-option label="深度" value="depth"/>
-            <t-option label="成交" value="trade"/>
-            <t-option label="订单簿" value="orderbook"/>
+            <t-option v-for="dt in dataTypes" :key="dt.value" :label="dt.label" :value="dt.value"/>
           </t-select>
         </div>
         <div>
@@ -438,11 +430,7 @@
               class="block text-sm font-medium text-white mb-2">数据类型</label>
           <t-select v-model="historySyncFormData.dataType"
                     placeholder="选择数据类型" style="width: 100%">
-            <t-option label="K线" value="kline"/>
-            <t-option label="Ticker" value="ticker"/>
-            <t-option label="深度" value="depth"/>
-            <t-option label="成交" value="trade"/>
-            <t-option label="订单簿" value="orderbook"/>
+            <t-option v-for="dt in dataTypes" :key="dt.value" :label="dt.label" :value="dt.value"/>
           </t-select>
         </div>
         <div>
@@ -563,6 +551,16 @@ const exchanges = ref([
   { label: 'Bitget', value: 'bitget' }
 ])
 
+// 数据类型配置（统一管理）
+const dataTypes = ref([
+  { label: 'K线', value: 'kline' },
+  { label: 'Ticker', value: 'ticker' },
+  { label: '深度', value: 'depth' },
+  { label: '成交', value: 'trade' },
+  { label: '归集成交', value: 'aggTrade' },
+  { label: '最优挂单', value: 'bookTicker' }
+])
+
 // 统计数据
 const statisticsData = ref<any>(null)
 const stats = computed(() => {
@@ -610,14 +608,8 @@ function formatTime(time?: string): string {
 }
 
 function getDataTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    kline: 'K线',
-    ticker: 'Ticker',
-    depth: '深度',
-    trade: '成交',
-    orderbook: '订单簿'
-  }
-  return labels[type] || type
+  const found = dataTypes.value.find(dt => dt.value === type)
+  return found ? found.label : type
 }
 
 function getDataTypeClass(type: string): string {
@@ -626,7 +618,8 @@ function getDataTypeClass(type: string): string {
     ticker: 'bg-green-500/10 text-green-400',
     depth: 'bg-purple-500/10 text-purple-400',
     trade: 'bg-orange-500/10 text-orange-400',
-    orderbook: 'bg-pink-500/10 text-pink-400'
+    aggTrade: 'bg-pink-500/10 text-pink-400',
+    bookTicker: 'bg-cyan-500/10 text-cyan-400'
   }
   return classes[type] || 'bg-gray-500/10 text-gray-400'
 }
@@ -727,11 +720,9 @@ async function loadSyncTasks() {
 async function startSubscription(id: string) {
   try {
     const response = await marketApi.startSubscription(id)
-    if (response.success) {
-      MessagePlugin.success(response.message || '订阅已启动')
-      await loadSubscriptions()
-      await loadStatistics()
-    }
+    MessagePlugin.success(response.message || '订阅已启动')
+    await loadSubscriptions()
+    await loadStatistics()
   } catch (error: any) {
     console.error('启动订阅失败:', error)
     MessagePlugin.error(error.message || '启动订阅失败')
@@ -741,11 +732,9 @@ async function startSubscription(id: string) {
 async function pauseSubscription(id: string) {
   try {
     const response = await marketApi.pauseSubscription(id)
-    if (response.success) {
-      MessagePlugin.success(response.message || '订阅已暂停')
-      await loadSubscriptions()
-      await loadStatistics()
-    }
+    MessagePlugin.success(response.message || '订阅已暂停')
+    await loadSubscriptions()
+    await loadStatistics()
   } catch (error: any) {
     console.error('暂停订阅失败:', error)
     MessagePlugin.error(error.message || '暂停订阅失败')
@@ -755,11 +744,9 @@ async function pauseSubscription(id: string) {
 async function stopSubscription(id: string) {
   try {
     const response = await marketApi.stopSubscription(id)
-    if (response.success) {
-      MessagePlugin.success(response.message || '订阅已停止')
-      await loadSubscriptions()
-      await loadStatistics()
-    }
+    MessagePlugin.success(response.message || '订阅已停止')
+    await loadSubscriptions()
+    await loadStatistics()
   } catch (error: any) {
     console.error('停止订阅失败:', error)
     MessagePlugin.error(error.message || '停止订阅失败')
@@ -863,12 +850,11 @@ async function saveSubscription() {
         }
       })
 
-      if (response.success) {
-        MessagePlugin.success(response.message || '订阅已更新')
-        showAddDialog.value = false
-        currentEditId.value = null
-        await loadSubscriptions()
-      }
+      MessagePlugin.success(response.message || '订阅已更新')
+      showAddDialog.value = false
+      resetAddDialog()
+      await loadSubscriptions()
+      await loadStatistics()
     } else {
       // 创建订阅
       const response = await marketApi.createSubscription({
@@ -885,22 +871,11 @@ async function saveSubscription() {
         }
       })
 
-      if (response.success) {
-        MessagePlugin.success(response.message || '订阅已创建')
-        showAddDialog.value = false
-        await loadSubscriptions()
-        await loadStatistics()
-      }
-    }
-
-    // 重置表单
-    formData.value = {
-      name: '',
-      exchange: '',
-      dataType: '',
-      symbols: '',
-      interval: '',
-      autoRestart: true
+      MessagePlugin.success(response.message || '订阅已创建')
+      showAddDialog.value = false
+      resetAddDialog()
+      await loadSubscriptions()
+      await loadStatistics()
     }
   } catch (error: any) {
     console.error('保存订阅失败:', error)

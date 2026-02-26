@@ -166,19 +166,36 @@ class BinanceDataConverter:
         """
         转换币安深度数据为统一格式
 
+        兼容两种格式：
+        1. 增量深度流(@depth): 有 "e", "s", "E", "b", "a" 字段
+        2. 有限档深度流(@depth20@100ms): 有 "lastUpdateId", "bids", "asks" 字段（无 "e" 字段）
+
         Args:
             data: 币安深度数据
 
         Returns:
             统一格式的深度数据
         """
-        return {
-            "symbol": data.get("s", ""),
-            "exchange": "binance",
-            "timestamp": data.get("E", 0),
-            "bids": [[float(p), float(q)] for p, q in data.get("b", [])],
-            "asks": [[float(p), float(q)] for p, q in data.get("a", [])],
-        }
+        if "lastUpdateId" in data:
+            # 有限档深度信息流 (depth20@100ms)
+            return {
+                "symbol": data.get("s", ""),  # 有限档深度流通常不含 symbol，需外部补充
+                "exchange": "binance",
+                "timestamp": data.get("E", 0),  # 有限档深度流通常不含时间戳
+                "bids": [[float(p), float(q)] for p, q in data.get("bids", [])],
+                "asks": [[float(p), float(q)] for p, q in data.get("asks", [])],
+                "sequence": data.get("lastUpdateId"),
+            }
+        else:
+            # 增量深度流 (depthUpdate)
+            return {
+                "symbol": data.get("s", ""),
+                "exchange": "binance",
+                "timestamp": data.get("E", 0),
+                "bids": [[float(p), float(q)] for p, q in data.get("b", [])],
+                "asks": [[float(p), float(q)] for p, q in data.get("a", [])],
+                "sequence": data.get("U"),
+            }
 
     @staticmethod
     def convert_kline_data(data: dict[str, Any]) -> dict[str, Any]:

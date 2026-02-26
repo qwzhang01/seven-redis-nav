@@ -177,7 +177,7 @@ class DataStore:
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": tick.symbol,
-                    "exchange": "unknown",
+                    "exchange": tick.exchange,
                     "timestamp": tick.timestamp,
                     "price": float(tick.price),
                     "volume": float(tick.volume),
@@ -224,7 +224,7 @@ class DataStore:
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": depth.symbol,
-                    "exchange": "unknown",
+                    "exchange": depth.exchange,
                     "timestamp": depth.timestamp,
                     "bids": json.dumps(depth.bids) if depth.bids else None,
                     "asks": json.dumps(depth.asks) if depth.asks else None,

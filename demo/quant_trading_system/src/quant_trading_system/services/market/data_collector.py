@@ -224,7 +224,7 @@ class WebSocketClient:
 
                 # 每100条消息打印一次统计
                 if self.stats.message_count % 100 == 0:
-                    logger.info(f"WebSocket message stats",
+                    logger.debug(f"WebSocket message stats",
                                name=self.name,
                                total_messages=self.stats.message_count,
                                avg_latency=f"{self.stats.avg_latency:.1f}ms")
@@ -304,7 +304,7 @@ class WebSocketClient:
             self._reconnect_count += 1
             self.stats.reconnect_count += 1
 
-            logger.info(f"Reconnecting WebSocket",
+            logger.debug(f"Reconnecting WebSocket",
                        name=self.name,
                        attempt=self._reconnect_count)
 
@@ -582,6 +582,9 @@ class BinanceDataCollector(DataCollector):
             logger.info(f"Binance subscription response",
                        result=data.get("result"),
                        id=data.get("id"))
+        elif "lastUpdateId" in data and ("bids" in data or "asks" in data):
+            # depth20@100ms 有限档深度信息流（无 "e" 字段）
+            await self._process_depth(data)
         else:
             logger.debug(f"Binance unknown message format",
                         data_keys=list(data.keys()),
@@ -599,6 +602,7 @@ class BinanceDataCollector(DataCollector):
         tick = Tick(
             timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
             symbol=tick_data["symbol"],
+            exchange="binance",
             price=tick_data["last_price"],
             volume=tick_data["volume"],
             bid=0.0,
@@ -623,6 +627,7 @@ class BinanceDataCollector(DataCollector):
         tick = Tick(
             timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
             symbol=tick_data["symbol"],
+            exchange="binance",
             price=tick_data["last_price"],
             volume=tick_data["volume"],
             bid=tick_data["bid_price"],
@@ -636,19 +641,31 @@ class BinanceDataCollector(DataCollector):
         await self._notify("tick", tick_data)
 
     async def _process_depth(self, data: dict[str, Any]) -> None:
-        """处理深度数据"""
+        """处理深度数据（兼容增量深度流和有限档深度流）"""
         from datetime import datetime
         from quant_trading_system.models.market import Depth
 
         # 使用共享工具转换数据
         depth_data = BinanceDataConverter.convert_depth_data(data)
 
+        # 对于有限档深度流，symbol 需要从订阅列表中推断
+        symbol = depth_data["symbol"]
+        if not symbol and self._subscriptions:
+            # 如果只有一个订阅品种，直接使用
+            if len(self._subscriptions) == 1:
+                symbol = list(self._subscriptions)[0].upper().replace("/", "")
+            else:
+                logger.warning("Cannot determine symbol for depth data with multiple subscriptions")
+                return
+
         # 创建Depth对象
         depth = Depth(
-            timestamp=TimeUtils.timestamp_to_datetime(depth_data["timestamp"]),
-            symbol=depth_data["symbol"],
+            timestamp=TimeUtils.timestamp_to_datetime(depth_data["timestamp"]) if depth_data["timestamp"] else datetime.now(),
+            symbol=symbol,
+            exchange="binance",
             bids=depth_data["bids"],
             asks=depth_data["asks"],
+            sequence=depth_data.get("sequence"),
         )
 
         # 存储到数据库
@@ -683,7 +700,7 @@ class BinanceDataCollector(DataCollector):
         if self.enable_storage and self._data_store:
             await self._data_store.store_kline(bar)
 
-        logger.info(f"Processed Binance kline data",
+        logger.debug(f"Processed Binance kline data",
                    symbol=kline_data["symbol"],
                    interval=kline_data["interval"],
                    open=kline_data["open"],
@@ -839,6 +856,7 @@ class OKXDataCollector(DataCollector):
         tick = Tick(
             timestamp=datetime.fromtimestamp(trade_data["timestamp"] / 1000),
             symbol=trade_data["symbol"],
+            exchange="okx",
             price=trade_data["last_price"],
             volume=trade_data["volume"],
             bid=0.0,
@@ -862,6 +880,7 @@ class OKXDataCollector(DataCollector):
         tick = Tick(
             timestamp=datetime.fromtimestamp(ticker_data["timestamp"] / 1000),
             symbol=ticker_data["symbol"],
+            exchange="okx",
             price=ticker_data["last_price"],
             volume=ticker_data["volume"],
             bid=ticker_data["bid_price"],
@@ -885,6 +904,7 @@ class OKXDataCollector(DataCollector):
         depth = Depth(
             timestamp=datetime.fromtimestamp(depth_data["timestamp"] / 1000),
             symbol=depth_data["symbol"],
+            exchange="okx",
             bids=depth_data["bids"],
             asks=depth_data["asks"],
         )

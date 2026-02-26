@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from dataclasses import dataclass, field
 from pydantic import BaseModel
@@ -75,6 +75,7 @@ class Tick(BaseModel):
     """实时行情数据"""
     timestamp: datetime
     symbol: str
+    exchange: str = "unknown"
     price: float
     volume: float
     bid: float
@@ -85,8 +86,10 @@ class Depth(BaseModel):
     """深度数据"""
     timestamp: datetime
     symbol: str
+    exchange: str = "unknown"
     bids: List[List[float]]  # [price, volume]
     asks: List[List[float]]  # [price, volume]
+    sequence: Optional[int] = None  # lastUpdateId (币安) 或其他序列号
 
 
 class DepthLevel(BaseModel):
