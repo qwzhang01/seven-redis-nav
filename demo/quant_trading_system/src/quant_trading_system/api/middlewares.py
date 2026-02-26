@@ -116,9 +116,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         try:
             response: Response = await call_next(request)
-        except HTTPException:
-            # HTTPException应该直接传播，不要捕获和重新抛出
-            raise
         except Exception as exc:
             elapsed = (time.perf_counter() - start) * 1000
             logger.error(
