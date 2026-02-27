@@ -755,7 +755,7 @@ async function fetchReviews() {
 async function fetchKlineData() {
   if (!signal.value) return
   try {
-    const intervalMap: Record<string, string> = { '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
+    const intervalMap: Record<string, string> = { '1m': '1m', '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
     const rawData = await getKlineData({
       symbol: signal.value.tradingPair,
       interval: intervalMap[selectedTimeframe.value] || '1h',
@@ -853,6 +853,7 @@ function formatSymbolForChannel(tradingPair: string): string {
  */
 function mapTimeframeForWs(tf: string): string {
   const map: Record<string, string> = {
+    '1m': '1m',
     '15m': '15m',
     '1H': '1h',
     '4H': '4h',
@@ -1004,12 +1005,14 @@ const drawdownStats = computed(() => drawdownStatsData.value)
 // ==================== K线图表相关 ====================
 
 const selectedTimeframe = ref('1H')
-const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
+const timeframeOptions = ['1m', '15m', '1H', '4H', '1D', '1W']
 
-// 时间周期切换时重新加载K线，并切换WebSocket订阅频道
+// 时间周期切换时重新加载K线，并重连WebSocket（确保频道订阅与新周期一致）
 watch(selectedTimeframe, () => {
   fetchKlineData()
-  switchKlineChannel()
+  // 断开旧连接并重新建立WebSocket连接
+  disconnectMarketWebSocket()
+  initMarketWebSocket()
 })
 
 const availableIndicators = [
