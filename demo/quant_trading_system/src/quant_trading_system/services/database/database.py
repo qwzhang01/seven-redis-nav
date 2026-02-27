@@ -59,7 +59,7 @@ def _is_development() -> bool:
     """判断是否为开发环境"""
     return os.getenv("ENV", "development").lower() == "development"
 
-engine = create_engine(_build_sync_database_url(), echo=_is_development())
+engine = create_engine(_build_sync_database_url(), echo="debug" if _is_development() else False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -128,7 +128,7 @@ class AsyncTimescaleDB:
                 database_url,
                 pool_size=self.min_size,
                 max_overflow=self.max_size - self.min_size,
-                echo=_is_development()
+                echo="debug" if _is_development() else False
             )
 
             # 创建异步会话工厂

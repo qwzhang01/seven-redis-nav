@@ -195,7 +195,7 @@ def setup_logging(
     except NameError:
         _is_dev = os.environ.get("ENV", "production").lower() == "development"
     if _is_dev:
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
     else:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
