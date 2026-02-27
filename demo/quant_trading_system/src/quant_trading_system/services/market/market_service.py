@@ -20,6 +20,7 @@ from quant_trading_system.services.market.data_collector import (
     OKXDataCollector,
 )
 from quant_trading_system.services.market.kline_engine import KLineEngine
+from quant_trading_system.api.websocket.market_ws import push_ticker, push_kline, push_depth
 
 logger = structlog.get_logger(__name__)
 
@@ -256,6 +257,22 @@ class MarketService:
                 data=tick,
             ))
 
+        # 推送到 WebSocket 客户端
+        symbol_key = tick.symbol.replace("/", "").replace("-", "")
+        try:
+            await push_ticker(symbol_key, {
+                "symbol": tick.symbol,
+                "exchange": tick.exchange,
+                "last_price": tick.last_price,
+                "bid_price": tick.bid_price,
+                "ask_price": tick.ask_price,
+                "volume": tick.volume,
+                "turnover": tick.turnover,
+                "timestamp": tick.timestamp,
+            })
+        except Exception as e:
+            logger.debug("WebSocket push_ticker 失败", error=str(e))
+
         # 通知回调
         if self._tick_callbacks:
             tasks = [cb(tick) for cb in self._tick_callbacks]
@@ -289,6 +306,23 @@ class MarketService:
                 data=bar,
             ))
 
+        # 推送到 WebSocket 客户端（实时推送，包括未关闭的 K 线）
+        try:
+            await push_kline(symbol_key, bar.timeframe.value, {
+                "symbol": bar.symbol,
+                "exchange": bar.exchange,
+                "timeframe": bar.timeframe.value,
+                "timestamp": bar.timestamp,
+                "open": bar.open,
+                "high": bar.high,
+                "low": bar.low,
+                "close": bar.close,
+                "volume": bar.volume,
+                "is_closed": bar.is_closed,
+            })
+        except Exception as e:
+            logger.debug("WebSocket push_kline 失败", error=str(e))
+
         # 通知K线回调（仅已关闭的K线）
         if bar.is_closed:
             callbacks = self._bar_callbacks.get(bar.timeframe, []) + self._bar_callbacks.get(None, [])
@@ -316,6 +350,19 @@ class MarketService:
                 type=EventType.DEPTH,
                 data=depth,
             ))
+
+        # 推送到 WebSocket 客户端
+        symbol_key = depth.symbol.replace("/", "").replace("-", "")
+        try:
+            await push_depth(symbol_key, {
+                "symbol": depth.symbol,
+                "exchange": depth.exchange,
+                "bids": depth.bids,
+                "asks": depth.asks,
+                "timestamp": str(depth.timestamp),
+            })
+        except Exception as e:
+            logger.debug("WebSocket push_depth 失败", error=str(e))
 
         # 通知回调
         if self._depth_callbacks:

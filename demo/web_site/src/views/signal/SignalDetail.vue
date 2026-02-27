@@ -40,13 +40,7 @@
             <!-- 新增交易所和交易对信息 -->
             <div class="mt-6 pt-6 border-t border-dark-700">
               <div class="grid grid-cols-2 gap-4">
-                <div class="flex items-center gap-3">
-                  <Building :size="16" class="text-dark-200" />
-                  <div>
-                    <div class="text-xs text-dark-200">交易所</div>
-                    <div class="text-sm text-white">{{ signal.exchange }}</div>
-                  </div>
-                </div>
+                <!-- 交易所信息已隐藏 -->
                 <div class="flex items-center gap-3">
                   <TrendingUp :size="16" class="text-dark-200" />
                   <div>
@@ -105,6 +99,7 @@
             </div>
             <div class="rounded-xl bg-dark-800/30 overflow-hidden">
               <TradingChart
+                ref="tradingChartRef"
                 :kline-data="klineData"
                 :indicators="chartIndicators"
                 :trade-marks="tradeMarks"
@@ -523,6 +518,12 @@
             <h3 class="text-lg font-bold text-white mb-6">跟单设置</h3>
             <div class="space-y-5">
               <div>
+                <label class="text-sm text-dark-100 mb-1.5 block">选择交易所</label>
+                <t-select v-model="followConfig.exchange" placeholder="请选择交易所" size="medium">
+                  <t-option v-for="ex in exchangeOptions" :key="ex.value" :label="ex.label" :value="ex.value" />
+                </t-select>
+              </div>
+              <div>
                 <label class="text-sm text-dark-100 mb-1.5 block">跟单资金 (USDT)</label>
                 <t-input v-model="followConfig.amount" type="number" placeholder="输入跟单金额" size="medium" />
               </div>
@@ -542,6 +543,10 @@
             </div>
 
             <div class="mt-6 p-4 rounded-xl bg-dark-800/50 space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-dark-100">交易所</span>
+                <span class="text-white font-medium">{{ exchangeLabel || '--' }}</span>
+              </div>
               <div class="flex justify-between text-sm">
                 <span class="text-dark-100">跟单资金</span>
                 <span class="text-white font-medium">{{ followConfig.amount || 0 }} USDT</span>
@@ -575,10 +580,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
-import { Radio, ChevronRight, TrendingUp, Layers, Copy, Building, Clock, Activity, Shield, BarChart3, Bell, ArrowUpCircle, ArrowDownCircle, User, Star, MessageSquare, ThumbsUp, Calendar, Award, TrendingDown } from 'lucide-vue-next'
+import { Radio, ChevronRight, TrendingUp, Layers, Copy, Clock, Activity, Shield, BarChart3, Bell, ArrowUpCircle, ArrowDownCircle, User, Star, MessageSquare, ThumbsUp, Calendar, Award, TrendingDown } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
@@ -590,6 +595,13 @@ import type {
   TradeMarkData,
   SignalKlineResponse
 } from '@/types'
+import {
+  createMarketWebSocket,
+  klineChannel,
+  tickerChannel,
+  type WebSocketManager,
+} from '@/utils/websocketApi'
+import type { WSMessage } from '@/types'
 import {
   getSignalDetail,
   getSignalReturnCurve,
@@ -615,6 +627,9 @@ const route = useRoute()
 const router = useRouter()
 const signalId = computed(() => route.params.id as string)
 
+// TradingChart 组件引用（用于调用 appendKline 实时更新）
+const tradingChartRef = ref<InstanceType<any> | null>(null)
+
 // ==================== 响应式数据 ====================
 
 const signal = ref<SignalDetailResponse | null>(null)
@@ -633,9 +648,24 @@ const drawdownStatsData = ref<{ current: number; max: number; avg: number }>({ c
 const loading = ref(false)
 
 const followConfig = ref({
+  exchange: '',
   amount: 1000,
   ratio: '1',
   stopLoss: 10,
+})
+
+// 交易所选项
+const exchangeOptions = [
+  { label: 'Binance（币安）', value: 'binance' },
+  { label: 'OKX（欧易）', value: 'okx' },
+  { label: 'Bybit', value: 'bybit' },
+  { label: 'Bitget', value: 'bitget' },
+  { label: 'Gate.io', value: 'gateio' },
+]
+
+const exchangeLabel = computed(() => {
+  const opt = exchangeOptions.find(e => e.value === followConfig.value.exchange)
+  return opt ? opt.label : ''
 })
 
 // ==================== 数据加载 ====================
@@ -775,6 +805,10 @@ async function handleToggleLike(reviewId: string) {
 
 /** 启动跟单 */
 async function handleStartFollow() {
+  if (!followConfig.value.exchange) {
+    MessagePlugin.warning('请选择交易所')
+    return
+  }
   if (!followConfig.value.amount || followConfig.value.amount < 100) {
     MessagePlugin.warning('跟单资金最低100 USDT')
     return
@@ -785,6 +819,7 @@ async function handleStartFollow() {
   }
   try {
     const res = await createFollow(signalId.value, {
+      exchange: followConfig.value.exchange,
       amount: Number(followConfig.value.amount),
       ratio: Number(followConfig.value.ratio),
       stopLoss: Number(followConfig.value.stopLoss),
@@ -798,6 +833,141 @@ async function handleStartFollow() {
   }
 }
 
+// ==================== 实时行情 WebSocket ====================
+
+let marketWs: WebSocketManager | null = null
+// 当前订阅的K线频道（切换周期时需要取消旧的、订阅新的）
+let currentKlineChannel = ''
+
+/**
+ * 将交易对格式化为WebSocket频道所需的symbol格式
+ * 规则：去掉 `/` 和 `-`，保留 `_`
+ * 例如：BTC/USDT → BTCUSDT, ETH-USDT → ETHUSDT
+ */
+function formatSymbolForChannel(tradingPair: string): string {
+  return tradingPair.replace(/[\/\-]/g, '')
+}
+
+/**
+ * 将页面时间周期选项映射为WebSocket K线频道的 timeframe 格式
+ */
+function mapTimeframeForWs(tf: string): string {
+  const map: Record<string, string> = {
+    '15m': '15m',
+    '1H': '1h',
+    '4H': '4h',
+    '1D': '1d',
+    '1W': '1w',
+  }
+  return map[tf] || '1h'
+}
+
+/**
+ * 初始化行情 WebSocket 连接
+ */
+function initMarketWebSocket() {
+  if (!signal.value) return
+
+  const wsSymbol = formatSymbolForChannel(signal.value.tradingPair)
+  const wsTf = mapTimeframeForWs(selectedTimeframe.value)
+  currentKlineChannel = klineChannel(wsSymbol, wsTf)
+
+  marketWs = createMarketWebSocket({
+    onMessage: (msg: WSMessage) => {
+      switch (msg.type) {
+        case 'connected':
+          console.log('[SignalDetail] 行情WebSocket已连接，开始订阅频道')
+          // 连接成功后订阅 ticker 和当前周期 kline
+          marketWs?.subscribe([
+            tickerChannel(wsSymbol),
+            currentKlineChannel,
+          ])
+          break
+
+        case 'subscribed':
+          console.log('[SignalDetail] 频道订阅成功:', msg.channels)
+          break
+
+        case 'kline':
+          // 实时K线更新
+          if (msg.channel === currentKlineChannel && msg.data) {
+            const kline = msg.data
+            const klinePoint: KlineDataPoint = {
+              time: Math.floor(kline.timestamp),
+              open: kline.open,
+              high: kline.high,
+              low: kline.low,
+              close: kline.close,
+              volume: kline.volume || 0,
+            }
+            // 通过 TradingChart 暴露的 appendKline 方法实时更新图表
+            tradingChartRef.value?.appendKline(klinePoint)
+          }
+          break
+
+        case 'ticker':
+          // 实时Ticker更新 — 更新持仓现价和盈亏
+          if (msg.data && signal.value?.positions) {
+            const tickerSymbol = msg.data.symbol // 如 "BTC/USDT"
+            signal.value.positions.forEach(pos => {
+              if (pos.symbol === tickerSymbol) {
+                pos.currentPrice = msg.data.last_price
+                // 重新计算盈亏百分比
+                if (pos.entryPrice > 0) {
+                  const direction = pos.side === 'long' ? 1 : -1
+                  pos.pnlPercent = direction * ((pos.currentPrice - pos.entryPrice) / pos.entryPrice) * 100
+                  pos.pnl = direction * (pos.currentPrice - pos.entryPrice) * pos.amount
+                }
+              }
+            })
+          }
+          break
+
+        case 'error':
+          console.error('[SignalDetail] 行情WebSocket错误:', msg.message)
+          break
+      }
+    },
+    onClose: (event) => {
+      console.log('[SignalDetail] 行情WebSocket断开:', event.code)
+    },
+  })
+
+  marketWs.connect()
+}
+
+/**
+ * 切换K线周期时，重新订阅对应频道
+ */
+function switchKlineChannel() {
+  if (!marketWs?.isConnected || !signal.value) return
+
+  const wsSymbol = formatSymbolForChannel(signal.value.tradingPair)
+  const wsTf = mapTimeframeForWs(selectedTimeframe.value)
+  const newChannel = klineChannel(wsSymbol, wsTf)
+
+  if (newChannel === currentKlineChannel) return
+
+  // 取消旧的K线频道订阅
+  if (currentKlineChannel) {
+    marketWs.unsubscribe([currentKlineChannel])
+  }
+  // 订阅新的K线频道
+  currentKlineChannel = newChannel
+  marketWs.subscribe([currentKlineChannel])
+}
+
+/**
+ * 断开行情 WebSocket 连接
+ */
+function disconnectMarketWebSocket() {
+  if (marketWs) {
+    marketWs.disconnect()
+    marketWs = null
+  }
+  currentKlineChannel = ''
+}
+
 // 初始化加载
 onMounted(async () => {
   await fetchSignalDetail()
@@ -808,6 +978,13 @@ onMounted(async () => {
   fetchDrawdown()
   fetchReviews()
   fetchKlineData()
+  // 初始化行情 WebSocket 实时推送
+  initMarketWebSocket()
+})
+
+// 组件销毁时断开 WebSocket
+onBeforeUnmount(() => {
+  disconnectMarketWebSocket()
 })
 
 // ==================== 月度收益统计 ====================
@@ -829,9 +1006,10 @@ const drawdownStats = computed(() => drawdownStatsData.value)
 const selectedTimeframe = ref('1H')
 const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
 
-// 时间周期切换时重新加载K线
+// 时间周期切换时重新加载K线，并切换WebSocket订阅频道
 watch(selectedTimeframe, () => {
   fetchKlineData()
+  switchKlineChannel()
 })
 
 const availableIndicators = [

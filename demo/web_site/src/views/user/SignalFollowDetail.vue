@@ -18,7 +18,6 @@
             <div>
               <h1 class="text-2xl font-bold text-white">{{ followDetail.signalName }}</h1>
               <div class="flex items-center gap-3 mt-1.5">
-                <span class="text-sm text-dark-100">{{ followDetail.exchange }}</span>
                 <span class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">跟单中</span>
                 <StatusDot :status="followDetail.status" />
               </div>

@@ -39,6 +39,7 @@ from .m import m_router
 from .websocket.market_ws import router as market_ws_router
 from .websocket.trading_ws import router as trading_ws_router
 from .websocket.strategy_ws import router as strategy_ws_router
+from .websocket.manager import ws_manager
 
 from ..services.database.database import init_database
 
@@ -179,6 +180,13 @@ async def lifespan(app: FastAPI):
         print(f"❌ 编排器初始化失败: {e}")
         raise
 
+    # 启动 WebSocket 心跳检测
+    try:
+        await ws_manager.start_heartbeat()
+        print("✅ WebSocket 心跳检测已启动")
+    except Exception as e:
+        print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
+
     # 启动订阅监听器
     try:
         from quant_trading_system.services.market.subscription_monitor import \
@@ -203,6 +211,13 @@ async def lifespan(app: FastAPI):
 
     # 关闭时执行
     print("🛑 停止量化交易系统...")
+
+    # 停止 WebSocket 心跳检测
+    try:
+        await ws_manager.stop_heartbeat()
+        print("✅ WebSocket 心跳检测已停止")
+    except Exception as e:
+        print(f"❌ WebSocket 心跳检测停止失败: {e}")
 
     # 关闭历史数据同步执行器
     try:

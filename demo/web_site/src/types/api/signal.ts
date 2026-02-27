@@ -304,6 +304,7 @@ export interface ToggleLikeResponse {
 
 /** 创建跟单请求（信号详情页） */
 export interface CreateSignalFollowRequest {
+  exchange: string
   amount: number
   ratio?: number
   stopLoss: number
