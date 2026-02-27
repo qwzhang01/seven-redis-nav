@@ -277,29 +277,3 @@ class BinanceAPI:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
-
-# 时间周期映射
-TIMEFRAME_MAP = {
-    TimeFrame.M1: "1m",
-    TimeFrame.M5: "5m",
-    TimeFrame.M15: "15m",
-    TimeFrame.M30: "30m",
-    TimeFrame.H1: "1h",
-    TimeFrame.H4: "4h",
-    TimeFrame.D1: "1d",
-    TimeFrame.W1: "1w",
-}
-
-
-def get_binance_api(market_type: str = "spot") -> BinanceAPI:
-    """
-    获取币安API实例（工厂函数）
-
-    Args:
-        market_type: 市场类型，spot（现货）或futures（期货）
-
-    Returns:
-        BinanceAPI实例
-    """
-    return BinanceAPI(market_type=market_type)
