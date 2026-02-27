@@ -715,7 +715,8 @@ export interface KlineResponse {
  * 获取K线数据
  */
 export function getKlineData(params: KlineParams): Promise<KlineResponse> {
-  const { symbol, interval, limit } = params
+  let { symbol, interval, limit } = params
+  symbol = symbol.replace('/', '-')
   return get<KlineResponse>(`/api/v1/c/market/kline/${encodeURIComponent(symbol)}`, {
     timeframe: interval,
     limit

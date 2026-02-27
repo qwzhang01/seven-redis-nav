@@ -158,7 +158,7 @@ async def get_kline(
     查询指定交易对和时间周期的历史K线数据。
 
     参数：
-    - symbol: 交易对符号
+    - symbol: 交易对符号（使用 `-` 分隔，如 ETH-USDT，会自动转为 ETH/USDT）
     - timeframe: K线时间周期（1m,5m,15m,30m,1h,4h,1d,1w）
     - limit: 返回K线数量限制（1-1000）
 
@@ -168,6 +168,9 @@ async def get_kline(
     - data: K线数据列表
     - count: 返回的K线数量
     """
+    # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
+    symbol = symbol.replace("-", "/")
+
     orch = _get_orchestrator()
     tf = TIMEFRAME_MAP.get(timeframe)
     if not tf:
@@ -196,7 +199,7 @@ async def get_latest_tick(symbol: str) -> dict[str, Any]:
     查询指定交易对的最新Tick行情数据。
 
     参数：
-    - symbol: 交易对符号
+    - symbol: 交易对符号（使用 `-` 分隔，如 ETH-USDT，会自动转为 ETH/USDT）
 
     返回：
     - symbol: 交易对符号
@@ -206,6 +209,9 @@ async def get_latest_tick(symbol: str) -> dict[str, Any]:
     - volume: 成交量
     - timestamp: 时间戳
     """
+    # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
+    symbol = symbol.replace("-", "/")
+
     orch = _get_orchestrator()
     tick = orch.strategy_engine._latest_ticks.get(symbol)
     if not tick:
@@ -238,7 +244,7 @@ async def get_depth(
     查询指定交易对的买卖盘深度数据。
 
     参数：
-    - symbol: 交易对符号
+    - symbol: 交易对符号（使用 `-` 分隔，如 ETH-USDT，会自动转为 ETH/USDT）
     - limit: 深度档位数量限制
 
     返回：
@@ -247,6 +253,9 @@ async def get_depth(
     - asks: 卖盘深度列表（价格从低到高）
     - timestamp: 时间戳
     """
+    # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
+    symbol = symbol.replace("-", "/")
+
     orch = _get_orchestrator()
     depth = orch.strategy_engine._latest_depths.get(symbol)
     if not depth:
