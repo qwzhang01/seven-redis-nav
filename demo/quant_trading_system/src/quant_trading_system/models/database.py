@@ -430,6 +430,162 @@ class SignalFollowEvent(Base):
     create_time = Column(DateTime, default=datetime.utcnow)
 
 
+class Signal(Base):
+    """信号广场主表模型 — 信号源的核心元数据"""
+    __tablename__ = "signal"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    name = Column(String(128), nullable=False)
+    platform = Column(String(64), nullable=False, default="Binance")
+    type = Column(String(16), nullable=False, default="live")       # live / simulated
+    status = Column(String(16), nullable=False, default="running")  # running / paused / stopped
+    exchange = Column(String(64))
+    trading_pair = Column(String(32))
+    timeframe = Column(String(16))
+    signal_frequency = Column(String(16))                           # high / medium / low
+    description = Column(Text)
+    provider_id = Column(BigInteger, ForeignKey("signal_providers.id"))
+    strategy_id = Column(String(128))
+    followers_count = Column(Integer, nullable=False, default=0)
+    run_days = Column(Integer, nullable=False, default=0)
+    cumulative_return = Column(Numeric(12, 4), nullable=False, default=0)
+    max_drawdown = Column(Numeric(12, 4), nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+    # 关系
+    provider = relationship("SignalProvider", backref="signals")
+    risk_parameters = relationship("SignalRiskParameters", uselist=False, back_populates="signal", cascade="all, delete-orphan")
+    performance_metrics = relationship("SignalPerformanceMetrics", uselist=False, back_populates="signal", cascade="all, delete-orphan")
+    notification_settings = relationship("SignalNotificationSettings", uselist=False, back_populates="signal", cascade="all, delete-orphan")
+    positions = relationship("SignalPosition", back_populates="signal", cascade="all, delete-orphan")
+    trade_records = relationship("SignalTradeRecord", back_populates="signal", cascade="all, delete-orphan")
+
+
+class SignalRiskParameters(Base):
+    """信号风险参数模型"""
+    __tablename__ = "signal_risk_parameters"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    max_position_size = Column(Numeric(8, 2))           # 最大仓位(%)
+    stop_loss_percentage = Column(Numeric(8, 2))        # 止损比例(%)
+    take_profit_percentage = Column(Numeric(8, 2))      # 止盈比例(%)
+    risk_reward_ratio = Column(Numeric(8, 2))           # 风险收益比
+    volatility_filter = Column(Boolean, default=False)  # 波动率过滤开关
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    signal = relationship("Signal", back_populates="risk_parameters")
+
+
+class SignalPerformanceMetrics(Base):
+    """信号绩效指标模型"""
+    __tablename__ = "signal_performance_metrics"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    sharpe_ratio = Column(Numeric(8, 4))                # 夏普比率
+    win_rate = Column(Numeric(8, 4))                    # 胜率(%)
+    profit_factor = Column(Numeric(8, 4))               # 盈亏比
+    average_holding_period = Column(Numeric(8, 2))      # 平均持仓天数
+    max_consecutive_losses = Column(Integer)            # 最大连亏次数
+    total_trades = Column(Integer, default=0)           # 总交易次数
+    win_trades = Column(Integer, default=0)             # 盈利次数
+    loss_trades = Column(Integer, default=0)            # 亏损次数
+    avg_win = Column(Numeric(14, 4))                    # 平均盈利金额
+    avg_loss = Column(Numeric(14, 4))                   # 平均亏损金额
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    signal = relationship("Signal", back_populates="performance_metrics")
+
+
+class SignalNotificationSettings(Base):
+    """信号通知设置模型"""
+    __tablename__ = "signal_notification_settings"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    email_alerts = Column(Boolean, default=True)
+    push_notifications = Column(Boolean, default=True)
+    telegram_bot = Column(Boolean, default=False)
+    discord_webhook = Column(Boolean, default=False)
+    alert_threshold = Column(Numeric(8, 2))             # 提醒阈值(%)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    signal = relationship("Signal", back_populates="notification_settings")
+
+
+class SignalPosition(Base):
+    """信号当前持仓模型"""
+    __tablename__ = "signal_position"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False)
+    symbol = Column(String(32), nullable=False)
+    side = Column(String(8), nullable=False)             # long / short
+    amount = Column(Numeric(18, 8), nullable=False)
+    entry_price = Column(Numeric(18, 8), nullable=False)
+    current_price = Column(Numeric(18, 8))
+    pnl = Column(Numeric(14, 4))
+    pnl_percent = Column(Numeric(10, 4))
+    opened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    signal = relationship("Signal", back_populates="positions")
+
+
+class SignalTradeRecord(Base):
+    """信号交易记录模型"""
+    __tablename__ = "signal_trade_record"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(8), nullable=False)           # buy / sell
+    symbol = Column(String(32), nullable=False)
+    price = Column(Numeric(18, 8), nullable=False)
+    amount = Column(Numeric(18, 8), nullable=False)
+    total = Column(Numeric(18, 4))
+    strength = Column(String(8))                         # strong / medium / weak
+    pnl = Column(Numeric(14, 4))
+    traded_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    signal = relationship("Signal", back_populates="trade_records")
+
+
+class SignalMonthlyReturn(Base):
+    """信号月度收益模型"""
+    __tablename__ = "signal_monthly_return"
+
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), primary_key=True)
+    month = Column(DateTime, primary_key=True)           # 月份（取当月1日）
+    return_value = Column(Numeric(12, 4), nullable=False)
+
+
+class SignalReturnCurve(Base):
+    """信号收益曲线模型（时序表）"""
+    __tablename__ = "signal_return_curve"
+
+    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), primary_key=True)
+    time = Column(DateTime, primary_key=True)
+    return_value = Column(Numeric(12, 4), nullable=False)
+    drawdown = Column(Numeric(12, 4))
+
+
+class SignalFollowReturnCurve(Base):
+    """跟单收益曲线模型（时序表）"""
+    __tablename__ = "signal_follow_return_curve"
+
+    follow_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), primary_key=True)
+    time = Column(DateTime, primary_key=True)
+    return_value = Column(Numeric(12, 4), nullable=False)
+    signal_return = Column(Numeric(12, 4))
+
+
 class ExchangeCopyAccount(Base):
     """交易所跟单账户模型"""
     __tablename__ = "exchange_copy_accounts"

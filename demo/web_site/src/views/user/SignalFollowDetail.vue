@@ -25,10 +25,10 @@
             </div>
           </div>
           <div class="flex items-center gap-4">
-            <button class="btn-outline !py-2 !px-4 text-sm flex items-center gap-1.5">
+            <button class="btn-outline !py-2 !px-4 text-sm flex items-center gap-1.5" @click="handleAdjustSettings">
               <Settings :size="14" /> 调整设置
             </button>
-            <button class="btn-danger !py-2 !px-4 text-sm flex items-center gap-1.5">
+            <button class="btn-danger !py-2 !px-4 text-sm flex items-center gap-1.5" @click="handleStopFollow">
               <StopCircle :size="14" /> 停止跟单
             </button>
           </div>
@@ -307,7 +307,7 @@
             </h2>
             <div class="space-y-2">
               <div 
-                v-for="trade in followDetail.tradeHistory" 
+v-for="trade in tradeHistory"
                 :key="trade.id"
                 class="p-4 rounded-lg bg-dark-800/50 hover:bg-dark-800/70 transition-colors"
               >
@@ -337,7 +337,7 @@
                 </div>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-dark-200">成交额: ${{ trade.total.toLocaleString() }}</span>
-                  <span v-if="trade.pnl !== undefined" class="font-medium" :class="trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  <span v-if="trade.pnl != null" class="font-medium" :class="trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'">
                     盈亏: {{ trade.pnl >= 0 ? '+' : '' }}${{ trade.pnl.toFixed(2) }}
                   </span>
                 </div>
@@ -496,8 +496,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { MessagePlugin } from 'tdesign-vue-next'
 import { 
   Radio, ChevronRight, TrendingUp, Layers, History, BarChart3, Shield, 
   Settings, StopCircle, Target, ArrowUpCircle, ArrowDownCircle, AlertTriangle,
@@ -509,8 +510,138 @@ import TradingChart from '@/components/charts/TradingChart.vue'
 import DualReturnChart from '@/components/charts/DualReturnChart.vue'
 import PositionPieChart from '@/components/charts/PositionPieChart.vue'
 import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
+import {
+  getFollowDetail,
+  getFollowComparison,
+  getFollowTrades,
+  getFollowEvents,
+  getFollowPositions,
+  updateFollowConfig,
+  stopFollow,
+  getKlineData,
+} from '@/utils/signalApi'
+import type {
+  FollowDetailResponse,
+  FollowComparisonResponse,
+  FollowTradeRecord,
+  FollowEvent,
+  FollowPositionsResponse,
+} from '@/utils/signalApi'
 
 const route = useRoute()
+const router = useRouter()
+const followId = computed(() => route.params.id as string)
+
+// ==================== 响应式数据 ====================
+
+const followDetail = ref<FollowDetailResponse | null>(null)
+const comparisonData = ref<FollowComparisonResponse | null>(null)
+const tradeHistory = ref<FollowTradeRecord[]>([])
+const eventLog = ref<FollowEvent[]>([])
+const positionsData = ref<FollowPositionsResponse | null>(null)
+const loading = ref(false)
+
+// ==================== 数据加载 ====================
+
+/** 加载跟单详情 */
+async function fetchFollowDetail() {
+  loading.value = true
+  try {
+    followDetail.value = await getFollowDetail(followId.value)
+  } catch (e) {
+    console.error('获取跟单详情失败', e)
+    followDetail.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 加载跟单收益对比 */
+async function fetchComparison() {
+  try {
+    comparisonData.value = await getFollowComparison(followId.value)
+  } catch (e) {
+    console.error('获取收益对比失败', e)
+  }
+}
+
+/** 加载跟单交易记录 */
+async function fetchTrades() {
+  try {
+    const res = await getFollowTrades(followId.value, { page: 1, page_size: 20 })
+    tradeHistory.value = res.records || []
+  } catch (e) {
+    console.error('获取交易记录失败', e)
+  }
+}
+
+/** 加载事件日志 */
+async function fetchEvents() {
+  try {
+    const res = await getFollowEvents(followId.value, { page: 1, page_size: 20 })
+    eventLog.value = res.records || []
+  } catch (e) {
+    console.error('获取事件日志失败', e)
+  }
+}
+
+/** 加载仓位分布 */
+async function fetchPositions() {
+  try {
+    positionsData.value = await getFollowPositions(followId.value)
+  } catch (e) {
+    console.error('获取仓位分布失败', e)
+  }
+}
+
+/** 加载K线数据 */
+async function fetchKlineData() {
+  if (!followDetail.value) return
+  try {
+    const intervalMap: Record<string, string> = { '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
+    // 从信号名推测交易对，实际应从API获取
+    const symbol = 'BTC/USDT'
+    const res = await getKlineData({
+      symbol,
+      interval: intervalMap[selectedPeriod.value] || '1d',
+      limit: 200,
+    })
+    klineData.value = res.klines || []
+  } catch (e) {
+    console.error('获取K线数据失败，使用模拟数据', e)
+    klineData.value = generateMockKline()
+  }
+}
+
+/** 停止跟单 */
+async function handleStopFollow() {
+  try {
+    await stopFollow(followId.value, { closePositions: true })
+    MessagePlugin.success('跟单已停止')
+    fetchFollowDetail()
+  } catch (e) {
+    console.error('停止跟单失败', e)
+    MessagePlugin.error('停止跟单失败')
+  }
+}
+
+/** 调整设置（显示对话框等，此处简化为提示） */
+function handleAdjustSettings() {
+  MessagePlugin.info('调整设置功能即将上线')
+}
+
+// 初始化加载
+onMounted(async () => {
+  await fetchFollowDetail()
+  fetchComparison()
+  fetchTrades()
+  fetchEvents()
+  fetchPositions()
+  fetchKlineData()
+})
+
+// ==================== K线图表相关 ====================
+
 const selectedPeriod = ref('1D')
 const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
 
@@ -530,7 +661,12 @@ function toggleIndicator(key: string) {
   }
 }
 
-// 生成模拟K线数据
+// 时间周期切换时重新加载K线
+watch(selectedPeriod, () => {
+  fetchKlineData()
+})
+
+// 生成模拟K线数据（作为后备方案）
 function generateMockKline(count = 200): KlineDataPoint[] {
   const data: KlineDataPoint[] = []
   const now = Math.floor(Date.now() / 1000)
@@ -551,7 +687,7 @@ function generateMockKline(count = 200): KlineDataPoint[] {
   return data
 }
 
-const klineData = ref<KlineDataPoint[]>(generateMockKline())
+const klineData = ref<KlineDataPoint[]>([])
 
 // MA计算
 function calcMA(data: KlineDataPoint[], period: number): Array<{ time: number; value: number }> {
@@ -623,6 +759,8 @@ function calcRSI(data: KlineDataPoint[], period = 14): Array<{ time: number; val
 const chartIndicators = computed<IndicatorData[]>(() => {
   const indicators: IndicatorData[] = []
   const data = klineData.value
+  if (!data.length) return indicators
+
   if (activeIndicators.value.includes('ma')) {
     indicators.push(
       { name: 'MA7', type: 'line', color: '#f59e0b', pane: 'main', data: calcMA(data, 7) },
@@ -645,173 +783,36 @@ const chartIndicators = computed<IndicatorData[]>(() => {
   return indicators
 })
 
-// 将交易点位映射为K线图上的买卖标记
+// 从交易记录生成买卖标记
 const followTradeMarks = computed<TradeMarkData[]>(() => {
-  const data = klineData.value
-  const marks: TradeMarkData[] = []
-  let i = 25
-  let isBuy = true
-  while (i < data.length) {
-    marks.push({
-      time: data[i].time,
+  return tradeHistory.value.map(trade => {
+    const timestamp = Math.floor(new Date(trade.time).getTime() / 1000)
+    const isBuy = trade.side === 'buy'
+    return {
+      time: timestamp,
       position: isBuy ? 'belowBar' : 'aboveBar',
       color: isBuy ? '#10b981' : '#ef5350',
       shape: isBuy ? 'arrowUp' : 'arrowDown',
       text: isBuy ? '买入' : '卖出',
-    })
-    isBuy = !isBuy
-    i += 18 + Math.floor(Math.random() * 15)
-  }
-  return marks
-})
-
-// Mock data - 实际应该从API获取
-const followDetail = computed(() => {
-  const id = route.params.id
-  
-  // 生成模拟数据
-  return {
-    id,
-    signalName: 'Alpha Pro #1',
-    exchange: 'Binance',
-    status: 'following',
-    totalReturn: 15.23,
-    followAmount: 5000,
-    currentValue: 5761.5,
-    maxDrawdown: 8.45,
-    followDays: 45,
-    currentPrice: 91234.56,
-    priceChange24h: 2.34,
-    volume24h: '12.5B',
-    todayReturn: 1.23,
-    winRate: 68.5,
-    followRatio: 1,
-    stopLoss: 15,
-    startTime: '2025-11-01 10:30:00',
-    currentDrawdown: 3.21,
-    riskLevel: '中等',
-    totalTrades: 156,
-    winTrades: 107,
-    lossTrades: 49,
-    avgWin: 125.50,
-    avgLoss: 78.30,
-    profitFactor: 1.60,
-    
-    // 价格历史数据
-    priceHistory: Array.from({ length: 48 }, (_, i) => {
-      return parseFloat((90000 + Math.sin(i / 5) * 2000 + i * 30 + (Math.random() - 0.5) * 500).toFixed(2))
-    }),
-    priceHistoryLabels: Array.from({ length: 48 }, (_, i) => {
-      const date = new Date()
-      date.setHours(date.getHours() - (47 - i))
-      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-    }),
-    
-    // 收益曲线
-    returnCurve: Array.from({ length: 45 }, (_, i) => {
-      return parseFloat((Math.sin(i / 8) * 3 + i * 0.35 + (Math.random() - 0.3) * 2).toFixed(2))
-    }),
-    returnCurveLabels: Array.from({ length: 45 }, (_, i) => {
-      const date = new Date()
-      date.setDate(date.getDate() - (44 - i))
-      return date.toISOString().split('T')[0]
-    }),
-    
-    // 交易点位
-    tradingPoints: [
-      { id: '1', type: 'buy', symbol: 'BTC/USDT', price: 89234.50, amount: 0.055, time: '2025-02-20 14:30:00' },
-      { id: '2', type: 'sell', symbol: 'ETH/USDT', price: 3521.23, amount: 1.42, time: '2025-02-20 10:15:00' },
-      { id: '3', type: 'buy', symbol: 'ETH/USDT', price: 3456.78, amount: 1.45, time: '2025-02-19 16:45:00' },
-      { id: '4', type: 'sell', symbol: 'BTC/USDT', price: 90123.45, amount: 0.05, time: '2025-02-19 09:20:00' },
-    ],
-    
-    // 当前持仓
-    positions: [
-      { 
-        id: '1', 
-        symbol: 'BTC/USDT', 
-        side: 'long', 
-        amount: 0.055, 
-        entryPrice: 89234.50, 
-        currentPrice: 91234.56, 
-        pnl: 110.00,
-        pnlPercent: 2.24 
-      },
-      { 
-        id: '2', 
-        symbol: 'ETH/USDT', 
-        side: 'long', 
-        amount: 1.42, 
-        entryPrice: 3456.78, 
-        currentPrice: 3521.23, 
-        pnl: 91.52,
-        pnlPercent: 1.86 
-      },
-    ],
-    
-    // 交易历史
-    tradeHistory: [
-      { 
-        id: '1', 
-        side: 'buy', 
-        symbol: 'BTC/USDT', 
-        price: 89234.50, 
-        amount: 0.055, 
-        total: 4907.90,
-        time: '2025-02-20 14:30:00' 
-      },
-      { 
-        id: '2', 
-        side: 'sell', 
-        symbol: 'ETH/USDT', 
-        price: 3521.23, 
-        amount: 1.42, 
-        total: 5000.15,
-        pnl: 91.52,
-        time: '2025-02-20 10:15:00' 
-      },
-      { 
-        id: '3', 
-        side: 'buy', 
-        symbol: 'ETH/USDT', 
-        price: 3456.78, 
-        amount: 1.45, 
-        total: 5012.33,
-        time: '2025-02-19 16:45:00' 
-      },
-      { 
-        id: '4', 
-        side: 'sell', 
-        symbol: 'BTC/USDT', 
-        price: 90123.45, 
-        amount: 0.05, 
-        total: 4506.17,
-        pnl: 156.78,
-        time: '2025-02-19 09:20:00' 
-      },
-      { 
-        id: '5', 
-        side: 'buy', 
-        symbol: 'BTC/USDT', 
-        price: 86993.80, 
-        amount: 0.05, 
-        total: 4349.69,
-        time: '2025-02-18 11:20:00' 
-      },
-    ],
-  }
+    } as TradeMarkData
+  })
 })
 
 // ==================== 跟单 vs 信号源 收益对比 ====================
 
-const followReturnCurve = computed(() => followDetail.value?.returnCurve || [])
+const followReturnCurve = computed(() => {
+  if (comparisonData.value) return comparisonData.value.followCurve
+  return followDetail.value?.returnCurve || []
+})
 const signalReturnCurve = computed(() => {
-  // 模拟信号源的收益曲线（通常比跟单稍高，因为没有滑点）
+  if (comparisonData.value) return comparisonData.value.signalCurve
+  // 后备：模拟信号源的收益曲线
   return (followDetail.value?.returnCurve || []).map((v: number, i: number) => {
     return parseFloat((v + 0.5 + Math.sin(i / 6) * 0.8).toFixed(2))
   })
 })
 const returnDiff = computed(() => {
+  if (comparisonData.value?.statistics) return comparisonData.value.statistics.returnDiff
   const follow = followReturnCurve.value
   const signal = signalReturnCurve.value
   if (follow.length && signal.length) {
@@ -820,14 +821,30 @@ const returnDiff = computed(() => {
   return 0
 })
 
+const comparisonStats = computed(() => {
+  return comparisonData.value?.statistics || {
+    returnDiff: returnDiff.value,
+    avgSlippage: 0,
+    copyRate: 0,
+    followFinalReturn: 0,
+    signalFinalReturn: 0,
+  }
+})
+
 // ==================== 仓位分布 ====================
 
 const positionDistribution = computed(() => {
+  if (positionsData.value?.distribution) {
+    return positionsData.value.distribution.map(d => ({
+      name: d.name,
+      value: d.value,
+    }))
+  }
+  // 后备：从 followDetail 的持仓计算
   const positions = followDetail.value?.positions || []
   const totalValue = followDetail.value?.currentValue || 1
   const used = positions.reduce((sum: number, p: any) => sum + p.entryPrice * p.amount, 0)
   const free = totalValue - used
-
   const items = positions.map((p: any) => ({
     name: p.symbol,
     value: parseFloat((p.entryPrice * p.amount).toFixed(2)),
@@ -837,13 +854,14 @@ const positionDistribution = computed(() => {
 })
 
 const capitalUsageRate = computed(() => {
+  if (positionsData.value?.usage_rate !== undefined) return positionsData.value.usage_rate * 100
   const total = followDetail.value?.currentValue || 1
   const positions = followDetail.value?.positions || []
   const used = positions.reduce((sum: number, p: any) => sum + p.entryPrice * p.amount, 0)
   return Math.min(100, (used / total) * 100)
 })
 
-// ==================== 事件日志 ====================
+// ==================== 事件日志样式 ====================
 
 const eventTypeStyle: Record<string, { bg: string; text: string; badge: string; icon: any }> = {
   trade: { bg: 'bg-primary-500/10', text: 'text-primary-400', badge: 'bg-primary-500/10 text-primary-400', icon: Zap },
@@ -852,17 +870,4 @@ const eventTypeStyle: Record<string, { bg: string; text: string; badge: string; 
   error: { bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/10 text-red-400', icon: XCircle },
   system: { bg: 'bg-blue-500/10', text: 'text-blue-400', badge: 'bg-blue-500/10 text-blue-400', icon: Settings },
 }
-
-const eventLog = [
-  { id: '1', type: 'trade', typeLabel: '交易', message: '跟单买入 BTC/USDT 0.055个，成交价 $89,234.50', time: '2025-02-20 14:30:12' },
-  { id: '2', type: 'success', typeLabel: '成交', message: '卖出 ETH/USDT 1.42个已成交，盈利 +$91.52', time: '2025-02-20 10:15:35' },
-  { id: '3', type: 'risk', typeLabel: '风控', message: '当前回撤达到 3.21%，距离止损线还有 11.79%', time: '2025-02-20 08:00:00' },
-  { id: '4', type: 'trade', typeLabel: '交易', message: '跟单买入 ETH/USDT 1.45个，成交价 $3,456.78', time: '2025-02-19 16:45:22' },
-  { id: '5', type: 'success', typeLabel: '成交', message: '卖出 BTC/USDT 0.05个已成交，盈利 +$156.78', time: '2025-02-19 09:20:18' },
-  { id: '6', type: 'system', typeLabel: '系统', message: '跟单参数更新：止损比例调整为 15%', time: '2025-02-18 20:00:00' },
-  { id: '7', type: 'trade', typeLabel: '交易', message: '跟单买入 BTC/USDT 0.05个，成交价 $86,993.80', time: '2025-02-18 11:20:45' },
-  { id: '8', type: 'risk', typeLabel: '风控', message: '信号源发出高风险预警，建议关注仓位', time: '2025-02-17 15:30:00' },
-  { id: '9', type: 'error', typeLabel: '异常', message: '跟单延迟：ETH/USDT买入信号延迟 2.3s 执行，滑点 0.15%', time: '2025-02-16 09:12:33' },
-  { id: '10', type: 'system', typeLabel: '系统', message: '跟单服务启动成功，初始资金 5,000 USDT', time: '2025-01-06 10:30:00' },
-]
 </script>

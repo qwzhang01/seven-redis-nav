@@ -173,8 +173,8 @@
                   </div>
                 </div>
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-dark-200">信号强度: {{ record.strength }}</span>
-                  <span v-if="record.pnl !== undefined" class="font-medium" :class="record.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  <span class="text-dark-200">信号强度: {{ record.strength === 'strong' ? '强' : record.strength === 'medium' ? '中' : '弱' }}</span>
+                  <span v-if="record.pnl != null" class="font-medium" :class="record.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'">
                     盈亏: {{ record.pnl >= 0 ? '+' : '' }}${{ record.pnl.toFixed(2) }}
                   </span>
                   <span v-else class="text-dark-200">持仓中</span>
@@ -191,39 +191,39 @@
             </h2>
             <div class="flex items-start gap-5">
               <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-purple/20 flex items-center justify-center shrink-0">
-                <span class="text-2xl font-bold text-primary-400">{{ signalProvider.name.charAt(0) }}</span>
+                <span class="text-2xl font-bold text-primary-400">{{ signalProvider?.name.charAt(0) }}</span>
               </div>
               <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
-                  <span class="text-lg font-bold text-white">{{ signalProvider.name }}</span>
-                  <span v-if="signalProvider.verified" class="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                  <span class="text-lg font-bold text-white">{{ signalProvider?.name }}</span>
+                  <span v-if="signalProvider?.verified" class="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
                     <Award :size="12" /> 认证交易员
                   </span>
                 </div>
-                <p class="text-sm text-dark-100 mb-3">{{ signalProvider.bio }}</p>
+                <p class="text-sm text-dark-100 mb-3">{{ signalProvider?.bio }}</p>
                 <div class="grid grid-cols-4 gap-3">
                   <div class="text-center p-2 rounded-lg bg-dark-800/50">
-                    <div class="text-sm font-bold text-white">{{ signalProvider.totalSignals }}</div>
+                    <div class="text-sm font-bold text-white">{{ signalProvider?.totalSignals }}</div>
                     <div class="text-xs text-dark-200">信号数</div>
                   </div>
                   <div class="text-center p-2 rounded-lg bg-dark-800/50">
-                    <div class="text-sm font-bold text-emerald-400">{{ signalProvider.avgReturn }}%</div>
+                    <div class="text-sm font-bold text-emerald-400">{{ signalProvider?.avgReturn }}%</div>
                     <div class="text-xs text-dark-200">平均收益</div>
                   </div>
                   <div class="text-center p-2 rounded-lg bg-dark-800/50">
-                    <div class="text-sm font-bold text-white">{{ signalProvider.totalFollowers.toLocaleString() }}</div>
+                    <div class="text-sm font-bold text-white">{{ signalProvider?.totalFollowers.toLocaleString() }}</div>
                     <div class="text-xs text-dark-200">总粉丝</div>
                   </div>
                   <div class="text-center p-2 rounded-lg bg-dark-800/50">
                     <div class="text-sm font-bold text-amber-400 flex items-center justify-center gap-1">
-                      <Star :size="12" /> {{ signalProvider.rating }}
+                      <Star :size="12" /> {{ signalProvider?.rating }}
                     </div>
                     <div class="text-xs text-dark-200">评分</div>
                   </div>
                 </div>
                 <div class="flex items-center gap-4 mt-3 text-xs text-dark-200">
-                  <span class="flex items-center gap-1"><Calendar :size="12" /> 入驻 {{ signalProvider.joinDate }}</span>
-                  <span>交易经验: {{ signalProvider.experience }}</span>
+                  <span class="flex items-center gap-1"><Calendar :size="12" /> 入驻 {{ signalProvider?.joinDate }}</span>
+                  <span>交易经验: {{ signalProvider?.experience }}</span>
                 </div>
               </div>
             </div>
@@ -461,17 +461,17 @@
             <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
               <MessageSquare :size="18" class="text-primary-400" />
               用户评价
-              <span class="text-xs text-dark-100 font-normal ml-2">({{ userReviews.length }}条评价)</span>
+              <span class="text-xs text-dark-100 font-normal ml-2">({{ reviewTotal }}条评价)</span>
             </h2>
 
             <!-- 评分概览 -->
             <div class="flex items-center gap-6 mb-6 p-4 rounded-xl bg-dark-800/50">
               <div class="text-center">
-                <div class="text-3xl font-bold text-amber-400">4.6</div>
+              <div class="text-3xl font-bold text-amber-400">{{ averageRating.toFixed(1) }}</div>
                 <div class="flex items-center gap-0.5 mt-1">
                   <Star v-for="s in 5" :key="s" :size="12" :class="s <= 4 ? 'text-amber-400 fill-amber-400' : 'text-dark-300'" />
                 </div>
-                <div class="text-xs text-dark-200 mt-1">{{ userReviews.length }}条评价</div>
+                <div class="text-xs text-dark-200 mt-1">{{ reviewTotal }}条评价</div>
               </div>
               <div class="flex-1 space-y-1.5">
                 <div v-for="star in [5,4,3,2,1]" :key="star" class="flex items-center gap-2">
@@ -495,11 +495,11 @@
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-purple/30 flex items-center justify-center">
-                      <span class="text-xs font-bold text-primary-400">{{ review.user.charAt(0) }}</span>
+                    <span class="text-xs font-bold text-primary-400">{{ review.username?.charAt(0) }}</span>
                     </div>
                     <div>
-                      <div class="text-sm font-medium text-white">{{ review.user }}</div>
-                      <div class="text-xs text-dark-200">{{ review.date }}</div>
+                    <div class="text-sm font-medium text-white">{{ review.username }}</div>
+                      <div class="text-xs text-dark-200">{{ review.created_at?.split('T')[0] }}</div>
                     </div>
                   </div>
                   <div class="flex items-center gap-0.5">
@@ -508,7 +508,7 @@
                 </div>
                 <p class="text-sm text-dark-100 leading-relaxed">{{ review.content }}</p>
                 <div class="flex items-center gap-3 mt-2">
-                  <button class="flex items-center gap-1 text-xs text-dark-200 hover:text-primary-400 transition-colors">
+                  <button class="flex items-center gap-1 text-xs transition-colors" :class="review.is_liked ? 'text-primary-400' : 'text-dark-200 hover:text-primary-400'" @click="handleToggleLike(review.id)">
                     <ThumbsUp :size="12" /> {{ review.likes }}
                   </button>
                 </div>
@@ -556,7 +556,7 @@
               </div>
             </div>
 
-            <button class="btn-primary w-full mt-6 !py-3 text-base rounded-xl flex items-center justify-center gap-2">
+            <button class="btn-primary w-full mt-6 !py-3 text-base rounded-xl flex items-center justify-center gap-2" @click="handleStartFollow">
               <Copy :size="18" />
               启动跟单
             </button>
@@ -575,8 +575,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { MessagePlugin } from 'tdesign-vue-next'
 import { Radio, ChevronRight, TrendingUp, Layers, Copy, Building, Clock, Activity, Shield, BarChart3, Bell, ArrowUpCircle, ArrowDownCircle, User, Star, MessageSquare, ThumbsUp, Calendar, Award, TrendingDown } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
@@ -584,10 +585,47 @@ import TradingChart from '@/components/charts/TradingChart.vue'
 import MonthlyReturnChart from '@/components/charts/MonthlyReturnChart.vue'
 import DrawdownChart from '@/components/charts/DrawdownChart.vue'
 import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
-import { signals } from '@/utils/mockData'
+import {
+  getSignalDetail,
+  getSignalReturnCurve,
+  getSignalHistory,
+  getSignalProvider,
+  getSignalMonthlyReturns,
+  getSignalDrawdown,
+  getSignalReviews,
+  submitSignalReview,
+  toggleReviewLike,
+  createFollow,
+  getKlineData,
+} from '@/utils/signalApi'
+import type {
+  SignalDetailResponse,
+  SignalProvider,
+  SignalHistoryRecord,
+  SignalReview,
+  SignalDrawdownResponse,
+} from '@/utils/signalApi'
 
 const route = useRoute()
-const signal = computed(() => signals.find((s) => s.id === route.params.id))
+const router = useRouter()
+const signalId = computed(() => route.params.id as string)
+
+// ==================== 响应式数据 ====================
+
+const signal = ref<SignalDetailResponse | null>(null)
+const signalProvider = ref<SignalProvider | null>(null)
+const signalHistory = ref<SignalHistoryRecord[]>([])
+const userReviews = ref<SignalReview[]>([])
+const ratingDistribution = ref<Record<number, number>>({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 })
+const averageRating = ref(0)
+const reviewTotal = ref(0)
+const monthlyReturnData = ref<number[]>([])
+const monthlyReturnLabels = ref<string[]>([])
+const drawdownData = ref<number[]>([])
+const drawdownLabels = ref<string[]>([])
+const drawdownStatsData = ref<{ current: number; max: number; avg: number }>({ current: 0, max: 0, avg: 0 })
+
+const loading = ref(false)
 
 const followConfig = ref({
   amount: 1000,
@@ -595,10 +633,193 @@ const followConfig = ref({
   stopLoss: 10,
 })
 
+// ==================== 数据加载 ====================
+
+/** 加载信号详情 */
+async function fetchSignalDetail() {
+  loading.value = true
+  try {
+    signal.value = await getSignalDetail(signalId.value)
+  } catch (e) {
+    console.error('获取信号详情失败', e)
+    signal.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 加载信号提供者信息 */
+async function fetchProvider() {
+  try {
+    signalProvider.value = await getSignalProvider(signalId.value)
+  } catch (e) {
+    console.error('获取提供者信息失败', e)
+  }
+}
+
+/** 加载信号历史记录 */
+async function fetchHistory() {
+  try {
+    const res = await getSignalHistory(signalId.value, { page: 1, pageSize: 10 })
+    signalHistory.value = res.records || []
+  } catch (e) {
+    console.error('获取信号历史失败', e)
+  }
+}
+
+/** 加载月度收益 */
+async function fetchMonthlyReturns() {
+  try {
+    const res = await getSignalMonthlyReturns(signalId.value, { months: 12 })
+    monthlyReturnData.value = (res.monthly_returns || []).map(m => m.return_rate * 100)
+    monthlyReturnLabels.value = (res.monthly_returns || []).map(m => m.month)
+  } catch (e) {
+    console.error('获取月度收益失败', e)
+  }
+}
+
+/** 加载回撤分析 */
+async function fetchDrawdown() {
+  try {
+    const res = await getSignalDrawdown(signalId.value)
+    drawdownData.value = (res.drawdown_curve || []).map(d => d.drawdown * 100)
+    drawdownLabels.value = (res.drawdown_curve || []).map(d => d.date)
+    drawdownStatsData.value = {
+      current: (res.current_drawdown || 0) * 100,
+      max: (res.max_drawdown || 0) * 100,
+      avg: (res.avg_drawdown || 0) * 100,
+    }
+  } catch (e) {
+    console.error('获取回撤分析失败', e)
+  }
+}
+
+/** 加载用户评价 */
+async function fetchReviews() {
+  try {
+    const res = await getSignalReviews(signalId.value, { page: 1, page_size: 10 })
+    userReviews.value = res.items || []
+    reviewTotal.value = res.total || 0
+    averageRating.value = res.average_rating || 0
+    // 转换评分分布为百分比
+    const dist = res.rating_distribution || {}
+    const total = Object.values(dist).reduce((a: number, b: number) => a + b, 0) || 1
+    ratingDistribution.value = {
+      5: Math.round(((dist['5'] || 0) / total) * 100),
+      4: Math.round(((dist['4'] || 0) / total) * 100),
+      3: Math.round(((dist['3'] || 0) / total) * 100),
+      2: Math.round(((dist['2'] || 0) / total) * 100),
+      1: Math.round(((dist['1'] || 0) / total) * 100),
+    }
+  } catch (e) {
+    console.error('获取评价失败', e)
+  }
+}
+
+/** 加载K线数据 */
+async function fetchKlineData() {
+  if (!signal.value) return
+  try {
+    const intervalMap: Record<string, string> = { '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
+    const res = await getKlineData({
+      symbol: signal.value.tradingPair,
+      interval: intervalMap[selectedTimeframe.value] || '1h',
+      limit: 200,
+    })
+    klineData.value = res.klines || []
+  } catch (e) {
+    console.error('获取K线数据失败，使用模拟数据', e)
+    klineData.value = generateMockKline()
+  }
+}
+
+/** 提交评价 */
+async function handleSubmitReview(rating: number, content: string) {
+  try {
+    await submitSignalReview(signalId.value, { rating, content })
+    MessagePlugin.success('评价提交成功')
+    fetchReviews()
+  } catch (e) {
+    console.error('提交评价失败', e)
+    MessagePlugin.error('提交评价失败')
+  }
+}
+
+/** 评价点赞 */
+async function handleToggleLike(reviewId: string) {
+  try {
+    const res = await toggleReviewLike(signalId.value, reviewId)
+    // 更新本地评价点赞状态
+    const review = userReviews.value.find(r => r.id === reviewId)
+    if (review) {
+      review.is_liked = res.liked
+      review.likes = res.total_likes
+    }
+  } catch (e) {
+    console.error('点赞失败', e)
+  }
+}
+
+/** 启动跟单 */
+async function handleStartFollow() {
+  if (!followConfig.value.amount || followConfig.value.amount < 100) {
+    MessagePlugin.warning('跟单资金最低100 USDT')
+    return
+  }
+  if (!followConfig.value.stopLoss || followConfig.value.stopLoss < 1 || followConfig.value.stopLoss > 50) {
+    MessagePlugin.warning('止损比例需在1-50之间')
+    return
+  }
+  try {
+    const res = await createFollow(signalId.value, {
+      amount: Number(followConfig.value.amount),
+      ratio: Number(followConfig.value.ratio),
+      stopLoss: Number(followConfig.value.stopLoss),
+    })
+    MessagePlugin.success('跟单创建成功')
+    // 跳转到跟单详情页
+    router.push(`/system/user/follow/${res.follow_id}`)
+  } catch (e) {
+    console.error('创建跟单失败', e)
+    MessagePlugin.error('创建跟单失败')
+  }
+}
+
+// 初始化加载
+onMounted(async () => {
+  await fetchSignalDetail()
+  // 并行加载其他数据
+  fetchProvider()
+  fetchHistory()
+  fetchMonthlyReturns()
+  fetchDrawdown()
+  fetchReviews()
+  fetchKlineData()
+})
+
+// ==================== 月度收益统计 ====================
+
+const monthlyStats = computed(() => {
+  const data = monthlyReturnData.value
+  const profitMonths = data.filter(v => v >= 0).length
+  const lossMonths = data.filter(v => v < 0).length
+  const bestMonth = data.length ? Math.max(...data).toFixed(1) : '0'
+  return { profitMonths, lossMonths, bestMonth }
+})
+
+// ==================== 回撤统计（已从API获取） ====================
+
+const drawdownStats = computed(() => drawdownStatsData.value)
+
 // ==================== K线图表相关 ====================
 
 const selectedTimeframe = ref('1H')
 const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
+
+// 时间周期切换时重新加载K线
+watch(selectedTimeframe, () => {
+  fetchKlineData()
+})
 
 const availableIndicators = [
   { key: 'ma', label: 'MA' },
@@ -616,11 +837,11 @@ function toggleIndicator(key: string) {
   }
 }
 
-// 生成模拟K线数据 (200根K线)
+// 生成模拟K线数据（作为后备方案）
 function generateMockKline(count = 200): KlineDataPoint[] {
   const data: KlineDataPoint[] = []
   const now = Math.floor(Date.now() / 1000)
-  const interval = 3600 // 1小时
+  const interval = 3600
   let price = 91000 + Math.random() * 2000
 
   for (let i = 0; i < count; i++) {
@@ -637,7 +858,7 @@ function generateMockKline(count = 200): KlineDataPoint[] {
   return data
 }
 
-const klineData = ref<KlineDataPoint[]>(generateMockKline())
+const klineData = ref<KlineDataPoint[]>([])
 
 // 计算MA指标
 function calcMA(data: KlineDataPoint[], period: number): Array<{ time: number; value: number }> {
@@ -713,6 +934,7 @@ function calcRSI(data: KlineDataPoint[], period = 14): Array<{ time: number; val
 const chartIndicators = computed<IndicatorData[]>(() => {
   const indicators: IndicatorData[] = []
   const data = klineData.value
+  if (!data.length) return indicators
   
   if (activeIndicators.value.includes('ma')) {
     indicators.push(
@@ -740,101 +962,19 @@ const chartIndicators = computed<IndicatorData[]>(() => {
   return indicators
 })
 
-// 生成模拟买卖点标记
+// 从信号历史记录生成买卖点标记
 const tradeMarks = computed<TradeMarkData[]>(() => {
-  const data = klineData.value
-  const marks: TradeMarkData[] = []
-  // 在K线数据中每隔15-30根选一些作为买卖信号
-  let i = 20
-  let isBuy = true
-  while (i < data.length) {
-    marks.push({
-      time: data[i].time,
+  return signalHistory.value.map(record => {
+    // 将ISO时间转为unix时间戳
+    const timestamp = Math.floor(new Date(record.time).getTime() / 1000)
+    const isBuy = record.action === 'buy'
+    return {
+      time: timestamp,
       position: isBuy ? 'belowBar' : 'aboveBar',
       color: isBuy ? '#10b981' : '#ef5350',
       shape: isBuy ? 'arrowUp' : 'arrowDown',
       text: isBuy ? '买入' : '卖出',
-    })
-    isBuy = !isBuy
-    i += 15 + Math.floor(Math.random() * 20)
-  }
-  return marks
+    } as TradeMarkData
+  })
 })
-
-// ==================== 信号历史记录 ====================
-
-const signalHistory = computed(() => {
-  const pair = signal.value?.tradingPair || 'BTC/USDT'
-  return [
-    { id: '1', action: 'buy', symbol: pair, price: 89234.50, amount: 0.055, time: '2025-02-25 14:30:00', strength: '强', pnl: undefined },
-    { id: '2', action: 'sell', symbol: 'ETH/USDT', price: 3521.23, amount: 1.42, time: '2025-02-24 10:15:00', strength: '中', pnl: 91.52 },
-    { id: '3', action: 'buy', symbol: 'ETH/USDT', price: 3456.78, amount: 1.45, time: '2025-02-23 16:45:00', strength: '强', pnl: 64.45 },
-    { id: '4', action: 'sell', symbol: pair, price: 90123.45, amount: 0.05, time: '2025-02-22 09:20:00', strength: '强', pnl: 156.78 },
-    { id: '5', action: 'buy', symbol: pair, price: 86993.80, amount: 0.05, time: '2025-02-21 11:20:00', strength: '中', pnl: 312.50 },
-    { id: '6', action: 'sell', symbol: 'SOL/USDT', price: 178.55, amount: 12.5, time: '2025-02-20 08:45:00', strength: '弱', pnl: -45.30 },
-    { id: '7', action: 'buy', symbol: 'SOL/USDT', price: 182.10, amount: 12.5, time: '2025-02-19 15:30:00', strength: '中', pnl: -44.38 },
-    { id: '8', action: 'sell', symbol: pair, price: 88650.00, amount: 0.06, time: '2025-02-18 12:00:00', strength: '强', pnl: 225.60 },
-  ]
-})
-
-// ==================== 信号提供者信息 ====================
-
-const signalProvider = {
-  name: 'CryptoMaster',
-  verified: true,
-  bio: '8年加密货币交易经验，擅长趋势跟踪和量化分析。前对冲基金量化研究员，专注于BTC/ETH主流币种交易。',
-  totalSignals: 12,
-  avgReturn: 23.5,
-  totalFollowers: 8420,
-  rating: 4.6,
-  joinDate: '2023-06-15',
-  experience: '8年',
-}
-
-// ==================== 月度收益分布 ====================
-
-const monthlyReturnData = [5.2, -1.8, 8.3, 3.1, -4.5, 12.6, 7.8, -2.3, 6.4, 9.1, -0.8, 4.7]
-const monthlyReturnLabels = ['2024-03', '2024-04', '2024-05', '2024-06', '2024-07', '2024-08', '2024-09', '2024-10', '2024-11', '2024-12', '2025-01', '2025-02']
-
-const monthlyStats = computed(() => {
-  const profitMonths = monthlyReturnData.filter(v => v >= 0).length
-  const lossMonths = monthlyReturnData.filter(v => v < 0).length
-  const bestMonth = Math.max(...monthlyReturnData).toFixed(1)
-  return { profitMonths, lossMonths, bestMonth }
-})
-
-// ==================== 回撤分析 ====================
-
-const drawdownLabels = computed(() => signal.value?.returnCurveLabels || [])
-const drawdownData = computed(() => {
-  // 从收益曲线计算回撤
-  const curve = signal.value?.returnCurve || []
-  const dd: number[] = []
-  let peak = -Infinity
-  for (const val of curve) {
-    if (val > peak) peak = val
-    dd.push(peak > 0 ? Math.min(0, val - peak) : 0)
-  }
-  return dd
-})
-
-const drawdownStats = computed(() => {
-  const data = drawdownData.value
-  const max = data.length ? Math.min(...data) : 0
-  const avg = data.length ? data.reduce((a, b) => a + b, 0) / data.length : 0
-  const current = data.length ? data[data.length - 1] : 0
-  return { max, avg, current }
-})
-
-// ==================== 用户评价 ====================
-
-const ratingDistribution: Record<number, number> = { 5: 45, 4: 30, 3: 15, 2: 7, 1: 3 }
-
-const userReviews = [
-  { id: '1', user: 'Trader_John', date: '2025-02-20', rating: 5, content: '信号质量很高，跟单两个月了收益很稳定。止损设置合理，回撤控制得很好。强烈推荐！', likes: 24 },
-  { id: '2', user: 'CryptoFan88', date: '2025-02-18', rating: 4, content: '整体不错，信号准确率很高。偶尔有延迟，希望能优化一下推送速度。', likes: 15 },
-  { id: '3', user: 'InvestorPro', date: '2025-02-15', rating: 5, content: '已跟单3个月，累计收益超过20%，非常满意。信号频率适中，不会过度交易。', likes: 31 },
-  { id: '4', user: 'NewbieTD', date: '2025-02-12', rating: 4, content: '作为新手来说很友好，信号说明清晰，风险控制也很到位。扣一星是因为有时候信号来的时候价格已经变了。', likes: 12 },
-  { id: '5', user: 'WhaleHunter', date: '2025-02-08', rating: 3, content: '信号不错但近期表现一般，希望后续能恢复之前的水平。', likes: 8 },
-]
 </script>

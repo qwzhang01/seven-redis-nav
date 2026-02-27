@@ -304,18 +304,6 @@ ws://{host}/api/v1/ws/trading?token={jwt_token}
 }
 ```
 
-#### 账户余额变化
-
-```json
-{
-  "type": "account",
-  "data": {
-    "total_equity": 100000.0,
-    "available_margin": 95000.0
-  }
-}
-```
-
 ---
 
 ## 3. 策略 WebSocket

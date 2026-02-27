@@ -1,8 +1,16 @@
 # 信号详情 & 信号跟单 — 接口设计文档
 
-> 文档版本：v1.0  
-> 最后更新：2026-02-26  
+> 文档版本：v1.1  
+> 最后更新：2026-02-27  
 > 对应页面：SignalDetail.vue、SignalFollowDetail.vue
+>
+> **v1.1 更新说明：**  
+> - 信号详情接口优先从 `signal` 主表查询，无数据时降级到 `signal_records` 表  
+> - 新增 `GET /signals/{id}/return-curve` 独立收益曲线接口  
+> - 统一 K线接口路径为 `/market/kline`  
+> - 跟单配置更新接口统一为 `/follows/{id}/config`  
+> - 补充鉴权说明和接口清单中的鉴权列  
+> - 补充 `provider` 字段中的 `badges` 支持
 
 ---
 
@@ -64,10 +72,11 @@
 | 2.4 | GET | `/signals/{id}/provider` | 获取信号提供者信息 | 否 |
 | 2.5 | GET | `/signals/{id}/monthly-returns` | 获取月度收益分布 | 否 |
 | 2.6 | GET | `/signals/{id}/drawdown` | 获取回撤分析数据 | 否 |
-| 2.7 | GET | `/signals/{id}/reviews` | 获取用户评价列表 | 否 |
-| 2.8 | POST | `/signals/{id}/reviews` | 提交用户评价 | 是 |
-| 2.9 | POST | `/signals/{id}/reviews/{reviewId}/like` | 评价点赞 | 是 |
-| 2.10 | POST | `/signals/{id}/follow` | 创建跟单 | 是 |
+| 2.7 | GET | `/signals/{id}/return-curve` | 获取收益曲线数据 | 否 |
+| 2.8 | GET | `/signals/{id}/reviews` | 获取用户评价列表 | 否 |
+| 2.9 | POST | `/signals/{id}/reviews` | 提交用户评价 | 是 |
+| 2.10 | POST | `/signals/{id}/reviews/{reviewId}/like` | 评价点赞 | 是 |
+| 2.11 | POST | `/signals/{id}/follow` | 创建跟单 | 是 |
 | 3.1 | GET | `/follows/{id}` | 获取跟单详情 | 是 |
 | 3.2 | GET | `/follows/{id}/comparison` | 获取收益对比数据 | 是 |
 | 3.3 | GET | `/follows/{id}/trades` | 获取跟单交易记录 | 是 |
@@ -148,6 +157,20 @@ GET /api/v1/signals/{id}
         "pnlPercent": 2.24
       }
     ],
+    "provider": {
+      "id": "provider_001",
+      "name": "CryptoMaster",
+      "avatar": "https://...",
+      "verified": true,
+      "bio": "8年加密货币交易经验...",
+      "totalSignals": 12,
+      "avgReturn": 23.5,
+      "totalFollowers": 8420,
+      "rating": 4.6,
+      "joinDate": "2023-06-15",
+      "experience": "8年",
+      "badges": ["certified_trader", "top_performer"]
+    },
     "createdAt": "2024-08-15T10:30:00Z",
     "updatedAt": "2025-02-26T00:00:00Z"
   }
@@ -422,7 +445,43 @@ GET /api/v1/signals/{id}/drawdown
 
 ---
 
-### 2.7 获取用户评价列表
+### 2.7 获取收益曲线数据
+
+获取信号的累计收益率曲线和回撤曲线，支持时间范围筛选。
+
+**请求**
+
+```
+GET /api/v1/signals/{id}/return-curve
+```
+
+| 参数 | 位置 | 类型 | 必填 | 说明 |
+|------|------|------|------|------|
+| id | path | string | 是 | 信号ID |
+| period | query | string | 否 | 时间范围：`7d`/`30d`/`90d`/`180d`/`all`，默认 `all` |
+
+**响应**
+
+```json
+{
+  "code": 0,
+  "data": {
+    "returnCurve": [0.5, 1.2, 2.3, 5.6, 8.1, ...],
+    "drawdownCurve": [0, -0.3, -0.1, -1.2, -0.5, ...],
+    "labels": ["2025-01-01", "2025-01-02", ...]
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| returnCurve | number[] | 累计收益率序列(%) |
+| drawdownCurve | number[] | 回撤序列(≤ 0 的负数)(%) |
+| labels | string[] | X轴日期标签 |
+
+---
+
+### 2.8 获取用户评价列表
 
 **请求**
 
@@ -471,7 +530,7 @@ GET /api/v1/signals/{id}/reviews
 
 ---
 
-### 2.8 提交用户评价
+### 2.9 提交用户评价
 
 **请求**
 
@@ -511,7 +570,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 2.9 评价点赞
+### 2.10 评价点赞
 
 **请求**
 
@@ -534,7 +593,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 2.10 创建跟单
+### 2.11 创建跟单
 
 **请求**
 

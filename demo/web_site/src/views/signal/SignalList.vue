@@ -135,15 +135,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Radio, Search, Users, Clock, SearchX } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
-import { signals } from '@/utils/mockData'
+import { getSignalList, getSignalPlatforms } from '@/utils/signalApi'
+import type { SignalListParams } from '@/utils/signalApi'
 
 const currentPage = ref(1)
 const pageSize = 9
 const sortBy = ref('returnDesc')
+const loading = ref(false)
+const totalCount = ref(0)
 
 const filters = ref({
   platform: '',
@@ -152,31 +155,74 @@ const filters = ref({
   search: '',
 })
 
-const platforms = [...new Set(signals.map((s) => s.platform))]
+const platforms = ref<string[]>([])
+const signalItems = ref<any[]>([])
 
-const filteredSignals = computed(() => {
-  let result = signals.filter((s) => {
-    if (filters.value.platform && s.platform !== filters.value.platform) return false
-    if (filters.value.type && s.type !== filters.value.type) return false
-    if (filters.value.minDays && s.runDays < filters.value.minDays) return false
-    if (filters.value.search && !s.name.toLowerCase().includes(filters.value.search.toLowerCase())) return false
-    return true
-  })
+// 排序值映射：前端 -> 后端
+const sortByMap: Record<string, string> = {
+  returnDesc: 'return_desc',
+  returnAsc: 'return_asc',
+  drawdownAsc: 'drawdown_asc',
+  followers: 'followers',
+}
 
-  switch (sortBy.value) {
-    case 'returnDesc': result.sort((a, b) => b.cumulativeReturn - a.cumulativeReturn); break
-    case 'returnAsc': result.sort((a, b) => a.cumulativeReturn - b.cumulativeReturn); break
-    case 'drawdownAsc': result.sort((a, b) => a.maxDrawdown - b.maxDrawdown); break
-    case 'followers': result.sort((a, b) => b.followers - a.followers); break
+/** 获取平台列表 */
+async function fetchPlatforms() {
+  try {
+    const data = await getSignalPlatforms()
+    platforms.value = data || []
+  } catch (e) {
+    console.error('获取平台列表失败', e)
+    platforms.value = []
   }
-  return result
+}
+
+/** 获取信号列表 */
+async function fetchSignals() {
+  loading.value = true
+  try {
+    const params: SignalListParams = {
+      page: currentPage.value,
+      page_size: pageSize,
+      sort_by: sortByMap[sortBy.value] as SignalListParams['sort_by'],
+    }
+    if (filters.value.platform) params.platform = filters.value.platform
+    if (filters.value.type) params.type = filters.value.type as 'live' | 'simulated'
+    if (filters.value.minDays) params.min_days = filters.value.minDays
+    if (filters.value.search) params.search = filters.value.search
+
+    const res = await getSignalList(params)
+    signalItems.value = res.items || []
+    totalCount.value = res.total || 0
+  } catch (e) {
+    console.error('获取信号列表失败', e)
+    signalItems.value = []
+    totalCount.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+// 筛选条件变化时重置页码并重新获取
+watch([filters, sortBy], () => {
+  currentPage.value = 1
+  fetchSignals()
+}, { deep: true })
+
+// 页码变化时重新获取
+watch(currentPage, () => {
+  fetchSignals()
 })
 
-const totalPages = computed(() => Math.ceil(filteredSignals.value.length / pageSize))
-const paginatedSignals = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredSignals.value.slice(start, start + pageSize)
+// 初始化
+onMounted(() => {
+  fetchPlatforms()
+  fetchSignals()
 })
+
+const totalPages = computed(() => Math.ceil(totalCount.value / pageSize))
+const paginatedSignals = computed(() => signalItems.value)
+const filteredSignals = computed(() => ({ length: totalCount.value }))
 </script>
 
 <style scoped>

@@ -54,7 +54,12 @@ def _build_async_database_url() -> str:
 
 
 # 创建数据库引擎和会话工厂
-engine = create_engine(_build_sync_database_url())
+# 开发环境下开启 SQL 日志打印（echo=True）
+def _is_development() -> bool:
+    """判断是否为开发环境"""
+    return os.getenv("ENV", "development").lower() == "development"
+
+engine = create_engine(_build_sync_database_url(), echo=_is_development())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -123,7 +128,7 @@ class AsyncTimescaleDB:
                 database_url,
                 pool_size=self.min_size,
                 max_overflow=self.max_size - self.min_size,
-                echo=False
+                echo=_is_development()
             )
 
             # 创建异步会话工厂

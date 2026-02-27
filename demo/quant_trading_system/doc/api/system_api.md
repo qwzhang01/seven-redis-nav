@@ -66,7 +66,7 @@
 | version | string | 系统版本号 |
 | env | string | 运行环境（development/production） |
 | debug | boolean | 调试模式状态 |
-| trading_mode | string \| null | 交易模式（live/paper），系统未启动时为 null |
+| trading_mode | string \| null | 交易模式（live/backtest），系统未启动时为 null |
 | trading_running | boolean | 交易系统是否正在运行 |
 
 #### 响应示例

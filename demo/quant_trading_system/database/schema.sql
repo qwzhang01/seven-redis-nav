@@ -1157,3 +1157,224 @@ BEGIN
         COMMENT ON COLUMN signal_follow_trades.slippage IS '滑点百分比';
     END IF;
 END $$;
+
+
+-- ============================================================
+-- 新增表：信号广场核心表（信号主表及关联的参数/绩效/通知/时序数据表）
+-- ============================================================
+
+-- 信号主表（信号广场展示的信号源核心信息）
+CREATE TABLE IF NOT EXISTS signal (
+    id                  BIGINT PRIMARY KEY,
+    name                VARCHAR(128) NOT NULL,                          -- 信号名称，如 "Alpha Pro #1"
+    platform            VARCHAR(64) NOT NULL DEFAULT 'Binance',         -- 来源平台，如 Binance、OKX
+    type                VARCHAR(16) NOT NULL DEFAULT 'live',            -- 信号类型：live(实盘) / simulated(模拟盘)
+    status              VARCHAR(16) NOT NULL DEFAULT 'running',         -- 信号状态：running / paused / stopped
+    exchange            VARCHAR(64),                                    -- 交易所
+    trading_pair        VARCHAR(32),                                    -- 交易对，如 BTC/USDT
+    timeframe           VARCHAR(16),                                    -- 时间周期，如 15m、1H、4H、1D
+    signal_frequency    VARCHAR(16),                                    -- 信号频率：high / medium / low
+    description         TEXT,                                           -- 信号描述
+    provider_id         BIGINT REFERENCES signal_providers(id),         -- 信号提供者ID
+    strategy_id         VARCHAR(128),                                   -- 关联的策略ID（可选，如果信号由策略生成）
+    followers_count     INTEGER NOT NULL DEFAULT 0,                     -- 跟随人数（冗余计数，定期同步）
+    run_days            INTEGER NOT NULL DEFAULT 0,                     -- 运行天数
+    cumulative_return   DECIMAL(12, 4) NOT NULL DEFAULT 0,              -- 累计收益率(%)
+    max_drawdown        DECIMAL(12, 4) NOT NULL DEFAULT 0,              -- 最大回撤(%)
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    enable_flag         BOOLEAN DEFAULT TRUE
+);
+
+COMMENT ON TABLE signal IS '信号广场主表 — 存储信号源的核心元数据信息';
+COMMENT ON COLUMN signal.name IS '信号名称，如 "Alpha Pro #1"';
+COMMENT ON COLUMN signal.platform IS '来源平台，如 Binance、OKX';
+COMMENT ON COLUMN signal.type IS '信号类型：live(实盘) / simulated(模拟盘)';
+COMMENT ON COLUMN signal.status IS '信号状态：running / paused / stopped';
+COMMENT ON COLUMN signal.provider_id IS '关联的信号提供者ID';
+COMMENT ON COLUMN signal.strategy_id IS '关联的策略ID（策略生成的信号可通过此关联）';
+COMMENT ON COLUMN signal.followers_count IS '跟随人数（冗余计数）';
+COMMENT ON COLUMN signal.cumulative_return IS '累计收益率(%)';
+COMMENT ON COLUMN signal.max_drawdown IS '最大回撤(%)';
+
+CREATE INDEX IF NOT EXISTS idx_signal_platform ON signal (platform);
+CREATE INDEX IF NOT EXISTS idx_signal_type ON signal (type);
+CREATE INDEX IF NOT EXISTS idx_signal_status ON signal (status);
+CREATE INDEX IF NOT EXISTS idx_signal_provider ON signal (provider_id);
+CREATE INDEX IF NOT EXISTS idx_signal_strategy ON signal (strategy_id);
+CREATE INDEX IF NOT EXISTS idx_signal_cumulative_return ON signal (cumulative_return DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_followers ON signal (followers_count DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_enable ON signal (enable_flag);
+
+-- 信号风险参数表（一对一关联signal表）
+CREATE TABLE IF NOT EXISTS signal_risk_parameters (
+    id                      BIGINT PRIMARY KEY,
+    signal_id               BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    max_position_size       DECIMAL(8, 2),          -- 最大仓位(%)
+    stop_loss_percentage    DECIMAL(8, 2),           -- 止损比例(%)
+    take_profit_percentage  DECIMAL(8, 2),           -- 止盈比例(%)
+    risk_reward_ratio       DECIMAL(8, 2),           -- 风险收益比
+    volatility_filter       BOOLEAN DEFAULT FALSE,   -- 波动率过滤开关
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_risk_parameters IS '信号风险参数表';
+COMMENT ON COLUMN signal_risk_parameters.max_position_size IS '最大仓位百分比(%)';
+COMMENT ON COLUMN signal_risk_parameters.stop_loss_percentage IS '止损比例(%)';
+COMMENT ON COLUMN signal_risk_parameters.take_profit_percentage IS '止盈比例(%)';
+COMMENT ON COLUMN signal_risk_parameters.risk_reward_ratio IS '风险收益比';
+COMMENT ON COLUMN signal_risk_parameters.volatility_filter IS '是否启用波动率过滤';
+
+-- 信号绩效指标表（一对一关联signal表）
+CREATE TABLE IF NOT EXISTS signal_performance_metrics (
+    id                          BIGINT PRIMARY KEY,
+    signal_id                   BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    sharpe_ratio                DECIMAL(8, 4),          -- 夏普比率
+    win_rate                    DECIMAL(8, 4),           -- 胜率(%)
+    profit_factor               DECIMAL(8, 4),           -- 盈亏比
+    average_holding_period      DECIMAL(8, 2),           -- 平均持仓天数
+    max_consecutive_losses      INTEGER,                 -- 最大连亏次数
+    total_trades                INTEGER DEFAULT 0,       -- 总交易次数
+    win_trades                  INTEGER DEFAULT 0,       -- 盈利次数
+    loss_trades                 INTEGER DEFAULT 0,       -- 亏损次数
+    avg_win                     DECIMAL(14, 4),          -- 平均盈利金额
+    avg_loss                    DECIMAL(14, 4),          -- 平均亏损金额
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_performance_metrics IS '信号绩效指标表';
+COMMENT ON COLUMN signal_performance_metrics.sharpe_ratio IS '夏普比率';
+COMMENT ON COLUMN signal_performance_metrics.win_rate IS '胜率(%)';
+COMMENT ON COLUMN signal_performance_metrics.profit_factor IS '盈亏比';
+COMMENT ON COLUMN signal_performance_metrics.total_trades IS '总交易次数';
+
+-- 信号通知设置表（一对一关联signal表）
+CREATE TABLE IF NOT EXISTS signal_notification_settings (
+    id                  BIGINT PRIMARY KEY,
+    signal_id           BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    email_alerts        BOOLEAN DEFAULT TRUE,           -- 邮件提醒
+    push_notifications  BOOLEAN DEFAULT TRUE,           -- 推送通知
+    telegram_bot        BOOLEAN DEFAULT FALSE,          -- Telegram 机器人
+    discord_webhook     BOOLEAN DEFAULT FALSE,          -- Discord Webhook
+    alert_threshold     DECIMAL(8, 2),                  -- 提醒阈值(%)
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_notification_settings IS '信号通知设置表';
+COMMENT ON COLUMN signal_notification_settings.email_alerts IS '是否启用邮件提醒';
+COMMENT ON COLUMN signal_notification_settings.push_notifications IS '是否启用推送通知';
+COMMENT ON COLUMN signal_notification_settings.telegram_bot IS '是否启用Telegram机器人';
+COMMENT ON COLUMN signal_notification_settings.discord_webhook IS '是否启用Discord Webhook';
+COMMENT ON COLUMN signal_notification_settings.alert_threshold IS '提醒阈值百分比(%)';
+
+-- 信号收益曲线时序表（TimescaleDB超表）
+CREATE TABLE IF NOT EXISTS signal_return_curve (
+    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    time            TIMESTAMPTZ NOT NULL,               -- 日期
+    return_value    DECIMAL(12, 4) NOT NULL,             -- 当日累计收益率(%)
+    drawdown        DECIMAL(12, 4),                      -- 当日回撤(%)
+    PRIMARY KEY (signal_id, time)
+);
+
+COMMENT ON TABLE signal_return_curve IS '信号收益曲线时序表';
+COMMENT ON COLUMN signal_return_curve.return_value IS '当日累计收益率(%)';
+COMMENT ON COLUMN signal_return_curve.drawdown IS '当日回撤(%)';
+
+SELECT create_hypertable('signal_return_curve', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_signal_return_curve_signal ON signal_return_curve (signal_id, time DESC);
+
+-- 信号月度收益表
+CREATE TABLE IF NOT EXISTS signal_monthly_return (
+    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    month           DATE NOT NULL,                      -- 月份（取当月1日）
+    return_value    DECIMAL(12, 4) NOT NULL,             -- 月度收益率(%)
+    PRIMARY KEY (signal_id, month)
+);
+
+COMMENT ON TABLE signal_monthly_return IS '信号月度收益表';
+COMMENT ON COLUMN signal_monthly_return.month IS '月份（取当月1日）';
+COMMENT ON COLUMN signal_monthly_return.return_value IS '月度收益率(%)';
+
+CREATE INDEX IF NOT EXISTS idx_signal_monthly_return ON signal_monthly_return (signal_id, month DESC);
+
+-- 信号当前持仓表
+CREATE TABLE IF NOT EXISTS signal_position (
+    id              BIGINT PRIMARY KEY,
+    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    symbol          VARCHAR(32) NOT NULL,               -- 交易对
+    side            VARCHAR(8) NOT NULL,                 -- 方向：long / short
+    amount          DECIMAL(18, 8) NOT NULL,             -- 数量
+    entry_price     DECIMAL(18, 8) NOT NULL,             -- 开仓价
+    current_price   DECIMAL(18, 8),                      -- 当前价格（实时更新）
+    pnl             DECIMAL(14, 4),                      -- 盈亏金额
+    pnl_percent     DECIMAL(10, 4),                      -- 盈亏百分比(%)
+    opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_position IS '信号当前持仓表';
+COMMENT ON COLUMN signal_position.side IS '方向：long(做多) / short(做空)';
+COMMENT ON COLUMN signal_position.pnl IS '盈亏金额';
+COMMENT ON COLUMN signal_position.pnl_percent IS '盈亏百分比(%)';
+
+CREATE INDEX IF NOT EXISTS idx_signal_position_signal ON signal_position (signal_id);
+
+-- 信号交易记录表（信号历史信号/交易记录）
+CREATE TABLE IF NOT EXISTS signal_trade_record (
+    id              BIGINT PRIMARY KEY,
+    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    action          VARCHAR(8) NOT NULL,                 -- buy / sell
+    symbol          VARCHAR(32) NOT NULL,                -- 交易对
+    price           DECIMAL(18, 8) NOT NULL,             -- 成交价格
+    amount          DECIMAL(18, 8) NOT NULL,             -- 成交数量
+    total           DECIMAL(18, 4),                      -- 成交额
+    strength        VARCHAR(8),                          -- 信号强度：strong / medium / weak
+    pnl             DECIMAL(14, 4),                      -- 盈亏金额（卖出时有值）
+    traded_at       TIMESTAMPTZ NOT NULL,                -- 成交时间
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE signal_trade_record IS '信号交易记录表';
+COMMENT ON COLUMN signal_trade_record.action IS '交易方向: buy/sell';
+COMMENT ON COLUMN signal_trade_record.strength IS '信号强度: strong/medium/weak';
+COMMENT ON COLUMN signal_trade_record.pnl IS '盈亏金额（卖出时有值）';
+
+CREATE INDEX IF NOT EXISTS idx_signal_trade_signal ON signal_trade_record (signal_id, traded_at DESC);
+
+-- 跟单收益曲线时序表（TimescaleDB超表，替代JSONB存储，便于大数据量查询）
+CREATE TABLE IF NOT EXISTS signal_follow_return_curve (
+    follow_id       BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    time            TIMESTAMPTZ NOT NULL,                -- 日期
+    return_value    DECIMAL(12, 4) NOT NULL,              -- 跟单累计收益率(%)
+    signal_return   DECIMAL(12, 4),                       -- 对应信号源的收益率(%)（用于收益对比）
+    PRIMARY KEY (follow_id, time)
+);
+
+COMMENT ON TABLE signal_follow_return_curve IS '跟单收益曲线时序表';
+COMMENT ON COLUMN signal_follow_return_curve.return_value IS '跟单累计收益率(%)';
+COMMENT ON COLUMN signal_follow_return_curve.signal_return IS '对应信号源的收益率(%)';
+
+SELECT create_hypertable('signal_follow_return_curve', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_follow_return_curve ON signal_follow_return_curve (follow_id, time DESC);
+
+-- 为signal_follow_orders表新增signal_id字段（直接关联signal主表）
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_orders' AND column_name = 'signal_id') THEN
+        ALTER TABLE signal_follow_orders ADD COLUMN signal_id BIGINT REFERENCES signal(id);
+        COMMENT ON COLUMN signal_follow_orders.signal_id IS '关联的信号广场主表ID';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_orders' AND column_name = 'follow_days') THEN
+        ALTER TABLE signal_follow_orders ADD COLUMN follow_days INTEGER DEFAULT 0;
+        COMMENT ON COLUMN signal_follow_orders.follow_days IS '跟单天数';
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_follow_orders_signal_id ON signal_follow_orders (signal_id);
+
+-- TimescaleDB 数据保留策略
+SELECT add_retention_policy('signal_return_curve', INTERVAL '2 years', if_not_exists => TRUE);
+SELECT add_retention_policy('signal_follow_return_curve', INTERVAL '2 years', if_not_exists => TRUE);

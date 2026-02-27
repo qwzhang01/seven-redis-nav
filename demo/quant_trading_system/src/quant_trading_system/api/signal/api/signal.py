@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import (
+    Signal,
     SignalRecord,
     SignalSubscription,
     User,
@@ -114,27 +115,47 @@ def _signal_to_dict(s: SignalRecord) -> dict:
     }
 
 
-# ── 信号详情页接口 ────────────────────────────────────────────────────────────
+# ── 信号广场接口 ──────────────────────────────────────────────────────────────
 
 @router.get("/list")
-async def list_public_signals(
-    symbol: Optional[str] = Query(None, description="交易对过滤"),
-    signal_type: Optional[str] = Query(None, description="信号类型: buy/sell/close"),
-    strategy_id: Optional[str] = Query(None, description="策略ID过滤"),
+async def list_signals(
+    platform: Optional[str] = Query(None, description="来源平台筛选"),
+    type: Optional[str] = Query(None, alias="type", description="信号类型: live / simulated"),
+    min_days: Optional[int] = Query(None, ge=0, description="最小运行天数"),
+    search: Optional[str] = Query(None, description="关键词搜索（模糊匹配信号名称）"),
+    sort_by: str = Query("return_desc", description="排序: return_desc/return_asc/drawdown_asc/followers"),
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    page_size: int = Query(9, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    获取公开信号列表（信号广场）
+    获取信号列表（信号广场）
 
-    查询所有公开展示的策略信号，支持按交易对、信号类型、策略过滤。
+    支持按平台、类型、运行天数筛选，支持关键词搜索和多种排序方式。
+    优先从signal主表查询，无数据时降级到signal_records查询。
     """
-    result = SignalService.list_public_signals(
-        db, symbol=symbol, signal_type=signal_type,
-        strategy_id=strategy_id, page=page, page_size=page_size,
+    result = SignalService.list_signals(
+        db, platform=platform, signal_type=type,
+        min_days=min_days, search=search,
+        sort_by=sort_by, page=page, page_size=page_size,
     )
     return {"code": 0, "message": "success", "data": result}
+
+
+@router.get("/platforms")
+async def get_platforms(
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    获取平台列表（筛选项）
+
+    返回当前系统中所有信号源的平台名称列表。
+    """
+    platforms = SignalService.get_platforms(db)
+    return {"code": 0, "message": "success", "data": platforms}
+
+
+# ── 信号详情页接口 ────────────────────────────────────────────────────────────
 
 
 @router.get("/subscriptions")
@@ -198,11 +219,27 @@ async def get_signal_detail(
     获取信号详情
 
     获取信号的完整详情信息，包括基本信息、风险参数、绩效指标、持仓等。
+    优先从signal主表查询，无数据时降级到signal_records查询。
     """
     user_id = current_user.id if current_user else None
-    result = SignalService.get_signal_detail(db, signal_id, user_id)
+    result = SignalService.get_signal_detail_v2(db, signal_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="信号不存在")
+    return {"code": 0, "message": "success", "data": result}
+
+
+@router.get("/{signal_id}/return-curve")
+async def get_signal_return_curve(
+    signal_id: int,
+    period: str = Query("all", description="时间范围: 7d/30d/90d/180d/all"),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    获取信号收益曲线
+
+    返回信号的每日累计收益率和回撤曲线数据，支持时间范围筛选。
+    """
+    result = SignalService.get_signal_return_curve(db, signal_id, period)
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -218,7 +255,7 @@ async def get_signal_history(
 
     获取信号发出的交易信号历史列表，支持分页。
     """
-    signal = db.query(SignalRecord).filter(SignalRecord.id == signal_id).first()
+    signal = db.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first()
     if not signal:
         raise HTTPException(status_code=404, detail="信号不存在")
 
@@ -251,13 +288,9 @@ async def get_monthly_returns(
     """
     获取月度收益分布
 
-    按月汇总信号的收益分布数据。
+    按月汇总信号的收益分布数据。优先从signal_monthly_return表获取。
     """
-    signal = db.query(SignalRecord).filter(SignalRecord.id == signal_id).first()
-    if not signal:
-        raise HTTPException(status_code=404, detail="信号不存在")
-
-    result = SignalService.get_monthly_returns(db, signal_id, months)
+    result = SignalService.get_signal_monthly_returns(db, signal_id, months)
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -269,13 +302,9 @@ async def get_drawdown_analysis(
     """
     获取回撤分析数据
 
-    获取信号的回撤曲线和统计信息。
+    获取信号的回撤曲线和统计信息。优先从signal_return_curve时序表获取。
     """
-    signal = db.query(SignalRecord).filter(SignalRecord.id == signal_id).first()
-    if not signal:
-        raise HTTPException(status_code=404, detail="信号不存在")
-
-    result = SignalService.get_drawdown_analysis(db, signal_id)
+    result = SignalService.get_signal_drawdown(db, signal_id)
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -293,7 +322,7 @@ async def get_reviews(
 
     获取信号的用户评价，包括评分分布和评价详情。
     """
-    signal = db.query(SignalRecord).filter(SignalRecord.id == signal_id).first()
+    signal = db.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first()
     if not signal:
         raise HTTPException(status_code=404, detail="信号不存在")
 
@@ -426,9 +455,10 @@ async def subscribe_signal(
     )
     db.add(sub)
 
-    db.query(SignalRecord).filter(
-        SignalRecord.strategy_id == request.strategy_id
-    ).update({"subscriber_count": SignalRecord.subscriber_count + 1})
+    db.query(Signal).filter(
+        Signal.strategy_id == request.strategy_id,
+        Signal.enable_flag == True,
+    ).update({"followers_count": Signal.followers_count + 1})
 
     db.commit()
     db.refresh(sub)
