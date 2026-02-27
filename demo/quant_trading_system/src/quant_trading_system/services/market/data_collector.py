@@ -733,7 +733,7 @@ class BinanceDataCollector(DataCollector):
         from quant_trading_system.models.market import Bar, TimeFrame
 
         # 使用OKX数据转换器转换 WebSocket 推送的 kline 数据
-        kline_data = OKXDataConverter.convert_ws_kline_data(data)
+        kline_data = BinanceDataConverter.convert_kline_data(data)
         if not kline_data or not kline_data.get("symbol"):
             logger.warning("Invalid OKX kline data", data=data)
             return
