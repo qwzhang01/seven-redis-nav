@@ -188,16 +188,8 @@ def setup_logging(
     logging.getLogger("asyncio").setLevel(logging.WARNING)
     logging.getLogger("kafka").setLevel(logging.WARNING)
 
-    # 开发环境下保留 SQLAlchemy SQL 日志输出，非开发环境抑制
-    _is_dev = False
-    try:
-        _is_dev = _settings.is_development  # type: ignore[possibly-undefined]
-    except NameError:
-        _is_dev = os.environ.get("ENV", "production").lower() == "development"
-    if _is_dev:
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
-    else:
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    # SQLAlchemy 引擎日志默认抑制，需要调试 SQL 时可手动设为 logging.DEBUG
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
