@@ -19,6 +19,7 @@ from quant_trading_system.services.market.data_collector import (
     DataCollector,
     OKXDataCollector,
 )
+from quant_trading_system.services.market.mock_collector import MockDataCollector
 from quant_trading_system.services.market.kline_engine import KLineEngine
 from quant_trading_system.api.websocket.market_ws import push_ticker, push_kline, push_depth
 
@@ -148,6 +149,12 @@ class MarketService:
                 api_key=api_key or settings.OKX_API_KEY,
                 api_secret=api_secret or settings.OKX_SECRET_KEY,
                 passphrase=kwargs.get("passphrase", "") or settings.OKX_PASSPHRASE,
+            )
+        elif exchange == "mock":
+            collector = MockDataCollector(
+                tick_interval=kwargs.get("tick_interval", 0.5),
+                depth_interval=kwargs.get("depth_interval", 1.0),
+                kline_intervals=kwargs.get("kline_intervals", ["1m", "5m", "15m", "1h"]),
             )
         else:
             logger.error(f"Unsupported exchange", exchange=exchange)

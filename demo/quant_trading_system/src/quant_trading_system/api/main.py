@@ -98,9 +98,15 @@ async def lifespan(app: FastAPI):
         from quant_trading_system.services.trading.orchestrator import \
             TradingOrchestrator
 
+        # 开发环境使用 mock 数据源，无需连接真实交易所
+        use_mock = settings.is_development
+        exchange_name = "mock" if use_mock else "binance"
+        if use_mock:
+            print("🎭 开发环境：使用 MockDataCollector 模拟行情数据")
+
         orchestrator = TradingOrchestrator(
             mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
-            exchange="binance",
+            exchange=exchange_name,
             market_type="spot",
             api_key=settings.BINANCE_API_KEY or "",  # 从配置读取API key
             api_secret=settings.BINANCE_SECRET_KEY or "",  # 从配置读取API secret
@@ -138,13 +144,16 @@ async def lifespan(app: FastAPI):
             from quant_trading_system.core.enums import DefaultTradingPair
             default_symbols = DefaultTradingPair.values()
 
+            # mock 模式下历史数据仍从 binance 查询（数据库中存储的是 binance 数据）
+            history_exchange = "binance" if use_mock else orchestrator.exchange
+
             if settings.is_production:
                 # 生产环境：从交易所拉取，同时保存到数据库以补充发版期间的数据缺口
                 print("📡 生产环境：从交易所拉取历史K线数据...")
                 stats = await orchestrator.market_service.load_history(
                     symbols=default_symbols,
                     limit=500,
-                    exchange=orchestrator.exchange,
+                    exchange=history_exchange,
                     source="exchange",
                     save_to_db=True,
                 )
@@ -156,7 +165,7 @@ async def lifespan(app: FastAPI):
                 stats = await orchestrator.market_service.load_history(
                     symbols=default_symbols,
                     limit=500,
-                    exchange=orchestrator.exchange,
+                    exchange=history_exchange,
                     source="database",
                 )
                 total = sum(stats.values())
@@ -168,7 +177,7 @@ async def lifespan(app: FastAPI):
                     stats = await orchestrator.market_service.load_history(
                         symbols=default_symbols,
                         limit=500,
-                        exchange=orchestrator.exchange,
+                        exchange=history_exchange,
                         source="exchange",
                     )
                     total = sum(stats.values())
