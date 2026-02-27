@@ -505,6 +505,7 @@ class BinanceDataCollector(DataCollector):
                 streams.append(f"{symbol_lower}@depth20@100ms")  # 深度数据
             if settings.SYNC_KLINE:
                 streams.extend([
+                    f"{symbol_lower}@kline_1s",     # 1秒K线
                     f"{symbol_lower}@kline_1m",     # 1分钟K线
                     f"{symbol_lower}@kline_3m",     # 3分钟K线
                     f"{symbol_lower}@kline_5m",     # 5分钟K线
@@ -568,6 +569,7 @@ class BinanceDataCollector(DataCollector):
                 streams.append(f"{symbol_lower}@depth20@100ms")
             if settings.SYNC_KLINE:
                 streams.extend([
+                    f"{symbol_lower}@kline_1s",     # 1秒K线
                     f"{symbol_lower}@kline_1m",     # 1分钟K线
                     f"{symbol_lower}@kline_3m",     # 3分钟K线
                     f"{symbol_lower}@kline_5m",     # 5分钟K线

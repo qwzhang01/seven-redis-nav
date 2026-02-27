@@ -8,6 +8,7 @@ import numpy as np
 
 class TimeFrame(str, Enum):
     """时间框架枚举"""
+    S1 = "1s"
     M1 = "1m"
     M3 = "3m"
     M5 = "5m"
