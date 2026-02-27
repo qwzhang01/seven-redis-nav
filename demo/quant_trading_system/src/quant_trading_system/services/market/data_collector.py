@@ -506,6 +506,7 @@ class BinanceDataCollector(DataCollector):
             if settings.SYNC_KLINE:
                 streams.extend([
                     f"{symbol_lower}@kline_1m",     # 1分钟K线
+                    f"{symbol_lower}@kline_3m",     # 3分钟K线
                     f"{symbol_lower}@kline_5m",     # 5分钟K线
                     f"{symbol_lower}@kline_15m",    # 15分钟K线
                     f"{symbol_lower}@kline_30m",    # 30分钟K线
@@ -568,6 +569,7 @@ class BinanceDataCollector(DataCollector):
             if settings.SYNC_KLINE:
                 streams.extend([
                     f"{symbol_lower}@kline_1m",     # 1分钟K线
+                    f"{symbol_lower}@kline_3m",     # 3分钟K线
                     f"{symbol_lower}@kline_5m",     # 5分钟K线
                     f"{symbol_lower}@kline_15m",    # 15分钟K线
                     f"{symbol_lower}@kline_30m",    # 30分钟K线
