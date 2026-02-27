@@ -63,7 +63,7 @@ class BarArray:
 
     def append(self, bar: Bar) -> None:
         """添加一个Bar对象到数组"""
-        self.timestamp = np.append(self.timestamp, np.datetime64(bar.timestamp))
+        self.timestamp = np.append(self.timestamp, np.datetime64(int(bar.timestamp), "ms"))
         self.open = np.append(self.open, bar.open)
         self.high = np.append(self.high, bar.high)
         self.low = np.append(self.low, bar.low)

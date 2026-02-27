@@ -121,12 +121,14 @@ class DataStore:
             values = []
             for bar in self._kline_buffer:
                 turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
+                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                bar_datetime = datetime.fromtimestamp(bar.timestamp / 1000)
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": bar.symbol,
                     "exchange": bar.exchange,
                     "timeframe": bar.timeframe.value,
-                    "timestamp": bar.timestamp,
+                    "timestamp": bar_datetime,
                     "open": float(bar.open),
                     "high": float(bar.high),
                     "low": float(bar.low),
@@ -223,11 +225,13 @@ class DataStore:
         try:
             values = []
             for depth in self._depth_buffer:
+                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                depth_datetime = datetime.fromtimestamp(depth.timestamp / 1000)
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": depth.symbol,
                     "exchange": depth.exchange,
-                    "timestamp": depth.timestamp,
+                    "timestamp": depth_datetime,
                     "bids": json.dumps(depth.bids) if depth.bids else None,
                     "asks": json.dumps(depth.asks) if depth.asks else None,
                     "sequence": depth.sequence
