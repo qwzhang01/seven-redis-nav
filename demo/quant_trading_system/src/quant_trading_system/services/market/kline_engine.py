@@ -519,19 +519,24 @@ class KLineEngine:
             symbols = DefaultTradingPair.values()
 
         if timeframes is None:
-            timeframes = [TimeFrame.M1, TimeFrame.M5, TimeFrame.M15, TimeFrame.H1]
+            timeframes = ([TimeFrame.S1,
+                          TimeFrame.M1,
+                          TimeFrame.M3,
+                          TimeFrame.M5,
+                          TimeFrame.M15,
+                          TimeFrame.M30,
+                          TimeFrame.H1,
+                          TimeFrame.H2,
+                          TimeFrame.H4,
+                          TimeFrame.H6,
+                          TimeFrame.H8,
+                          TimeFrame.H12,
+                          TimeFrame.D1,
+                          TimeFrame.D3,
+                          TimeFrame.W1,
+                          TimeFrame.MN1])
 
         stats: dict[str, int] = {}
-
-        logger.info(
-            "Loading historical kline data",
-            symbols=symbols,
-            timeframes=[tf.value for tf in timeframes],
-            limit=limit,
-            exchange=exchange,
-            source=source,
-            save_to_db=save_to_db,
-        )
 
         if source == "database":
             stats = await self._load_history_from_database(
