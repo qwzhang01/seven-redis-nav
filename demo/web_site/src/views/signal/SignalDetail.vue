@@ -726,7 +726,19 @@ async function fetchKlineData() {
       interval: intervalMap[selectedTimeframe.value] || '1h',
       limit: 200,
     })
-    klineData.value = res.klines || []
+    // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
+    const rawData = (res as any).data || res.klines || []
+    klineData.value = rawData.map((item: any) => ({
+      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
+      open: item.open,
+      high: item.high,
+      low: item.low,
+      close: item.close,
+      volume: item.volume || 0,
+    }))
+    console.log('klineData-1', klineData)
+    klineData.value = generateMockKline()
+    console.log('klineData-2', klineData)
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     klineData.value = generateMockKline()

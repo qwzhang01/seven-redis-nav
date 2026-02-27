@@ -174,11 +174,13 @@ class DataStore:
         try:
             values = []
             for tick in self._tick_buffer:
+                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                tick_datetime = datetime.fromtimestamp(tick.timestamp / 1000)
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": tick.symbol,
                     "exchange": tick.exchange,
-                    "timestamp": tick.timestamp,
+                    "timestamp": tick_datetime,
                     "price": float(tick.price),
                     "volume": float(tick.volume),
                     "bid_price": float(tick.bid) if tick.bid else None,

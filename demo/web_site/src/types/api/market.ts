@@ -381,3 +381,186 @@ export interface CreateHistoricalSyncRequest {
   end_time: string
   batch_size?: number
 }
+
+// ==================== 市场API扩展类型 ====================
+
+/**
+ * 交易所信息（扩展）
+ */
+export interface MarketExchangeInfo {
+  id: string
+  code: string
+  name: string
+  type: 'spot' | 'futures' | 'margin'
+  status: 'active' | 'inactive'
+  base_url: string
+  api_doc_url?: string
+  supported_pairs_count: number
+  rate_limits?: Array<{
+    type: string
+    interval: string
+    limit: number
+  }>
+  create_time: string
+  update_time?: string
+}
+
+/**
+ * 交易所列表响应
+ */
+export interface ExchangesResponse {
+  total: number
+  exchanges: MarketExchangeInfo[]
+}
+
+/**
+ * 订阅行情请求（marketApi扩展）
+ */
+export interface SubscribeMarketRequest {
+  symbols: string[]
+  exchange?: string
+  market_type?: string
+}
+
+/**
+ * 订阅行情响应（marketApi扩展）
+ */
+export interface SubscribeMarketResponse {
+  success: boolean
+  message: string
+  symbols: string[]
+}
+
+/**
+ * K线路径参数查询
+ */
+export interface KlinePathParams {
+  timeframe?: string
+  limit?: number
+}
+
+/**
+ * 已订阅交易对查询参数
+ */
+export interface SubscribedSymbolsParams {
+  exchange?: string
+  market_type?: string
+}
+
+/**
+ * 已订阅交易对响应
+ */
+export interface SubscribedSymbolsResponse {
+  exchange: string
+  market_type: string
+  symbols: string[]
+}
+
+/**
+ * 获取订阅列表参数
+ */
+export interface GetSubscriptionsParams {
+  exchange?: string
+  data_type?: string
+  status?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取订阅列表响应
+ */
+export interface GetSubscriptionsResponse {
+  items: SubscriptionConfig[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/**
+ * 获取同步任务列表参数
+ */
+export interface GetSyncTasksParams {
+  subscription_id?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取同步任务列表响应
+ */
+export interface GetSyncTasksResponse {
+  success: boolean
+  data: {
+    items: SyncTask[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+/**
+ * 获取历史同步任务参数
+ */
+export interface GetHistoricalSyncParams {
+  exchange?: string
+  data_type?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取历史同步任务响应
+ */
+export interface GetHistoricalSyncResponse {
+  success: boolean
+  data: {
+    items: HistoricalSyncTask[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+/**
+ * 同步执行器状态响应
+ */
+export interface ExecutorStatusResponse {
+  success: boolean
+  data: {
+    is_running: boolean
+    pending_tasks: number
+    running_tasks: number
+    completed_tasks: number
+    failed_tasks: number
+    start_time?: string
+  }
+}
+
+/**
+ * WebSocket连接配置（marketApi）
+ */
+export interface MarketWebSocketConfig {
+  url: string
+  reconnect?: boolean
+  reconnectInterval?: number
+  heartbeatInterval?: number
+}
+
+/**
+ * WebSocket消息类型（marketApi）
+ */
+export type MarketWSMessageType = 'kline' | 'ticker' | 'depth' | 'trade'
+
+/**
+ * WebSocket订阅参数（marketApi）
+ */
+export interface MarketWSSubscribeParams {
+  exchange_id: string
+  symbol: string
+  type: MarketWSMessageType
+  interval?: KlineInterval
+}
