@@ -309,6 +309,8 @@ class MarketService:
         timeframes: list[TimeFrame] | None = None,
         limit: int = 500,
         exchange: str = "binance",
+        source: str = "exchange",
+        save_to_db: bool = False,
     ) -> dict[str, int]:
         """
         拉取历史K线数据并预加载到内存缓冲区
@@ -318,6 +320,8 @@ class MarketService:
             timeframes: 时间周期列表，为 None 则使用默认周期
             limit: 每个周期拉取的K线数量
             exchange: 交易所名称
+            source: 数据源，"exchange" 从交易所拉取，"database" 从数据库加载
+            save_to_db: 从交易所拉取后是否同时保存到数据库
 
         Returns:
             各交易对加载的K线数量统计
@@ -327,6 +331,8 @@ class MarketService:
             timeframes=timeframes,
             limit=limit,
             exchange=exchange,
+            source=source,
+            save_to_db=save_to_db,
         )
 
     def get_current_bar(

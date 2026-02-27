@@ -601,7 +601,6 @@ class BinanceDataCollector(DataCollector):
 
     async def _process_trade(self, data: dict[str, Any]) -> None:
         """处理成交数据"""
-        from datetime import datetime
         from quant_trading_system.models.market import Tick
 
         # 使用共享工具转换数据
@@ -609,7 +608,7 @@ class BinanceDataCollector(DataCollector):
 
         # 创建Tick对象
         tick = Tick(
-            timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
+            timestamp=tick_data["timestamp"],
             symbol=tick_data["symbol"],
             exchange="binance",
             price=tick_data["last_price"],
@@ -626,7 +625,6 @@ class BinanceDataCollector(DataCollector):
 
     async def _process_ticker(self, data: dict[str, Any]) -> None:
         """处理Ticker数据"""
-        from datetime import datetime
         from quant_trading_system.models.market import Tick
 
         # 使用共享工具转换数据
@@ -634,7 +632,7 @@ class BinanceDataCollector(DataCollector):
 
         # 创建Tick对象
         tick = Tick(
-            timestamp=TimeUtils.timestamp_to_datetime(tick_data["timestamp"]),
+            timestamp=tick_data["timestamp"],
             symbol=tick_data["symbol"],
             exchange="binance",
             price=tick_data["last_price"],
@@ -691,7 +689,6 @@ class BinanceDataCollector(DataCollector):
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
         """处理K线数据"""
-        from datetime import datetime
         from quant_trading_system.models.market import Bar, TimeFrame
 
         # 使用共享工具转换数据
@@ -699,7 +696,7 @@ class BinanceDataCollector(DataCollector):
 
         # 创建Bar对象（K线数据）
         bar = Bar(
-            timestamp=datetime.fromtimestamp(kline_data["timestamp"] / 1000),
+            timestamp=kline_data["timestamp"],
             symbol=kline_data["symbol"],
             exchange="binance",
             timeframe=TimeFrame(kline_data["interval"]),
@@ -861,7 +858,6 @@ class OKXDataCollector(DataCollector):
                        data=data)
 
     async def _process_trades(self, data: dict[str, Any]) -> None:
-        from datetime import datetime
         from quant_trading_system.models.market import Tick
 
         # 使用共享工具转换数据
@@ -869,7 +865,7 @@ class OKXDataCollector(DataCollector):
 
         # 创建Tick对象
         tick = Tick(
-            timestamp=datetime.fromtimestamp(trade_data["timestamp"] / 1000),
+            timestamp=trade_data["timestamp"],
             symbol=trade_data["symbol"],
             exchange="okx",
             price=trade_data["last_price"],
@@ -885,7 +881,6 @@ class OKXDataCollector(DataCollector):
         await self._notify("tick", trade_data)
 
     async def _process_ticker(self, data: dict[str, Any]) -> None:
-        from datetime import datetime
         from quant_trading_system.models.market import Tick
 
         # 使用共享工具转换数据
@@ -893,7 +888,7 @@ class OKXDataCollector(DataCollector):
 
         # 创建Tick对象
         tick = Tick(
-            timestamp=datetime.fromtimestamp(ticker_data["timestamp"] / 1000),
+            timestamp=ticker_data["timestamp"],
             symbol=ticker_data["symbol"],
             exchange="okx",
             price=ticker_data["last_price"],

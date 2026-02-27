@@ -131,16 +131,47 @@ async def lifespan(app: FastAPI):
             print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
 
         # 自动拉取历史K线数据，预加载到内存缓冲区
+        # 开发环境：从数据库加载（快速启动，无需访问交易所）
+        # 生产环境：从交易所拉取，并保存到数据库（补充发版期间实时行情同步暂停的数据缺口）
         try:
             from quant_trading_system.core.enums import DefaultTradingPair
             default_symbols = DefaultTradingPair.values()
-            stats = await orchestrator.market_service.load_history(
-                symbols=default_symbols,
-                limit=500,
-                exchange=orchestrator.exchange,
-            )
-            total = sum(stats.values())
-            print(f"✅ 已预加载历史K线数据: {total} 条 ({stats})")
+
+            if settings.is_production:
+                # 生产环境：从交易所拉取，同时保存到数据库以补充发版期间的数据缺口
+                print("📡 生产环境：从交易所拉取历史K线数据...")
+                stats = await orchestrator.market_service.load_history(
+                    symbols=default_symbols,
+                    limit=500,
+                    exchange=orchestrator.exchange,
+                    source="exchange",
+                    save_to_db=True,
+                )
+                total = sum(stats.values())
+                print(f"✅ 已从交易所预加载历史K线数据并保存到数据库: {total} 条 ({stats})")
+            else:
+                # 开发环境：从数据库加载，快速启动
+                print("💾 开发环境：从数据库加载历史K线数据...")
+                stats = await orchestrator.market_service.load_history(
+                    symbols=default_symbols,
+                    limit=500,
+                    exchange=orchestrator.exchange,
+                    source="database",
+                )
+                total = sum(stats.values())
+                if total > 0:
+                    print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
+                else:
+                    # 数据库无数据时，回退到从交易所拉取
+                    print("⚠️ 数据库中无历史K线数据，回退到从交易所拉取...")
+                    stats = await orchestrator.market_service.load_history(
+                        symbols=default_symbols,
+                        limit=500,
+                        exchange=orchestrator.exchange,
+                        source="exchange",
+                    )
+                    total = sum(stats.values())
+                    print(f"✅ 已从交易所预加载历史K线数据: {total} 条 ({stats})")
         except Exception as e:
             print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
 
