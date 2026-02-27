@@ -729,20 +729,19 @@ class BinanceDataCollector(DataCollector):
         await self._notify("depth", depth_data)
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
-        """处理OKX K线数据"""
+        """处理 Binance K线数据"""
         from quant_trading_system.models.market import Bar, TimeFrame
 
-        # 使用OKX数据转换器转换 WebSocket 推送的 kline 数据
         kline_data = BinanceDataConverter.convert_kline_data(data)
         if not kline_data or not kline_data.get("symbol"):
-            logger.warning("Invalid OKX kline data", data=data)
+            logger.warning("Invalid Binance kline data", data=data)
             return
 
         # 创建Bar对象
         bar = Bar(
             timestamp=kline_data["timestamp"],
             symbol=kline_data["symbol"],
-            exchange="okx",
+            exchange="binance",
             timeframe=TimeFrame(kline_data["interval"]),
             open=kline_data["open"],
             high=kline_data["high"],
@@ -756,7 +755,7 @@ class BinanceDataCollector(DataCollector):
         if bar.is_closed and self.enable_storage and self._data_store:
             await self._data_store.store_kline(bar)
 
-        logger.debug(f"Processed OKX kline data",
+        logger.debug(f"Processed Binance kline data",
                    symbol=kline_data["symbol"],
                    interval=kline_data["interval"],
                    open=kline_data["open"],
