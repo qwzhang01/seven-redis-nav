@@ -20,6 +20,7 @@ from typing import Any
 
 import structlog
 
+from quant_trading_system.core.config import settings
 from quant_trading_system.services.market.data_collector import DataCollector
 
 logger = structlog.get_logger(__name__)
@@ -119,10 +120,21 @@ class MockDataCollector(DataCollector):
                      depth_interval=self.depth_interval,
                      kline_intervals=self.kline_intervals)
 
-        # 启动后台推送任务
-        self._tick_task = asyncio.create_task(self._tick_loop(), name="mock-tick")
-        self._depth_task = asyncio.create_task(self._depth_loop(), name="mock-depth")
-        self._kline_task = asyncio.create_task(self._kline_loop(), name="mock-kline")
+        # 启动后台推送任务（根据配置开关决定是否启动）
+        if settings.SYNC_TICK:
+            self._tick_task = asyncio.create_task(self._tick_loop(), name="mock-tick")
+        else:
+            logger.info("🎭 MockDataCollector: Tick 同步已禁用，跳过 tick 推送")
+
+        if settings.SYNC_DEPTH:
+            self._depth_task = asyncio.create_task(self._depth_loop(), name="mock-depth")
+        else:
+            logger.info("🎭 MockDataCollector: Depth 同步已禁用，跳过 depth 推送")
+
+        if settings.SYNC_KLINE:
+            self._kline_task = asyncio.create_task(self._kline_loop(), name="mock-kline")
+        else:
+            logger.info("🎭 MockDataCollector: Kline 同步已禁用，跳过 kline 推送")
 
     async def stop(self) -> None:
         """停止模拟采集器"""

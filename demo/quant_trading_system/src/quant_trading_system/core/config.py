@@ -226,6 +226,11 @@ class ExchangeSettings(BaseSettings):
     data_provider: str = "binance"
     historical_data_path: str = "./data/historical"
 
+    # 行情数据同步开关（控制是否订阅和同步对应类型的行情数据）
+    sync_kline: bool = True    # 是否同步K线数据
+    sync_tick: bool = False     # 是否同步Tick数据（逐笔成交/Ticker）
+    sync_depth: bool = False    # 是否同步深度数据
+
 
 class SecuritySettings(BaseSettings):
     """安全配置"""
@@ -461,6 +466,19 @@ class Settings(BaseSettings):
     @property
     def OKX_PASSPHRASE(self) -> Optional[str]:
         return self.exchange.okx_passphrase
+
+    # 行情数据同步开关
+    @property
+    def SYNC_KLINE(self) -> bool:
+        return self.exchange.sync_kline
+
+    @property
+    def SYNC_TICK(self) -> bool:
+        return self.exchange.sync_tick
+
+    @property
+    def SYNC_DEPTH(self) -> bool:
+        return self.exchange.sync_depth
 
     # 日志相关
     @property

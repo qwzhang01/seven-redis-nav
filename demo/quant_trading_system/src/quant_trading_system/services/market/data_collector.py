@@ -20,6 +20,7 @@ from typing import Any, Callable, Coroutine
 
 import structlog
 
+from quant_trading_system.core.config import settings
 from quant_trading_system.services.database.data_store import get_data_store
 from quant_trading_system.services.market.common_utils import (
     TimeUtils,
@@ -491,19 +492,41 @@ class BinanceDataCollector(DataCollector):
                           reconnect_count=self._ws_client._reconnect_count)
             return
 
-        # 构建订阅参数
+        # 构建订阅参数（根据配置开关决定订阅哪些数据流）
         streams = []
         for symbol in symbols:
             symbol_lower = symbol.lower().replace("/", "")
-            streams.extend([
-                f"{symbol_lower}@trade",        # 逐笔成交
-                f"{symbol_lower}@ticker",       # 24小时行情
-                f"{symbol_lower}@depth20@100ms", # 深度数据
-                f"{symbol_lower}@kline_1m",     # 1分钟K线
-                f"{symbol_lower}@kline_5m",     # 5分钟K线
-                f"{symbol_lower}@kline_15m",    # 15分钟K线
-                f"{symbol_lower}@kline_1h",     # 1小时K线
-            ])
+            if settings.SYNC_TICK:
+                streams.extend([
+                    f"{symbol_lower}@trade",        # 逐笔成交
+                    f"{symbol_lower}@ticker",       # 24小时行情
+                ])
+            if settings.SYNC_DEPTH:
+                streams.append(f"{symbol_lower}@depth20@100ms")  # 深度数据
+            if settings.SYNC_KLINE:
+                streams.extend([
+                    f"{symbol_lower}@kline_1m",     # 1分钟K线
+                    f"{symbol_lower}@kline_3m",     # 3分钟K线
+                    f"{symbol_lower}@kline_5m",     # 5分钟K线
+                    f"{symbol_lower}@kline_15m",    # 15分钟K线
+                    f"{symbol_lower}@kline_30m",    # 30分钟K线
+                    f"{symbol_lower}@kline_1h",     # 1小时K线
+                    f"{symbol_lower}@kline_2h",     # 2小时K线
+                    f"{symbol_lower}@kline_4h",     # 4小时K线
+                    f"{symbol_lower}@kline_6h",     # 6小时K线
+                    f"{symbol_lower}@kline_8h",     # 8小时K线
+                    f"{symbol_lower}@kline_12h",    # 12小时K线
+                    f"{symbol_lower}@kline_1d",     # 1天K线
+                    f"{symbol_lower}@kline_3d",     # 3天K线
+                    f"{symbol_lower}@kline_1w",     # 1周K线
+                    f"{symbol_lower}@kline_1M",     # 1月K线
+                ])
+
+        if not streams:
+            logger.warning("No data streams to subscribe (all sync options are disabled)",
+                          symbols=symbols)
+            self._subscriptions.update(symbols)
+            return
 
         self._sub_id += 1
 
@@ -536,15 +559,20 @@ class BinanceDataCollector(DataCollector):
         streams = []
         for symbol in symbols:
             symbol_lower = symbol.lower().replace("/", "")
-            streams.extend([
-                f"{symbol_lower}@trade",
-                f"{symbol_lower}@ticker",
-                f"{symbol_lower}@depth20@100ms",
-                f"{symbol_lower}@kline_1m",
-                f"{symbol_lower}@kline_5m",
-                f"{symbol_lower}@kline_15m",
-                f"{symbol_lower}@kline_1h",
-            ])
+            if settings.SYNC_TICK:
+                streams.extend([
+                    f"{symbol_lower}@trade",
+                    f"{symbol_lower}@ticker",
+                ])
+            if settings.SYNC_DEPTH:
+                streams.append(f"{symbol_lower}@depth20@100ms")
+            if settings.SYNC_KLINE:
+                streams.extend([
+                    f"{symbol_lower}@kline_1m",
+                    f"{symbol_lower}@kline_5m",
+                    f"{symbol_lower}@kline_15m",
+                    f"{symbol_lower}@kline_1h",
+                ])
 
         self._sub_id += 1
 
@@ -785,18 +813,30 @@ class OKXDataCollector(DataCollector):
         if not self._ws_client.is_connected:
             return
 
+        # 根据配置开关决定订阅哪些频道
         args = []
         for symbol in symbols:
             inst_id = symbol.replace("/", "-")
-            args.extend([
-                {"channel": "trades", "instId": inst_id},
-                {"channel": "tickers", "instId": inst_id},
-                {"channel": "books5", "instId": inst_id},
-                {"channel": "candle1m", "instId": inst_id},  # 1分钟K线
-                {"channel": "candle5m", "instId": inst_id},  # 5分钟K线
-                {"channel": "candle15m", "instId": inst_id}, # 15分钟K线
-                {"channel": "candle1H", "instId": inst_id},  # 1小时K线
-            ])
+            if settings.SYNC_TICK:
+                args.extend([
+                    {"channel": "trades", "instId": inst_id},
+                    {"channel": "tickers", "instId": inst_id},
+                ])
+            if settings.SYNC_DEPTH:
+                args.append({"channel": "books5", "instId": inst_id})
+            if settings.SYNC_KLINE:
+                args.extend([
+                    {"channel": "candle1m", "instId": inst_id},  # 1分钟K线
+                    {"channel": "candle5m", "instId": inst_id},  # 5分钟K线
+                    {"channel": "candle15m", "instId": inst_id}, # 15分钟K线
+                    {"channel": "candle1H", "instId": inst_id},  # 1小时K线
+                ])
+
+        if not args:
+            logger.warning("No channels to subscribe (all sync options are disabled)",
+                          symbols=symbols)
+            self._subscriptions.update(symbols)
+            return
 
         await self._ws_client.send({
             "op": "subscribe",
@@ -804,9 +844,12 @@ class OKXDataCollector(DataCollector):
         })
 
         self._subscriptions.update(symbols)
-        logger.info(f"Subscribed to symbols with kline data",
+        logger.info(f"Subscribed to symbols",
                    symbols=symbols,
-                   channel_count=len(args))
+                   channel_count=len(args),
+                   sync_tick=settings.SYNC_TICK,
+                   sync_depth=settings.SYNC_DEPTH,
+                   sync_kline=settings.SYNC_KLINE)
 
     async def unsubscribe(self, symbols: list[str]) -> None:
         if not self._ws_client.is_connected:
@@ -815,15 +858,20 @@ class OKXDataCollector(DataCollector):
         args = []
         for symbol in symbols:
             inst_id = symbol.replace("/", "-")
-            args.extend([
-                {"channel": "trades", "instId": inst_id},
-                {"channel": "tickers", "instId": inst_id},
-                {"channel": "books5", "instId": inst_id},
-                {"channel": "candle1m", "instId": inst_id},
-                {"channel": "candle5m", "instId": inst_id},
-                {"channel": "candle15m", "instId": inst_id},
-                {"channel": "candle1H", "instId": inst_id},
-            ])
+            if settings.SYNC_TICK:
+                args.extend([
+                    {"channel": "trades", "instId": inst_id},
+                    {"channel": "tickers", "instId": inst_id},
+                ])
+            if settings.SYNC_DEPTH:
+                args.append({"channel": "books5", "instId": inst_id})
+            if settings.SYNC_KLINE:
+                args.extend([
+                    {"channel": "candle1m", "instId": inst_id},
+                    {"channel": "candle5m", "instId": inst_id},
+                    {"channel": "candle15m", "instId": inst_id},
+                    {"channel": "candle1H", "instId": inst_id},
+                ])
 
         await self._ws_client.send({
             "op": "unsubscribe",

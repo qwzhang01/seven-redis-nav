@@ -160,10 +160,21 @@ class MarketService:
             logger.error(f"Unsupported exchange", exchange=exchange)
             return
 
-        # 设置回调
-        collector.add_callback("tick", self._on_tick_data)
-        collector.add_callback("depth", self._on_depth_data)
-        collector.add_callback("kline", self._on_kline_data)
+        # 根据配置开关设置回调
+        if settings.SYNC_TICK:
+            collector.add_callback("tick", self._on_tick_data)
+        else:
+            logger.info("Tick 同步已禁用，跳过 tick 回调注册", exchange=exchange)
+
+        if settings.SYNC_DEPTH:
+            collector.add_callback("depth", self._on_depth_data)
+        else:
+            logger.info("Depth 同步已禁用，跳过 depth 回调注册", exchange=exchange)
+
+        if settings.SYNC_KLINE:
+            collector.add_callback("kline", self._on_kline_data)
+        else:
+            logger.info("Kline 同步已禁用，跳过 kline 回调注册", exchange=exchange)
 
         self._collectors[collector_key] = collector
 
