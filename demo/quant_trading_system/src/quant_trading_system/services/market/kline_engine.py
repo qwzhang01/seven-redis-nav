@@ -18,6 +18,7 @@ import numpy as np
 import structlog
 
 from quant_trading_system.models.market import Bar, BarArray, Tick, TimeFrame
+from quant_trading_system.core.enums import DefaultTradingPair
 
 logger = structlog.get_logger(__name__)
 
@@ -191,6 +192,37 @@ class KLineEngine:
         # 统计
         self._tick_count = 0
         self._bar_count = 0
+
+        # 为默认交易对预创建缓冲区（确保 get_bars 在尚无 tick 时也能返回结构）
+        self._init_default_buffers()
+
+    def _init_default_buffers(self) -> None:
+        """
+        为 DefaultTradingPair 枚举中的交易对预创建缓冲区
+
+        确保系统启动后 _buffers 就包含默认交易对的结构，
+        即使尚未收到任何 tick 数据，get_bars 也能正确返回空列表而非找不到 key。
+        """
+        default_symbols = DefaultTradingPair.values()
+
+        for symbol in default_symbols:
+            # 与 process_tick / get_bars 一致的 key 格式：去掉 "/" 和 "-"
+            buffer_key = symbol.replace("/", "").replace("-", "")
+
+            for tf in self._timeframes:
+                if tf not in self._buffers[buffer_key]:
+                    self._buffers[buffer_key][tf] = KLineBuffer(
+                        symbol=buffer_key,
+                        exchange="binance",
+                        timeframe=tf,
+                        max_size=self.buffer_size,
+                    )
+
+        logger.info(
+            "Initialized default trading pair buffers",
+            symbols=default_symbols,
+            timeframes=[tf.value for tf in self._timeframes],
+        )
 
     def add_timeframe(self, timeframe: TimeFrame) -> None:
         """添加支持的周期"""
@@ -408,6 +440,122 @@ class KLineEngine:
         self._current_bars.clear()
         self._tick_count = 0
         self._bar_count = 0
+
+    async def load_history(
+        self,
+        symbols: list[str] | None = None,
+        timeframes: list[TimeFrame] | None = None,
+        limit: int = 500,
+        exchange: str = "binance",
+    ) -> dict[str, int]:
+        """
+        从交易所 REST API 拉取历史K线数据，预加载到 _buffers 中。
+
+        Args:
+            symbols: 交易对列表，为 None 则使用 DefaultTradingPair 配置
+            timeframes: 时间周期列表，为 None 则使用 [M1, M5, M15, H1]
+            limit: 每个周期拉取的K线数量
+            exchange: 交易所名称
+
+        Returns:
+            各交易对加载的K线数量统计
+        """
+        if symbols is None:
+            symbols = DefaultTradingPair.values()
+
+        if timeframes is None:
+            timeframes = [TimeFrame.M1, TimeFrame.M5, TimeFrame.M15, TimeFrame.H1]
+
+        stats: dict[str, int] = {}
+
+        logger.info(
+            "Loading historical kline data",
+            symbols=symbols,
+            timeframes=[tf.value for tf in timeframes],
+            limit=limit,
+            exchange=exchange,
+        )
+
+        # 根据交易所选择 API 客户端
+        if exchange == "binance":
+            from quant_trading_system.services.market.binance_api import BinanceAPI
+            api_class = BinanceAPI
+        else:
+            logger.error(f"Unsupported exchange for history loading: {exchange}")
+            return stats
+
+        loop = asyncio.get_event_loop()
+
+        with api_class(market_type="spot") as api:
+            for symbol in symbols:
+                symbol_count = 0
+                # 去掉 "/" 和 "-" 得到 _buffers 的 key（与 process_tick 一致）
+                buffer_key = symbol.replace("/", "").replace("-", "")
+
+                for tf in timeframes:
+                    try:
+                        # 在线程池中执行同步 API 调用
+                        bar_array = await loop.run_in_executor(
+                            None,
+                            lambda s=symbol, t=tf: api.fetch_klines(
+                                symbol=s,
+                                timeframe=t,
+                                limit=limit,
+                            ),
+                        )
+
+                        if bar_array is None or len(bar_array) == 0:
+                            continue
+
+                        # 确保缓冲区存在
+                        if tf not in self._buffers[buffer_key]:
+                            self._buffers[buffer_key][tf] = KLineBuffer(
+                                symbol=buffer_key,
+                                exchange=exchange,
+                                timeframe=tf,
+                                max_size=self.buffer_size,
+                            )
+
+                        buffer = self._buffers[buffer_key][tf]
+
+                        # 将历史 K 线逐条写入缓冲区
+                        for i in range(len(bar_array)):
+                            bar = Bar(
+                                symbol=buffer_key,
+                                exchange=exchange,
+                                timeframe=tf,
+                                timestamp=float(bar_array.timestamp[i]),
+                                open=float(bar_array.open[i]),
+                                high=float(bar_array.high[i]),
+                                low=float(bar_array.low[i]),
+                                close=float(bar_array.close[i]),
+                                volume=float(bar_array.volume[i]),
+                                is_closed=True,
+                            )
+                            buffer.append(bar)
+                            self._bar_count += 1
+                            symbol_count += 1
+
+                        logger.info(
+                            "Loaded historical klines",
+                            symbol=symbol,
+                            timeframe=tf.value,
+                            count=len(bar_array),
+                        )
+
+                    except Exception as e:
+                        logger.error(
+                            "Failed to load historical klines",
+                            symbol=symbol,
+                            timeframe=tf.value,
+                            error=str(e),
+                        )
+                        continue
+
+                stats[symbol] = symbol_count
+
+        logger.info("Historical kline data loaded", stats=stats)
+        return stats
 
 
 class KLineAggregator:

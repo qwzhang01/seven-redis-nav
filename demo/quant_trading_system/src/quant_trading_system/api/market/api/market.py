@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from quant_trading_system.models.market import TimeFrame
+from quant_trading_system.core.enums import DefaultTradingPair
 
 # 创建行情路由实例
 router = APIRouter()
@@ -306,3 +307,59 @@ async def get_market_stats() -> dict[str, Any]:
     """
     orch = _get_orchestrator()
     return orch.market_service.stats
+
+
+@router.post("/load-history")
+async def load_history(
+    limit: int = Query(500, description="每个周期拉取的K线数量", ge=1, le=1000),
+) -> dict[str, Any]:
+    """
+    手动拉取历史K线数据
+
+    从交易所 REST API 拉取历史K线数据并预加载到内存缓冲区。
+    交易对从系统默认配置（DefaultTradingPair）中读取。
+
+    参数：
+    - limit: 每个交易对每个周期拉取的K线数量（1-1000），默认500
+
+    返回：
+    - success: 操作是否成功
+    - message: 操作结果描述
+    - symbols: 使用的交易对列表
+    - stats: 各交易对加载的K线数量统计
+    """
+    orch = _get_orchestrator()
+
+    # 从 DefaultTradingPair 枚举获取交易对列表
+    symbols = DefaultTradingPair.values()
+
+    stats = await orch.market_service.load_history(
+        symbols=symbols,
+        limit=limit,
+        exchange=orch.exchange,
+    )
+
+    total = sum(stats.values())
+    return {
+        "success": True,
+        "message": f"已为 {len(symbols)} 个交易对加载历史K线数据，共 {total} 条",
+        "symbols": symbols,
+        "stats": stats,
+    }
+
+
+@router.get("/default-symbols")
+async def get_default_symbols() -> dict[str, Any]:
+    """
+    获取系统默认交易对配置
+
+    返回 DefaultTradingPair 枚举中定义的所有默认交易对。
+
+    返回：
+    - symbols: 默认交易对列表
+    - details: 交易对详细信息（包含 label 和 description）
+    """
+    return {
+        "symbols": DefaultTradingPair.values(),
+        "details": DefaultTradingPair.to_list(),
+    }

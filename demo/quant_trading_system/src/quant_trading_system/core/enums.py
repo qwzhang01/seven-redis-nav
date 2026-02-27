@@ -273,6 +273,26 @@ _register_enum_meta("TradingPair", {
 })
 
 
+# ========== 系统默认交易对（启动时自动订阅WS行情 + 历史数据拉取） ==========
+
+class DefaultTradingPair(BaseEnum):
+    """系统默认支持的交易对，启动后自动订阅实时行情"""
+    BTC_USDT = "BTC/USDT"
+    ETH_USDT = "ETH/USDT"
+    SOL_USDT = "SOL/USDT"
+
+
+_register_enum_meta("DefaultTradingPair", {
+    "BTC/USDT": "比特币/泰达币",
+    "ETH/USDT": "以太坊/泰达币",
+    "SOL/USDT": "Solana/泰达币",
+}, {
+    "BTC/USDT": "系统默认订阅 - 比特币",
+    "ETH/USDT": "系统默认订阅 - 以太坊",
+    "SOL/USDT": "系统默认订阅 - Solana",
+})
+
+
 # ========== 开仓模式 ==========
 
 class TradeMode(BaseEnum):
@@ -401,6 +421,7 @@ ENUM_REGISTRY: dict[str, type[BaseEnum]] = {
     "KlineInterval": KlineInterval,
     "ExchangeEnum": ExchangeEnum,
     "TradingPair": TradingPair,
+    "DefaultTradingPair": DefaultTradingPair,
     "TradeMode": TradeMode,
     "StopMode": StopMode,
     "SignalType": SignalType,

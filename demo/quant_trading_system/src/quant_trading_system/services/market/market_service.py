@@ -303,6 +303,32 @@ class MarketService:
         """获取K线数组"""
         return self._kline_engine.get_bar_array(symbol, timeframe, limit)
 
+    async def load_history(
+        self,
+        symbols: list[str] | None = None,
+        timeframes: list[TimeFrame] | None = None,
+        limit: int = 500,
+        exchange: str = "binance",
+    ) -> dict[str, int]:
+        """
+        拉取历史K线数据并预加载到内存缓冲区
+
+        Args:
+            symbols: 交易对列表，为 None 则使用 DefaultTradingPair 配置
+            timeframes: 时间周期列表，为 None 则使用默认周期
+            limit: 每个周期拉取的K线数量
+            exchange: 交易所名称
+
+        Returns:
+            各交易对加载的K线数量统计
+        """
+        return await self._kline_engine.load_history(
+            symbols=symbols,
+            timeframes=timeframes,
+            limit=limit,
+            exchange=exchange,
+        )
+
     def get_current_bar(
         self,
         symbol: str,

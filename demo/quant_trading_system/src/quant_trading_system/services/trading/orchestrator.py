@@ -13,6 +13,7 @@ from typing import Any, Type
 
 import structlog
 
+from quant_trading_system.core.enums import DefaultTradingPair
 from quant_trading_system.core.events import EventEngine, EventType, Event
 from quant_trading_system.models.account import Account, AccountType, Balance
 from quant_trading_system.services.market.market_service import MarketService
@@ -231,6 +232,35 @@ class TradingOrchestrator:
                 "Subscribed market data",
                 symbols=self._subscribed_symbols,
             )
+
+    async def subscribe_default_symbols(self) -> None:
+        """
+        订阅系统默认交易对的实时行情（WS）
+
+        从 DefaultTradingPair 枚举读取配置，自动订阅尚未订阅的交易对。
+        """
+        default_symbols = DefaultTradingPair.values()
+        new_symbols = [
+            sym for sym in default_symbols
+            if sym not in self._subscribed_symbols
+        ]
+
+        if not new_symbols:
+            logger.info("All default symbols already subscribed",
+                       symbols=default_symbols)
+            return
+
+        await self.market_service.subscribe(
+            symbols=new_symbols,
+            exchange=self.exchange,
+            market_type=self.market_type,
+        )
+        self._subscribed_symbols.extend(new_symbols)
+
+        logger.info(
+            "Subscribed default trading pairs",
+            symbols=new_symbols,
+        )
 
     # ------------------------------------------------------------------
     # 内部方法

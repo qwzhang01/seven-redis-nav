@@ -110,7 +110,7 @@ def setup_logging(
 
     # 根据格式选择渲染器
     if log_format == "json":
-        renderer: Processor = structlog.processors.JSONRenderer()
+        renderer: Processor = structlog.processors.JSONRenderer(ensure_ascii=False)
     else:
         renderer = structlog.dev.ConsoleRenderer(
             colors=True,

@@ -121,6 +121,15 @@ async def lifespan(app: FastAPI):
             f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
         print(f"   已注册策略: {registered}")
 
+        # 自动订阅默认交易对的 WebSocket 实时行情
+        try:
+            await orchestrator.subscribe_default_symbols()
+            from quant_trading_system.core.enums import DefaultTradingPair
+            default_symbols = DefaultTradingPair.values()
+            print(f"✅ 已自动订阅默认交易对行情: {default_symbols}")
+        except Exception as e:
+            print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
+
     except Exception as e:
         print(f"❌ 编排器初始化失败: {e}")
         raise
