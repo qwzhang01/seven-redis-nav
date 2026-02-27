@@ -513,6 +513,65 @@ class OKXDataConverter:
             })
         return result
 
+    @staticmethod
+    def convert_ws_kline_data(data: dict[str, Any]) -> dict[str, Any] | None:
+        """
+        转换OKX WebSocket推送的K线数据为统一格式
+
+        OKX WebSocket K线推送格式:
+        {
+            "arg": {"channel": "candle1m", "instId": "BTC-USDT"},
+            "data": [
+                ["1697026860000", "27500.1", "27510.5", "27495.0", "27505.3", "12.5", "343816.25", "343816.25", "1"]
+            ]
+        }
+        data数组: [ts, open, high, low, close, vol, volCcy, volCcyQuote, confirm]
+        confirm: "0" 表示未完结, "1" 表示已完结
+
+        Args:
+            data: OKX WebSocket K线数据
+
+        Returns:
+            统一格式的K线数据，如果数据无效返回 None
+        """
+        try:
+            channel = data.get("arg", {}).get("channel", "")
+            inst_id = data.get("arg", {}).get("instId", "")
+            kline_list = data.get("data", [])
+
+            if not kline_list or not inst_id:
+                return None
+
+            kline = kline_list[0]
+
+            # 从 channel 名称解析时间周期
+            # OKX channel: candle1m, candle5m, candle15m, candle1H, candle4H, candle1D 等
+            interval_str = channel.replace("candle", "")
+            # 转换为统一格式: 1m, 5m, 15m, 1h, 4h, 1d
+            interval_map = {
+                "1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "30m": "30m",
+                "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w", "1M": "1M",
+            }
+            interval = interval_map.get(interval_str, interval_str.lower())
+
+            return {
+                "symbol": inst_id.replace("-", "/"),
+                "exchange": "okx",
+                "timestamp": int(kline[0]),
+                "interval": interval,
+                "open": float(kline[1]),
+                "high": float(kline[2]),
+                "low": float(kline[3]),
+                "close": float(kline[4]),
+                "volume": float(kline[5]),
+                "turnover": float(kline[6]) if len(kline) > 6 else 0.0,
+                "is_closed": kline[8] == "1" if len(kline) > 8 else False,
+            }
+        except (IndexError, ValueError, KeyError) as e:
+            logger.error(f"Failed to convert OKX WebSocket kline data",
+                        error=str(e), data=data)
+            return None
+
 
 class OKXConfig:
     """OKX配置常量"""

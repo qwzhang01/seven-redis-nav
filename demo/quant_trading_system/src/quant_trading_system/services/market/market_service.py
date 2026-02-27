@@ -84,6 +84,7 @@ class MarketService:
         # 统计
         self._tick_count = 0
         self._depth_count = 0
+        self._kline_count = 0
 
     async def start(self) -> None:
         """启动行情服务"""
@@ -154,6 +155,7 @@ class MarketService:
         # 设置回调
         collector.add_callback("tick", self._on_tick_data)
         collector.add_callback("depth", self._on_depth_data)
+        collector.add_callback("kline", self._on_kline_data)
 
         self._collectors[collector_key] = collector
 
@@ -259,6 +261,41 @@ class MarketService:
             tasks = [cb(tick) for cb in self._tick_callbacks]
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def _on_kline_data(self, data: dict[str, Any]) -> None:
+        """处理K线数据（来自交易所WebSocket推送）"""
+        bar = Bar(
+            symbol=data["symbol"],
+            exchange=data["exchange"],
+            timestamp=data["timestamp"],
+            timeframe=TimeFrame(data["interval"]),
+            open=data["open"],
+            high=data["high"],
+            low=data["low"],
+            close=data["close"],
+            volume=data["volume"],
+            is_closed=data.get("is_closed", False),
+        )
+
+        self._kline_count += 1
+
+        # 更新K线引擎的缓冲区
+        symbol_key = bar.symbol.replace("/", "").replace("-", "")
+        self._kline_engine.update_bar_from_ws(symbol_key, bar)
+
+        # 发送事件（仅已关闭的K线）
+        if bar.is_closed and self._event_engine:
+            await self._event_engine.put(Event(
+                type=EventType.BAR,
+                data=bar,
+            ))
+
+        # 通知K线回调（仅已关闭的K线）
+        if bar.is_closed:
+            callbacks = self._bar_callbacks.get(bar.timeframe, []) + self._bar_callbacks.get(None, [])
+            if callbacks:
+                tasks = [cb(bar) for cb in callbacks]
+                await asyncio.gather(*tasks, return_exceptions=True)
+
     async def _on_depth_data(self, data: dict[str, Any]) -> None:
         """处理深度数据"""
         from quant_trading_system.models.market import DepthLevel
@@ -354,6 +391,7 @@ class MarketService:
             "running": self._running,
             "tick_count": self._tick_count,
             "depth_count": self._depth_count,
+            "kline_count": self._kline_count,
             "collectors": list(self._collectors.keys()),
             "kline_stats": self._kline_engine.stats,
         }

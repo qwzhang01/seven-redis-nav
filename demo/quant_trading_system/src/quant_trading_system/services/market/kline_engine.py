@@ -364,6 +364,43 @@ class KLineEngine:
             tasks = [cb(bar) for cb in self._general_callbacks]
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    def update_bar_from_ws(self, symbol: str, bar: Bar) -> None:
+        """
+        使用交易所WebSocket推送的K线数据直接更新缓冲区
+
+        与 process_tick 合成K线不同，这里直接使用交易所推送的完整K线数据，
+        精度更高（交易所已经在服务端完成了聚合计算）。
+
+        Args:
+            symbol: 交易对（已去除 / 和 - 的格式）
+            bar: 交易所推送的K线数据
+        """
+        timeframe = bar.timeframe
+
+        # 确保缓冲区存在
+        if timeframe not in self._buffers[symbol]:
+            self._buffers[symbol][timeframe] = KLineBuffer(
+                symbol=symbol,
+                exchange=bar.exchange,
+                timeframe=timeframe,
+                max_size=self.buffer_size,
+            )
+
+        buffer = self._buffers[symbol][timeframe]
+
+        if bar.is_closed:
+            # K线已关闭：写入缓冲区并清除 current_bar
+            buffer.append(bar)
+            self._bar_count += 1
+
+            # 清除 current_bar（如果是同一根K线）
+            current = self._current_bars.get(symbol, {}).get(timeframe)
+            if current is not None and current.timestamp == bar.timestamp:
+                del self._current_bars[symbol][timeframe]
+        else:
+            # K线未关闭：更新 current_bar
+            self._current_bars[symbol][timeframe] = bar
+
     def get_bars(
         self,
         symbol: str,
@@ -579,12 +616,14 @@ class KLineEngine:
                     buffer = self._buffers[buffer_key][tf]
 
                     # 将数据库中的K线逐条写入缓冲区
+                    # 预先将 datetime64[ms] 数组转为毫秒级整数时间戳，避免逐条 float() 转换报错
+                    ts_ms = bar_array.timestamp.astype("datetime64[ms]").astype(np.int64)
                     for i in range(len(bar_array)):
                         bar = Bar(
                             symbol=buffer_key,
                             exchange=exchange,
                             timeframe=tf,
-                            timestamp=float(bar_array.timestamp[i]),
+                            timestamp=float(ts_ms[i]),
                             open=float(bar_array.open[i]),
                             high=float(bar_array.high[i]),
                             low=float(bar_array.low[i]),

@@ -611,6 +611,7 @@ class BinanceDataCollector(DataCollector):
             timestamp=tick_data["timestamp"],
             symbol=tick_data["symbol"],
             exchange="binance",
+            last_price=tick_data["last_price"],
             price=tick_data["last_price"],
             volume=tick_data["volume"],
             bid=0.0,
@@ -635,6 +636,7 @@ class BinanceDataCollector(DataCollector):
             timestamp=tick_data["timestamp"],
             symbol=tick_data["symbol"],
             exchange="binance",
+            last_price=tick_data["last_price"],
             price=tick_data["last_price"],
             volume=tick_data["volume"],
             bid=tick_data["bid_price"],
@@ -688,17 +690,19 @@ class BinanceDataCollector(DataCollector):
         await self._notify("depth", depth_data)
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
-        """处理K线数据"""
+        """处理OKX K线数据"""
         from quant_trading_system.models.market import Bar, TimeFrame
 
-        # 使用共享工具转换数据
-        kline_data = BinanceDataConverter.convert_kline_data(data)
+        # 使用共享工具转换 WebSocket 推送的 kline 数据
+        kline_data = OKXDataConverter.convert_ws_kline_data(data)
+        if kline_data is None:
+            return
 
-        # 创建Bar对象（K线数据）
+        # 创建Bar对象
         bar = Bar(
             timestamp=kline_data["timestamp"],
             symbol=kline_data["symbol"],
-            exchange="binance",
+            exchange="okx",
             timeframe=TimeFrame(kline_data["interval"]),
             open=kline_data["open"],
             high=kline_data["high"],
@@ -708,15 +712,16 @@ class BinanceDataCollector(DataCollector):
             is_closed=kline_data["is_closed"],
         )
 
-        # 存储到数据库
-        if self.enable_storage and self._data_store:
+        # 存储到数据库（仅已关闭的K线）
+        if bar.is_closed and self.enable_storage and self._data_store:
             await self._data_store.store_kline(bar)
 
-        logger.debug(f"Processed Binance kline data",
+        logger.debug(f"Processed OKX kline data",
                    symbol=kline_data["symbol"],
                    interval=kline_data["interval"],
                    open=kline_data["open"],
-                   close=kline_data["close"])
+                   close=kline_data["close"],
+                   is_closed=kline_data["is_closed"])
 
         await self._notify("kline", kline_data)
 
@@ -868,6 +873,7 @@ class OKXDataCollector(DataCollector):
             timestamp=trade_data["timestamp"],
             symbol=trade_data["symbol"],
             exchange="okx",
+            last_price=trade_data["last_price"],
             price=trade_data["last_price"],
             volume=trade_data["volume"],
             bid=0.0,
@@ -891,6 +897,7 @@ class OKXDataCollector(DataCollector):
             timestamp=ticker_data["timestamp"],
             symbol=ticker_data["symbol"],
             exchange="okx",
+            last_price=ticker_data["last_price"],
             price=ticker_data["last_price"],
             volume=ticker_data["volume"],
             bid=ticker_data["bid_price"],
