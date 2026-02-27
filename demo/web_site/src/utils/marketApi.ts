@@ -32,37 +32,45 @@ import type {
   CreateSyncTaskRequest,
   HistoricalSyncTask,
   CreateHistoricalSyncRequest,
+  // 扩展类型
+  MarketExchangeInfo,
+  ExchangesResponse,
+  SubscribeMarketRequest,
+  SubscribeMarketResponse,
+  KlinePathParams,
+  SubscribedSymbolsParams,
+  SubscribedSymbolsResponse,
+  GetSubscriptionsParams,
+  GetSubscriptionsResponse,
+  GetSyncTasksParams,
+  GetSyncTasksResponse,
+  GetHistoricalSyncParams,
+  GetHistoricalSyncResponse,
+  ExecutorStatusResponse,
+  MarketWebSocketConfig,
+  MarketWSMessageType,
+  MarketWSSubscribeParams,
 } from '../types'
 
-// ==================== 交易所信息类型（本地扩展） ====================
-
-/**
- * 交易所信息（扩展）
- */
-export interface ExchangeInfo {
-  id: string
-  code: string
-  name: string
-  type: 'spot' | 'futures' | 'margin'
-  status: 'active' | 'inactive'
-  base_url: string
-  api_doc_url?: string
-  supported_pairs_count: number
-  rate_limits?: Array<{
-    type: string
-    interval: string
-    limit: number
-  }>
-  create_time: string
-  update_time?: string
-}
-
-/**
- * 交易所列表响应
- */
-export interface ExchangesResponse {
-  total: number
-  exchanges: ExchangeInfo[]
+// 重新导出类型，保持向后兼容
+export type {
+  MarketExchangeInfo as ExchangeInfo,
+  ExchangesResponse,
+  SubscribeMarketRequest,
+  SubscribeMarketResponse,
+  KlinePathParams,
+  SubscribedSymbolsParams,
+  SubscribedSymbolsResponse,
+  GetSubscriptionsParams,
+  GetSubscriptionsResponse,
+  GetSyncTasksParams,
+  GetSyncTasksResponse,
+  GetHistoricalSyncParams,
+  GetHistoricalSyncResponse,
+  ExecutorStatusResponse,
+  MarketWebSocketConfig as WebSocketConfig,
+  MarketWSMessageType as WSMessageType,
+  MarketWSSubscribeParams as WSSubscribeParams,
 }
 
 // ==================== API方法 ====================
@@ -119,18 +127,6 @@ export function getExchanges(): Promise<ExchangesResponse> {
 /**
  * 订阅行情数据
  */
-export interface SubscribeMarketRequest {
-  symbols: string[]
-  exchange?: string
-  market_type?: string
-}
-
-export interface SubscribeMarketResponse {
-  success: boolean
-  message: string
-  symbols: string[]
-}
-
 export function subscribeMarket(data: SubscribeMarketRequest): Promise<SubscribeMarketResponse> {
   return post<SubscribeMarketResponse>('/api/v1/c/market/subscribe', data)
 }
@@ -145,11 +141,6 @@ export function unsubscribeMarket(data: SubscribeMarketRequest): Promise<Subscri
 /**
  * 获取K线数据（路径参数方式）
  */
-export interface KlinePathParams {
-  timeframe?: string
-  limit?: number
-}
-
 export function getKlineBySymbol(symbol: string, params?: KlinePathParams): Promise<any> {
   return get<any>(`/api/v1/c/market/kline/${symbol}`, params)
 }
@@ -171,17 +162,6 @@ export function getDepthBySymbol(symbol: string, params?: { limit?: number }): P
 /**
  * 获取已订阅的交易对列表
  */
-export interface SubscribedSymbolsParams {
-  exchange?: string
-  market_type?: string
-}
-
-export interface SubscribedSymbolsResponse {
-  exchange: string
-  market_type: string
-  symbols: string[]
-}
-
 export function getSubscribedSymbols(params?: SubscribedSymbolsParams): Promise<SubscribedSymbolsResponse> {
   return get<SubscribedSymbolsResponse>('/api/v1/c/market/symbols', params)
 }
@@ -194,32 +174,9 @@ export function getMarketStats(): Promise<Record<string, any>> {
 }
 
 // ==================== Admin端订阅管理接口 ====================
-// 类型定义已在 types/api/market.ts 中，直接使用
 
 export function createSubscription(data: CreateSubscriptionRequest): Promise<{ success: boolean; message: string; data: SubscriptionConfig }> {
   return post<{ success: boolean; message: string; data: SubscriptionConfig }>('/api/v1/m/market/subscriptions', data)
-}
-
-/**
- * 获取订阅列表参数
- */
-export interface GetSubscriptionsParams {
-  exchange?: string
-  data_type?: string
-  status?: string
-  search?: string
-  page?: number
-  page_size?: number
-}
-
-/**
- * 获取订阅列表响应
- */
-export interface GetSubscriptionsResponse {
-  items: SubscriptionConfig[]
-  total: number
-  page: number
-  page_size: number
 }
 
 export function getSubscriptions(params?: GetSubscriptionsParams): Promise<GetSubscriptionsResponse> {
@@ -229,7 +186,6 @@ export function getSubscriptions(params?: GetSubscriptionsParams): Promise<GetSu
 /**
  * 获取订阅统计信息
  */
-
 export function getSubscriptionStatistics(): Promise<{ success: boolean; data: SubscriptionStatistics }> {
   return get<{ success: boolean; data: SubscriptionStatistics }>('/api/v1/m/market/subscriptions/statistics')
 }
@@ -244,7 +200,6 @@ export function getSubscriptionDetail(subscriptionId: string): Promise<{ success
 /**
  * 更新订阅配置
  */
-
 export function updateSubscription(subscriptionId: string, data: UpdateSubscriptionRequest): Promise<{ success: boolean; message: string; data: SubscriptionConfig }> {
   return put<{ success: boolean; message: string; data: SubscriptionConfig }>(`/api/v1/m/market/subscriptions/${subscriptionId}`, data)
 }
@@ -278,30 +233,9 @@ export function stopSubscription(subscriptionId: string): Promise<{ success: boo
 }
 
 // ==================== Admin端同步任务管理接口 ====================
-// 类型定义已在 types/api/market.ts 中，直接使用
 
 export function createSyncTask(data: CreateSyncTaskRequest): Promise<{ success: boolean; message: string; data: SyncTask }> {
   return post<{ success: boolean; message: string; data: SyncTask }>('/api/v1/m/market/sync-tasks', data)
-}
-
-/**
- * 获取同步任务列表
- */
-export interface GetSyncTasksParams {
-  subscription_id?: string
-  status?: string
-  page?: number
-  page_size?: number
-}
-
-export interface GetSyncTasksResponse {
-  success: boolean
-  data: {
-    items: SyncTask[]
-    total: number
-    page: number
-    page_size: number
-  }
 }
 
 export function getSyncTasks(params?: GetSyncTasksParams): Promise<GetSyncTasksResponse> {
@@ -323,31 +257,9 @@ export function cancelSyncTask(taskId: string): Promise<{ success: boolean; mess
 }
 
 // ==================== Admin端历史数据同步接口 ====================
-// 类型定义已在 types/api/market.ts 中，直接使用
 
 export function createHistoricalSync(data: CreateHistoricalSyncRequest): Promise<{ success: boolean; message: string; data: HistoricalSyncTask }> {
   return post<{ success: boolean; message: string; data: HistoricalSyncTask }>('/api/v1/m/market/historical-sync', data)
-}
-
-/**
- * 获取历史同步任务列表
- */
-export interface GetHistoricalSyncParams {
-  exchange?: string
-  data_type?: string
-  status?: string
-  page?: number
-  page_size?: number
-}
-
-export interface GetHistoricalSyncResponse {
-  success: boolean
-  data: {
-    items: HistoricalSyncTask[]
-    total: number
-    page: number
-    page_size: number
-  }
 }
 
 export function getHistoricalSyncTasks(params?: GetHistoricalSyncParams): Promise<GetHistoricalSyncResponse> {
@@ -369,21 +281,6 @@ export function cancelHistoricalSync(taskId: string): Promise<{ success: boolean
 }
 
 // ==================== Admin端历史同步执行器控制接口 ====================
-
-/**
- * 同步执行器状态
- */
-export interface ExecutorStatusResponse {
-  success: boolean
-  data: {
-    is_running: boolean
-    pending_tasks: number
-    running_tasks: number
-    completed_tasks: number
-    failed_tasks: number
-    start_time?: string
-  }
-}
 
 /**
  * 获取同步执行器状态
@@ -409,34 +306,9 @@ export function stopHistoricalSyncExecutor(): Promise<{ success: boolean; messag
 // ==================== WebSocket相关 ====================
 
 /**
- * WebSocket连接配置
+ * 创建WebSocket连接（示例实现）
  */
-export interface WebSocketConfig {
-  url: string
-  reconnect?: boolean
-  reconnectInterval?: number
-  heartbeatInterval?: number
-}
-
-/**
- * WebSocket消息类型
- */
-export type WSMessageType = 'kline' | 'ticker' | 'depth' | 'trade'
-
-/**
- * WebSocket订阅参数
- */
-export interface WSSubscribeParams {
-  exchange_id: string
-  symbol: string
-  type: WSMessageType
-  interval?: KlineInterval
-}
-
-/**
- * 创建WebSocket连接（示例实现，实际使用时需要根据后端WebSocket协议调整）
- */
-export function createWebSocket(config: WebSocketConfig): WebSocket {
+export function createWebSocket(config: MarketWebSocketConfig): WebSocket {
   const ws = new WebSocket(config.url)
   
   ws.onopen = () => {
@@ -462,7 +334,7 @@ export function createWebSocket(config: WebSocketConfig): WebSocket {
 /**
  * 订阅WebSocket数据
  */
-export function subscribeWebSocket(ws: WebSocket, params: WSSubscribeParams): void {
+export function subscribeWebSocket(ws: WebSocket, params: MarketWSSubscribeParams): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       action: 'subscribe',
@@ -474,7 +346,7 @@ export function subscribeWebSocket(ws: WebSocket, params: WSSubscribeParams): vo
 /**
  * 取消订阅WebSocket数据
  */
-export function unsubscribeWebSocket(ws: WebSocket, params: WSSubscribeParams): void {
+export function unsubscribeWebSocket(ws: WebSocket, params: MarketWSSubscribeParams): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       action: 'unsubscribe',

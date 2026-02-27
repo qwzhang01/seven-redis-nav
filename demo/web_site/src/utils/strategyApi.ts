@@ -14,57 +14,45 @@ import type {
   StrategySignal,
   CreateUserStrategyRequest,
   CreateSimulateStrategyRequest,
+  // 扩展类型
+  StrategyListParams,
+  StrategyListResponse,
+  StrategyTypeListResponse,
+  StrategySignalListParams,
+  StrategySignalListResponse,
+  PresetStrategyListParams,
+  PresetStrategyListResponse,
+  MyStrategyListParams,
+  MyStrategyListResponse,
+  FeaturedStrategiesResponse,
+  UserStrategyListParams,
+  UserStrategyListResponse,
+  CreateUserStrategyResponse,
+  CreateSimulateStrategyResponse,
 } from '../types'
 
-// ==================== 本地扩展类型 ====================
-
-/**
- * 策略列表查询参数
- */
-export interface StrategyListParams {
-  strategy_type_id?: string
-  exchange_id?: string
-  symbol?: string
-  status?: StrategyStatus
-  sort?: 'popular' | 'newest' | 'profit'
-  page?: number
-  page_size?: number
+// 重新导出类型，保持向后兼容
+export type {
+  StrategyListParams,
+  StrategyListResponse,
+  StrategyTypeListResponse,
+  PresetStrategyListParams,
+  PresetStrategyListResponse,
+  MyStrategyListParams,
+  MyStrategyListResponse,
+  FeaturedStrategiesResponse,
+  UserStrategyListParams,
+  UserStrategyListResponse,
+  CreateUserStrategyResponse,
+  CreateSimulateStrategyResponse,
 }
+// 向后兼容的类型别名
+export type { StrategySignalListParams as SignalListParams }
+export type { StrategySignalListResponse as SignalListResponse }
 
-/**
- * 策略列表响应
- */
-export interface StrategyListResponse {
-  total: number
-  page: number
-  page_size: number
-  strategies: StrategyInfo[]
-}
-
-/**
- * 策略类型列表响应
- */
-export interface StrategyTypeListResponse {
-  total: number
-  items: StrategyType[]
-}
-
-/**
- * 策略信号查询参数
- * 文档中M端和C端都只支持 limit 参数
- */
-export interface SignalListParams {
-  limit?: number
-}
-
-/**
- * 策略信号列表响应
- */
-export interface SignalListResponse {
-  strategy_id: string
-  signals: StrategySignal[]
-  total: number
-}
+// 本地类型别名，供函数签名使用
+type SignalListParams = StrategySignalListParams
+type SignalListResponse = StrategySignalListResponse
 
 // ==================== API方法 ====================
 
@@ -141,8 +129,8 @@ export function resumeStrategy(strategyId: string): Promise<{ message: string }>
 /**
  * 获取策略信号历史
  */
-export function getStrategySignals(strategyId: string, params?: SignalListParams): Promise<SignalListResponse> {
-  return get<SignalListResponse>(`/api/v1/m/strategy/${strategyId}/signals`, params)
+export function getStrategySignals(strategyId: string, params?: StrategySignalListParams): Promise<StrategySignalListResponse> {
+  return get<StrategySignalListResponse>(`/api/v1/m/strategy/${strategyId}/signals`, params)
 }
 
 // ==================== C端接口 ====================
@@ -150,22 +138,6 @@ export function getStrategySignals(strategyId: string, params?: SignalListParams
 /**
  * 获取系统预设策略列表（已上架的）
  */
-export interface PresetStrategyListParams {
-  keyword?: string
-  market_type?: string
-  strategy_type?: string
-  risk_level?: string
-  page?: number
-  page_size?: number
-}
-
-export interface PresetStrategyListResponse {
-  strategies: any[]
-  total: number
-  page: number
-  page_size: number
-}
-
 export function getPresetStrategyList(params?: PresetStrategyListParams): Promise<PresetStrategyListResponse> {
   return get<PresetStrategyListResponse>('/api/v1/c/strategy/list', params)
 }
@@ -180,20 +152,6 @@ export function getPresetStrategyDetail(strategyId: string): Promise<any> {
 /**
  * 获取当前用户的策略实例列表（我的策略）
  */
-export interface MyStrategyListParams {
-  mode?: string
-  status?: string
-  page?: number
-  page_size?: number
-}
-
-export interface MyStrategyListResponse {
-  items: any[]
-  total: number
-  page: number
-  page_size: number
-}
-
 export function getMyStrategies(params?: MyStrategyListParams): Promise<MyStrategyListResponse> {
   return get<MyStrategyListResponse>('/api/v1/c/strategy/my', params)
 }
@@ -201,18 +159,6 @@ export function getMyStrategies(params?: MyStrategyListParams): Promise<MyStrate
 /**
  * 获取首页优选策略
  */
-export interface FeaturedStrategiesResponse {
-  strategies: Array<{
-    strategy_id: string
-    name: string
-    state: string
-    symbols: string[]
-    timeframes: string[]
-    signal_count: number
-  }>
-  total: number
-}
-
 export function getFeaturedStrategies(params?: { limit?: number }): Promise<FeaturedStrategiesResponse> {
   return get<FeaturedStrategiesResponse>('/api/v1/c/strategy/featured', params)
 }
@@ -220,25 +166,6 @@ export function getFeaturedStrategies(params?: { limit?: number }): Promise<Feat
 /**
  * 获取当前用户的策略列表
  */
-export interface UserStrategyListParams {
-  state?: string
-  page?: number
-  page_size?: number
-}
-
-export interface UserStrategyListResponse {
-  strategies: Array<{
-    strategy_id: string
-    name: string
-    state: string
-    symbols: string[]
-    timeframes: string[]
-  }>
-  total: number
-  page: number
-  page_size: number
-}
-
 export function getUserStrategies(params?: UserStrategyListParams): Promise<UserStrategyListResponse> {
   return get<UserStrategyListResponse>('/api/v1/c/strategy/list', params)
 }
@@ -246,12 +173,6 @@ export function getUserStrategies(params?: UserStrategyListParams): Promise<User
 /**
  * 创建实盘策略
  */
-export interface CreateUserStrategyResponse {
-  success: boolean
-  strategy_id: string
-  message: string
-}
-
 export function createUserStrategy(data: CreateUserStrategyRequest): Promise<CreateUserStrategyResponse> {
   return post<CreateUserStrategyResponse>('/api/v1/c/strategy/create', data)
 }
@@ -259,14 +180,6 @@ export function createUserStrategy(data: CreateUserStrategyRequest): Promise<Cre
 /**
  * 创建模拟交易策略
  */
-export interface CreateSimulateStrategyResponse {
-  success: boolean
-  strategy_id: string
-  mode: string
-  initial_capital: number
-  message: string
-}
-
 export function createSimulateStrategy(data: CreateSimulateStrategyRequest): Promise<CreateSimulateStrategyResponse> {
   return post<CreateSimulateStrategyResponse>('/api/v1/c/strategy/simulate', data)
 }

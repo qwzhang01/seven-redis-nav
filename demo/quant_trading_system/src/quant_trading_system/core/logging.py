@@ -189,8 +189,12 @@ def setup_logging(
     logging.getLogger("kafka").setLevel(logging.WARNING)
 
     # 开发环境下保留 SQLAlchemy SQL 日志输出，非开发环境抑制
-    _env = os.environ.get("ENV", "development").lower()
-    if _env == "development":
+    _is_dev = False
+    try:
+        _is_dev = _settings.is_development  # type: ignore[possibly-undefined]
+    except NameError:
+        _is_dev = os.environ.get("ENV", "production").lower() == "development"
+    if _is_dev:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
     else:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

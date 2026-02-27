@@ -3,66 +3,19 @@
  * 对接量化交易系统的WebSocket实时推送接口
  */
 
-// ==================== 类型定义 ====================
+import type {
+  WebSocketConfig,
+  WSMessageType,
+  WSMessage,
+  WSSubscribeParams,
+} from '../types'
 
-/**
- * WebSocket连接配置
- */
-export interface WebSocketConfig {
-  url: string
-  token?: string
-  reconnect?: boolean
-  reconnectInterval?: number
-  maxReconnectAttempts?: number
-  heartbeatInterval?: number
-  onOpen?: () => void
-  onClose?: (event: CloseEvent) => void
-  onError?: (error: Event) => void
-  onMessage?: (data: any) => void
-}
-
-/**
- * WebSocket消息类型
- */
-export type WSMessageType = 
-  | 'connected' 
-  | 'subscribed' 
-  | 'unsubscribed' 
-  | 'pong' 
-  | 'error'
-  | 'ticker' 
-  | 'kline' 
-  | 'depth'
-  | 'signal'
-  | 'strategy_status'
-  | 'order_update'
-  | 'trade'
-  | 'position'
-  | 'account'
-
-/**
- * WebSocket消息
- * 交易WS连接成功时会额外返回 user_id 和 subscribed_channels
- */
-export interface WSMessage {
-  type: WSMessageType
-  channel?: string
-  data?: any
-  message?: string
-  channels?: string[]
-  timestamp?: string
-  /** 交易WS连接成功时返回的用户ID */
-  user_id?: string
-  /** 交易WS连接成功时返回的已订阅频道列表 */
-  subscribed_channels?: string[]
-}
-
-/**
- * WebSocket订阅参数
- */
-export interface WSSubscribeParams {
-  action: 'subscribe' | 'unsubscribe'
-  channels: string[]
+// 重新导出类型，保持向后兼容
+export type {
+  WebSocketConfig,
+  WSMessageType,
+  WSMessage,
+  WSSubscribeParams,
 }
 
 // ==================== WebSocket管理类 ====================

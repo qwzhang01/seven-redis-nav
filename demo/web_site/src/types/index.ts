@@ -3,7 +3,17 @@ export * from './api/user'
 export * from './api/market'
 export * from './api/strategy'
 export * from './api/signal'
+export * from './api/backtest'
+export * from './api/leaderboard'
+export * from './api/simulation'
+export * from './api/stats'
+export * from './api/system'
+export * from './api/trading'
+export * from './api/websocket'
 export * from './common'
+
+// ==================== 导出组件类型 ====================
+export * from './components'
 
 // 导入需要在UI层使用的API类型
 import type { SubscriptionConfig } from './api/market'

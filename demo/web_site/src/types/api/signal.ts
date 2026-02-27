@@ -552,7 +552,10 @@ export interface SignalKlineParams {
 
 /** K线响应（信号页面用） */
 export interface SignalKlineResponse {
-  symbol: string
-  interval: string
-  klines: KlineDataPoint[]
+  timestamp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
 }

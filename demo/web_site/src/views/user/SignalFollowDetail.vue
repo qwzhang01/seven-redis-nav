@@ -509,7 +509,7 @@ import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
 import DualReturnChart from '@/components/charts/DualReturnChart.vue'
 import PositionPieChart from '@/components/charts/PositionPieChart.vue'
-import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
+import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/types'
 import {
   getFollowDetail,
   getFollowComparison,
@@ -606,7 +606,14 @@ async function fetchKlineData() {
       interval: intervalMap[selectedPeriod.value] || '1d',
       limit: 200,
     })
-    klineData.value = res.klines || []
+    klineData.value = (res || []).map((item: any) => ({
+      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
+      open: item.open,
+      high: item.high,
+      low: item.low,
+      close: item.close,
+      volume: item.volume || 0,
+    }))
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     klineData.value = generateMockKline()

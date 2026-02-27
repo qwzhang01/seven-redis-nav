@@ -293,3 +293,163 @@ export interface UpdateUserRequest {
 export interface UpdateUserStatusRequest {
   status: 'active' | 'inactive' | 'locked'
 }
+
+// ==================== 用户API扩展类型 ====================
+
+/**
+ * UserProfile 类型别名（向后兼容）
+ */
+export type UserProfile = UserResponse
+
+/**
+ * 获取我的跟单列表参数
+ */
+export interface GetSignalFollowsParams {
+  status?: 'following' | 'stopped' | 'paused'
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取我的跟单列表响应
+ */
+export interface GetSignalFollowsResponse {
+  success: boolean
+  data: {
+    items: SignalFollow[]
+    total: number
+    page: number
+    pages: number
+  }
+}
+
+/**
+ * 创建跟单响应（用户端）
+ */
+export interface CreateSignalFollowApiResponse {
+  success: boolean
+  data: SignalFollow
+  message: string
+}
+
+/**
+ * 获取跟单详情响应
+ */
+export interface GetSignalFollowDetailResponse {
+  success: boolean
+  data: SignalFollow
+}
+
+/**
+ * 更新跟单配置响应（用户端）
+ */
+export interface UpdateSignalFollowApiResponse {
+  success: boolean
+  data: SignalFollow
+  message: string
+}
+
+/**
+ * 停止跟单响应（用户端）
+ */
+export interface StopSignalFollowResponse {
+  success: boolean
+  data: SignalFollow
+  message: string
+}
+
+/**
+ * 获取跟单持仓列表参数
+ */
+export interface GetSignalFollowPositionsParams {
+  status?: 'open' | 'closed'
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取跟单持仓列表响应
+ */
+export interface GetSignalFollowPositionsResponse {
+  success: boolean
+  data: {
+    items: SignalFollowPosition[]
+    total: number
+    page: number
+    pages: number
+  }
+}
+
+/**
+ * 获取跟单交易记录参数
+ */
+export interface GetSignalFollowTradesParams {
+  symbol?: string
+  side?: 'buy' | 'sell'
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取跟单交易记录响应
+ */
+export interface GetSignalFollowTradesResponse {
+  success: boolean
+  data: {
+    items: SignalFollowTrade[]
+    total: number
+    page: number
+    pages: number
+  }
+}
+
+/**
+ * 获取用户列表参数（Admin）
+ */
+export interface GetUsersParams {
+  search?: string
+  status?: 'active' | 'inactive' | 'locked'
+  user_type?: 'customer' | 'admin'
+  page?: number
+  page_size?: number
+}
+
+/**
+ * 获取用户列表响应（Admin）
+ */
+export interface GetUsersResponse {
+  success: boolean
+  data: {
+    total: number
+    page: number
+    page_size: number
+    items: UserResponse[]
+    statistics: UserStatistics
+  }
+}
+
+/**
+ * 获取用户详情响应（Admin）
+ */
+export interface GetUserDetailResponse {
+  success: boolean
+  data: UserResponse
+}
+
+/**
+ * 更新用户响应（Admin）
+ */
+export interface UpdateUserResponse {
+  success: boolean
+  data: UserResponse
+  message: string
+}
+
+/**
+ * 更新用户状态响应（Admin）
+ */
+export interface UpdateUserStatusResponse {
+  success: boolean
+  data: UserResponse
+  message: string
+}

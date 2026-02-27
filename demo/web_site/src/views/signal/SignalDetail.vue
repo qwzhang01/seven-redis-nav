@@ -584,7 +584,12 @@ import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
 import MonthlyReturnChart from '@/components/charts/MonthlyReturnChart.vue'
 import DrawdownChart from '@/components/charts/DrawdownChart.vue'
-import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/components/charts/TradingChart.vue'
+import type {
+  KlineDataPoint,
+  IndicatorData,
+  TradeMarkData,
+  SignalKlineResponse
+} from '@/types'
 import {
   getSignalDetail,
   getSignalReturnCurve,
@@ -721,13 +726,12 @@ async function fetchKlineData() {
   if (!signal.value) return
   try {
     const intervalMap: Record<string, string> = { '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
-    const res = await getKlineData({
+    const rawData = await getKlineData({
       symbol: signal.value.tradingPair,
       interval: intervalMap[selectedTimeframe.value] || '1h',
       limit: 200,
     })
     // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
-    const rawData = (res as any).data || res.klines || []
     klineData.value = rawData.map((item: any) => ({
       time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
       open: item.open,
@@ -736,9 +740,6 @@ async function fetchKlineData() {
       close: item.close,
       volume: item.volume || 0,
     }))
-    console.log('klineData-1', klineData)
-    klineData.value = generateMockKline()
-    console.log('klineData-2', klineData)
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     klineData.value = generateMockKline()

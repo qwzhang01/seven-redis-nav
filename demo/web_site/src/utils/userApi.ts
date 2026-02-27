@@ -9,6 +9,7 @@ import type {
   LoginRequest,
   LoginResponse,
   UserResponse,
+  UserProfile,
   UpdateProfileRequest,
   ChangePasswordRequest,
   ResetPasswordRequest,
@@ -27,21 +28,47 @@ import type {
   UserStatistics,
   UpdateUserRequest,
   UpdateUserStatusRequest,
+  // 扩展类型
+  GetSignalFollowsParams,
+  GetSignalFollowsResponse,
+  CreateSignalFollowApiResponse,
+  GetSignalFollowDetailResponse,
+  UpdateSignalFollowApiResponse,
+  StopSignalFollowResponse,
+  GetSignalFollowPositionsParams,
+  GetSignalFollowPositionsResponse,
+  GetSignalFollowTradesParams,
+  GetSignalFollowTradesResponse,
+  GetUsersParams,
+  GetUsersResponse,
+  GetUserDetailResponse,
+  UpdateUserResponse,
+  UpdateUserStatusResponse,
 } from '../types'
 
-// ==================== 类型别名 ====================
-
-/**
- * UserProfile 类型别名（向后兼容）
- */
-export type UserProfile = UserResponse
-
-// ==================== 导出类型 ====================
+// 重新导出类型，保持向后兼容
 export type {
+  UserProfile,
   RegisterRequest,
   LoginRequest,
   UserResponse,
+  GetSignalFollowsParams,
+  GetSignalFollowsResponse,
+  GetSignalFollowPositionsParams,
+  GetSignalFollowPositionsResponse,
+  GetSignalFollowTradesParams,
+  GetSignalFollowTradesResponse,
+  GetUsersParams,
+  GetUsersResponse,
+  GetUserDetailResponse,
+  UpdateUserResponse,
+  UpdateUserStatusResponse,
 }
+// 向后兼容别名
+export type { CreateSignalFollowApiResponse as CreateSignalFollowResponse }
+export type { UpdateSignalFollowApiResponse as UpdateSignalFollowConfigResponse }
+export type { GetSignalFollowDetailResponse }
+export type { StopSignalFollowResponse }
 
 // ==================== API方法 ====================
 
@@ -134,117 +161,44 @@ export function deleteApiKey(keyId: string): Promise<{ message: string }> {
 // ==================== 信号跟单接口 ====================
 
 /**
- * 获取我的跟单列表参数
+ * 获取我的跟单列表
  */
-export interface GetSignalFollowsParams {
-
-  status?: 'following' | 'stopped' | 'paused'
-  page?: number
-  page_size?: number
-}
-
-export interface GetSignalFollowsResponse {
-  success: boolean
-  data: {
-    items: SignalFollow[]
-    total: number
-    page: number
-    pages: number
-  }
-}
-
 export function getSignalFollows(params?: GetSignalFollowsParams): Promise<GetSignalFollowsResponse> {
   return get<GetSignalFollowsResponse>('/api/v1/c/user/signal-follows', params)
 }
 
-export interface CreateSignalFollowResponse {
-  success: boolean
-  data: SignalFollow
-  message: string
-}
-
-export function createSignalFollow(data: CreateFollowRequest): Promise<CreateSignalFollowResponse> {
-  return post<CreateSignalFollowResponse>('/api/v1/c/user/signal-follows', data)
+export function createSignalFollow(data: CreateFollowRequest): Promise<CreateSignalFollowApiResponse> {
+  return post<CreateSignalFollowApiResponse>('/api/v1/c/user/signal-follows', data)
 }
 
 /**
  * 获取跟单详情
  */
-export interface GetSignalFollowDetailResponse {
-  success: boolean
-  data: SignalFollow
-}
-
 export function getSignalFollowDetail(followId: number): Promise<GetSignalFollowDetailResponse> {
   return get<GetSignalFollowDetailResponse>(`/api/v1/c/user/signal-follows/${followId}`)
 }
 
-export interface UpdateSignalFollowConfigResponse {
-  success: boolean
-  data: SignalFollow
-  message: string
-}
-
-export function updateSignalFollowConfig(followId: number, data: UpdateFollowConfigRequest): Promise<UpdateSignalFollowConfigResponse> {
-  return put<UpdateSignalFollowConfigResponse>(`/api/v1/c/user/signal-follows/${followId}/config`, data)
+export function updateSignalFollowConfig(followId: number, data: UpdateFollowConfigRequest): Promise<UpdateSignalFollowApiResponse> {
+  return put<UpdateSignalFollowApiResponse>(`/api/v1/c/user/signal-follows/${followId}/config`, data)
 }
 
 /**
  * 停止跟单
  */
-export interface StopSignalFollowResponse {
-  success: boolean
-  data: SignalFollow
-  message: string
-}
-
 export function stopSignalFollow(followId: number): Promise<StopSignalFollowResponse> {
   return post<StopSignalFollowResponse>(`/api/v1/c/user/signal-follows/${followId}/stop`)
 }
 
 /**
- * 获取跟单持仓列表参数
+ * 获取跟单持仓列表
  */
-export interface GetSignalFollowPositionsParams {
-  status?: 'open' | 'closed'
-  page?: number
-  page_size?: number
-}
-
-export interface GetSignalFollowPositionsResponse {
-  success: boolean
-  data: {
-    items: SignalFollowPosition[]
-    total: number
-    page: number
-    pages: number
-  }
-}
-
 export function getSignalFollowPositions(followId: number, params?: GetSignalFollowPositionsParams): Promise<GetSignalFollowPositionsResponse> {
   return get<GetSignalFollowPositionsResponse>(`/api/v1/c/user/signal-follows/${followId}/positions`, params)
 }
 
 /**
- * 获取跟单交易记录参数
+ * 获取跟单交易记录
  */
-export interface GetSignalFollowTradesParams {
-  symbol?: string
-  side?: 'buy' | 'sell'
-  page?: number
-  page_size?: number
-}
-
-export interface GetSignalFollowTradesResponse {
-  success: boolean
-  data: {
-    items: SignalFollowTrade[]
-    total: number
-    page: number
-    pages: number
-  }
-}
-
 export function getSignalFollowTrades(followId: number, params?: GetSignalFollowTradesParams): Promise<GetSignalFollowTradesResponse> {
   return get<GetSignalFollowTradesResponse>(`/api/v1/c/user/signal-follows/${followId}/trades`, params)
 }
@@ -252,27 +206,8 @@ export function getSignalFollowTrades(followId: number, params?: GetSignalFollow
 // ==================== Admin端用户管理接口 ====================
 
 /**
- * 获取用户列表参数
+ * 获取用户列表
  */
-export interface GetUsersParams {
-  search?: string
-  status?: 'active' | 'inactive' | 'locked'
-  user_type?: 'customer' | 'admin'
-  page?: number
-  page_size?: number
-}
-
-export interface GetUsersResponse {
-  success: boolean
-  data: {
-    total: number
-    page: number
-    page_size: number
-    items: UserResponse[]
-    statistics: UserStatistics
-  }
-}
-
 export function getUsers(params?: GetUsersParams): Promise<GetUsersResponse> {
   return get<GetUsersResponse>('/api/v1/m/users', params)
 }
@@ -280,29 +215,12 @@ export function getUsers(params?: GetUsersParams): Promise<GetUsersResponse> {
 /**
  * 获取用户详情（Admin）
  */
-export interface GetUserDetailResponse {
-  success: boolean
-  data: UserResponse
-}
-
 export function getUserDetail(userId: number): Promise<GetUserDetailResponse> {
   return get<GetUserDetailResponse>(`/api/v1/m/users/${userId}`)
 }
 
-export interface UpdateUserResponse {
-  success: boolean
-  data: UserResponse
-  message: string
-}
-
 export function updateUser(userId: number, data: UpdateUserRequest): Promise<UpdateUserResponse> {
   return put<UpdateUserResponse>(`/api/v1/m/users/${userId}`, data)
-}
-
-export interface UpdateUserStatusResponse {
-  success: boolean
-  data: UserResponse
-  message: string
 }
 
 export function updateUserStatus(userId: number, data: UpdateUserStatusRequest): Promise<UpdateUserStatusResponse> {

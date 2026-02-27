@@ -20,33 +20,10 @@ import {
   ColorType,
   CrosshairMode,
 } from 'lightweight-charts'
+import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/types'
 
-// ==================== Props ====================
-
-export interface KlineDataPoint {
-  time: number
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
-
-export interface IndicatorData {
-  name: string
-  type: 'line' | 'histogram' | 'area'
-  color: string
-  pane: 'main' | 'sub' | 'sub2'
-  data: Array<{ time: number; value: number }>
-}
-
-export interface TradeMarkData {
-  time: number
-  position: 'aboveBar' | 'belowBar'
-  color: string
-  shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square'
-  text: string
-}
+// 重新导出类型，方便外部从组件导入（保持向后兼容）
+export type { KlineDataPoint, IndicatorData, TradeMarkData }
 
 const props = withDefaults(defineProps<{
   klineData: KlineDataPoint[]
