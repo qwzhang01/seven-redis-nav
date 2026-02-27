@@ -260,7 +260,7 @@ class KLineEngine:
         根据Tick数据更新所有周期的K线
         """
         self._tick_count += 1
-        symbol = tick.symbol
+        symbol = tick.symbol.replace("/", "").replace("-", "")
         exchange = tick.exchange
         timestamp = tick.timestamp
         price = tick.last_price
@@ -370,19 +370,27 @@ class KLineEngine:
         timeframe: TimeFrame,
         limit: int | None = None,
     ) -> list[Bar]:
+        """获取K线列表（包含已关闭K线 + 当前未完成K线）"""
 
-        symbol = symbol.replace("/", "")
-        symbol = symbol.replace("-", "")
+        symbol = symbol.replace("/", "").replace("-", "")
 
-        """获取K线列表"""
-        if symbol not in self._buffers:
-            return []
+        bars: list[Bar] = []
 
-        if timeframe not in self._buffers[symbol]:
-            return []
+        # 1. 从缓冲区获取已关闭的K线
+        if symbol in self._buffers and timeframe in self._buffers[symbol]:
+            buffer = self._buffers[symbol][timeframe]
+            bars = buffer.get_last(limit or buffer.count)
 
-        buffer = self._buffers[symbol][timeframe]
-        return buffer.get_last(limit or buffer.count)
+        # 2. 追加当前未完成的K线（如果存在）
+        current_bar = self._current_bars.get(symbol, {}).get(timeframe)
+        if current_bar is not None:
+            bars.append(current_bar)
+
+        # 3. 如果指定了 limit，截取最后 limit 条
+        if limit and len(bars) > limit:
+            bars = bars[-limit:]
+
+        return bars
 
     def get_bar_array(
         self,
@@ -391,6 +399,8 @@ class KLineEngine:
         limit: int | None = None,
     ) -> BarArray:
         """获取K线数组"""
+        symbol = symbol.replace("/", "").replace("-", "")
+
         if symbol not in self._buffers:
             return BarArray(
                 symbol=symbol,

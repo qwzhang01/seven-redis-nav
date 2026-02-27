@@ -379,9 +379,9 @@ class BinanceConfig:
     SPOT_BASE_URL = "https://api.binance.com"
     FUTURES_BASE_URL = "https://fapi.binance.com"
 
-    # WebSocket端点
-    SPOT_WS_URL = "wss://stream.binance.com:9443/ws"
-    FUTURES_WS_URL = "wss://fstream.binance.com/ws"
+    # WebSocket端点（使用 combined stream 端点，支持多品种深度数据识别）
+    SPOT_WS_URL = "wss://stream.binance.com:9443/stream"
+    FUTURES_WS_URL = "wss://fstream.binance.com/stream"
 
     # 时间周期映射
     TIMEFRAME_MAP = {

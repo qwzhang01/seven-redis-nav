@@ -130,6 +130,20 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
 
+        # 自动拉取历史K线数据，预加载到内存缓冲区
+        try:
+            from quant_trading_system.core.enums import DefaultTradingPair
+            default_symbols = DefaultTradingPair.values()
+            stats = await orchestrator.market_service.load_history(
+                symbols=default_symbols,
+                limit=500,
+                exchange=orchestrator.exchange,
+            )
+            total = sum(stats.values())
+            print(f"✅ 已预加载历史K线数据: {total} 条 ({stats})")
+        except Exception as e:
+            print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
+
     except Exception as e:
         print(f"❌ 编排器初始化失败: {e}")
         raise

@@ -235,6 +235,15 @@ class WebSocketClient:
                 else:
                     data = json.loads(message.decode())
 
+                # 处理 combined stream 格式
+                # combined stream 消息格式: {"stream": "btcusdt@depth20@100ms", "data": {...}}
+                if "stream" in data and "data" in data:
+                    stream_name = data["stream"]
+                    inner_data = data["data"]
+                    # 将 stream 名称注入到内层数据中，便于后续识别 symbol
+                    inner_data["_stream"] = stream_name
+                    data = inner_data
+
                 # 计算延迟
                 if "T" in data or "timestamp" in data:
                     msg_time = data.get("T") or data.get("timestamp")
@@ -648,14 +657,20 @@ class BinanceDataCollector(DataCollector):
         # 使用共享工具转换数据
         depth_data = BinanceDataConverter.convert_depth_data(data)
 
-        # 对于有限档深度流，symbol 需要从订阅列表中推断
+        # 对于有限档深度流，symbol 需要从 stream 名称中解析
         symbol = depth_data["symbol"]
-        if not symbol and self._subscriptions:
-            # 如果只有一个订阅品种，直接使用
-            if len(self._subscriptions) == 1:
+        if not symbol:
+            # 从 _stream 字段解析 symbol（combined stream 注入）
+            # stream 格式示例: "btcusdt@depth20@100ms"
+            stream_name = data.get("_stream", "")
+            if stream_name:
+                symbol = stream_name.split("@")[0].upper()
+            elif self._subscriptions and len(self._subscriptions) == 1:
                 symbol = list(self._subscriptions)[0].upper().replace("/", "")
             else:
-                logger.warning("Cannot determine symbol for depth data with multiple subscriptions")
+                logger.warning("Cannot determine symbol for depth data",
+                             stream=stream_name,
+                             subscriptions=list(self._subscriptions))
                 return
 
         # 创建Depth对象

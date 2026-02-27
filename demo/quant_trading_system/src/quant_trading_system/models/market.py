@@ -30,7 +30,7 @@ class TimeFrame(str, Enum):
 
 class Bar(BaseModel):
     """K线数据"""
-    timestamp: datetime
+    timestamp: float  # 毫秒时间戳
     open: float
     high: float
     low: float
@@ -39,6 +39,7 @@ class Bar(BaseModel):
     symbol: str
     exchange: str
     timeframe: TimeFrame
+    turnover: float = 0.0
     is_closed: bool = True
 
 
@@ -73,13 +74,21 @@ class BarArray:
 
 class Tick(BaseModel):
     """实时行情数据"""
-    timestamp: datetime
+    timestamp: float  # 毫秒时间戳
     symbol: str
     exchange: str = "unknown"
-    price: float
-    volume: float
-    bid: float
-    ask: float
+    last_price: float = 0.0
+    price: float = 0.0  # 兼容旧字段
+    volume: float = 0.0
+    bid: float = 0.0
+    ask: float = 0.0
+    bid_price: float = 0.0
+    ask_price: float = 0.0
+    bid_size: float = 0.0
+    ask_size: float = 0.0
+    turnover: float = 0.0
+    is_trade: bool = False
+    trade_id: str = ""
 
 
 class Depth(BaseModel):
