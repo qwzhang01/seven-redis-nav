@@ -15,28 +15,13 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+
+from quant_trading_system.api.deps import get_orchestrator_dep
 
 # 创建交易路由实例
 router = APIRouter()
-
-
-def _get_engines():
-    """
-    获取编排器中的引擎实例
-
-    返回当前系统的编排器实例，用于访问交易引擎和其他组件。
-
-    异常：
-    - HTTPException: 当交易系统未启动时返回503错误
-    """
-    from quant_trading_system.api.main import get_orchestrator
-
-    orch = get_orchestrator()
-    if orch is None:
-        raise HTTPException(status_code=503, detail="Trading system not started")
-    return orch
 
 
 class PlaceOrderRequest(BaseModel):
@@ -70,7 +55,10 @@ class CancelOrderRequest(BaseModel):
 
 
 @router.post("/order")
-async def place_order(request: PlaceOrderRequest) -> dict[str, Any]:
+async def place_order(
+    request: PlaceOrderRequest,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     下单接口
 
@@ -92,8 +80,6 @@ async def place_order(request: PlaceOrderRequest) -> dict[str, Any]:
     - 限价单：按指定价格或更优价格成交
     """
     from quant_trading_system.services.strategy.signal import Signal, SignalType
-
-    orch = _get_engines()
 
     # 确定交易方向
     signal_type = SignalType.BUY if request.side.upper() == "BUY" else SignalType.SELL
@@ -118,7 +104,10 @@ async def place_order(request: PlaceOrderRequest) -> dict[str, Any]:
 
 
 @router.delete("/order/{order_id}")
-async def cancel_order(order_id: str) -> dict[str, Any]:
+async def cancel_order(
+    order_id: str,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     取消订单接口
 
@@ -135,7 +124,6 @@ async def cancel_order(order_id: str) -> dict[str, Any]:
     异常：
     - HTTPException: 当取消操作失败时返回400错误
     """
-    orch = _get_engines()
     success = await orch.trading_engine.cancel_order(order_id)
     if not success:
         raise HTTPException(status_code=400, detail="Cancel failed")
@@ -149,6 +137,7 @@ async def cancel_order(order_id: str) -> dict[str, Any]:
 @router.post("/order/cancel-all")
 async def cancel_all_orders(
     symbol: str | None = Query(None, description="交易对"),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     取消所有订单接口
@@ -163,7 +152,6 @@ async def cancel_all_orders(
     - cancelled_count: 取消的订单数量
     - message: 操作结果描述
     """
-    orch = _get_engines()
     count = await orch.trading_engine.cancel_all_orders(symbol)
     return {
         "success": True,
@@ -177,6 +165,7 @@ async def get_orders(
     status: str = Query("active", description="订单状态 active|all"),
     symbol: str | None = Query(None, description="交易对"),
     limit: int = Query(100, ge=1, le=1000),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     获取订单列表接口
@@ -202,7 +191,6 @@ async def get_orders(
     - price: 订单价格
     - strategy_id: 关联策略ID
     """
-    orch = _get_engines()
     om = orch.trading_engine.order_manager
 
     # 根据状态和交易对过滤订单
@@ -235,7 +223,10 @@ async def get_orders(
 
 
 @router.get("/order/{order_id}")
-async def get_order(order_id: str) -> dict[str, Any]:
+async def get_order(
+    order_id: str,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取订单详情接口
 
@@ -258,7 +249,6 @@ async def get_order(order_id: str) -> dict[str, Any]:
     异常：
     - HTTPException: 当订单不存在时返回404错误
     """
-    orch = _get_engines()
     o = orch.trading_engine.order_manager.get_order(order_id)
     if not o:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -280,6 +270,7 @@ async def get_trades(
     symbol: str | None = Query(None, description="交易对"),
     order_id: str | None = Query(None, description="订单ID"),
     limit: int = Query(100, ge=1, le=1000),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     获取成交记录接口
@@ -304,7 +295,6 @@ async def get_trades(
     - quantity: 成交数量
     - commission: 手续费
     """
-    orch = _get_engines()
     om = orch.trading_engine.order_manager
 
     # 根据过滤条件获取成交记录
@@ -332,7 +322,9 @@ async def get_trades(
 
 
 @router.get("/positions")
-async def get_positions() -> dict[str, Any]:
+async def get_positions(
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取持仓列表接口
 
@@ -351,7 +343,6 @@ async def get_positions() -> dict[str, Any]:
     - realized_pnl: 已实现盈亏
     - value: 持仓价值
     """
-    orch = _get_engines()
     positions = orch.trading_engine._positions
 
     pos_list = []
@@ -373,7 +364,10 @@ async def get_positions() -> dict[str, Any]:
 
 
 @router.get("/position/{symbol}")
-async def get_position(symbol: str) -> dict[str, Any]:
+async def get_position(
+    symbol: str,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取单个持仓详情接口
 
@@ -390,7 +384,6 @@ async def get_position(symbol: str) -> dict[str, Any]:
     - unrealized_pnl: 未实现盈亏
     - realized_pnl: 已实现盈亏
     """
-    orch = _get_engines()
     pos = orch.trading_engine._positions.get(symbol)
     if not pos:
         return {
@@ -412,7 +405,9 @@ async def get_position(symbol: str) -> dict[str, Any]:
 
 
 @router.get("/account")
-async def get_account() -> dict[str, Any]:
+async def get_account(
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取账户信息接口
 
@@ -429,7 +424,6 @@ async def get_account() -> dict[str, Any]:
     - locked: 冻结余额
     - total: 总余额
     """
-    orch = _get_engines()
     acc = orch.trading_engine._account
     if not acc:
         return {"total_equity": 0, "available_margin": 0, "used_margin": 0, "balances": {}}
@@ -442,7 +436,9 @@ async def get_account() -> dict[str, Any]:
 
 
 @router.get("/risk")
-async def get_risk_info() -> dict[str, Any]:
+async def get_risk_info(
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取风险信息接口
 
@@ -457,5 +453,4 @@ async def get_risk_info() -> dict[str, Any]:
     - 杠杆率
     - 风险等级
     """
-    orch = _get_engines()
     return orch.risk_manager.stats

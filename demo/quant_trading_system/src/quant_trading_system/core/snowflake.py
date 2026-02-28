@@ -227,35 +227,3 @@ def generate_backtest_snowflake_id() -> int:
         int: 雪花ID
     """
     return get_backtest_snowflake_generator().generate_id()
-
-
-def parse_snowflake_id(snowflake_id: int) -> dict:
-    """
-    解析雪花ID（便捷函数）
-
-    Args:
-        snowflake_id: 雪花ID
-
-    Returns:
-        dict: 解析结果
-    """
-    return get_snowflake_generator().parse_id(snowflake_id)
-
-
-# 测试代码
-if __name__ == "__main__":
-    # 测试雪花ID生成器
-    generator = SnowflakeGenerator()
-
-    # 生成10个ID
-    for i in range(10):
-        snowflake_id = generator.generate_id()
-        parsed = generator.parse_id(snowflake_id)
-        print(f"ID: {snowflake_id}, 解析: {parsed}")
-
-    # 测试便捷函数
-    print("\n使用便捷函数:")
-    for i in range(5):
-        snowflake_id = generate_snowflake_id()
-        parsed = parse_snowflake_id(snowflake_id)
-        print(f"ID: {snowflake_id}, 解析: {parsed}")

@@ -15,7 +15,7 @@ M 端接口（管理员）：
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Request, Query, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -23,22 +23,25 @@ from quant_trading_system.models.database import (
     User, SignalRecord, Subscription,
 )
 from quant_trading_system.services.database.database import get_db
+from quant_trading_system.api.deps import get_orchestrator_dep
 
 router = APIRouter()
 
 
-def _get_engines():
-    """获取编排器实例"""
-    from quant_trading_system.api.main import get_orchestrator
-    orch = get_orchestrator()
-    if orch is None:
-        raise HTTPException(status_code=503, detail="Trading system not started")
-    return orch
+async def _get_optional_orchestrator(request: Request):
+    """
+    可选的编排器依赖注入
+
+    返回编排器实例或 None（系统未启动时不抛异常），
+    适用于即使编排器不可用也能部分返回数据的接口。
+    """
+    return getattr(request.app.state, "orchestrator", None)
 
 
 @router.get("/overview")
 async def get_system_overview(
     db: Session = Depends(get_db),
+    orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
     系统概览统计
@@ -76,8 +79,7 @@ async def get_system_overview(
     total_strategies = 0
     running_strategies = 0
     try:
-        orch = _get_engines()
-        strategy_ids = orch.strategy_engine.list_strategies()
+        strategy_ids = orch.strategy_engine.list_strategies() if orch else []
         total_strategies = len(strategy_ids)
         running_strategies = sum(
             1 for sid in strategy_ids
@@ -170,6 +172,7 @@ async def get_user_stats(
 @router.get("/strategies")
 async def get_strategy_stats(
     db: Session = Depends(get_db),
+    orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
     策略统计数据
@@ -186,8 +189,7 @@ async def get_strategy_stats(
     state_dist = {}
     strategy_list = []
     try:
-        orch = _get_engines()
-        for sid in orch.strategy_engine.list_strategies():
+        for sid in (orch.strategy_engine.list_strategies() if orch else []):
             s = orch.strategy_engine.get_strategy(sid)
             if s:
                 state = s.state.value
@@ -239,6 +241,7 @@ async def get_strategy_stats(
 @router.get("/trading")
 async def get_trading_stats(
     db: Session = Depends(get_db),
+    orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
     交易统计数据
@@ -257,12 +260,11 @@ async def get_trading_stats(
     account_info = {}
 
     try:
-        orch = _get_engines()
-        om = orch.trading_engine.order_manager
-        active_orders = len(om.get_active_orders())
-        total_positions = len(orch.trading_engine._positions)
+        om = orch.trading_engine.order_manager if orch else None
+        active_orders = len(om.get_active_orders()) if om else 0
+        total_positions = len(orch.trading_engine._positions) if orch else 0
 
-        acc = orch.trading_engine._account
+        acc = orch.trading_engine._account if orch else None
         if acc:
             total_equity = float(acc.total_balance)
             account_info = {
@@ -293,6 +295,7 @@ async def get_trading_stats(
 @router.get("/market")
 async def get_market_stats(
     db: Session = Depends(get_db),
+    orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
     行情数据统计
@@ -329,10 +332,9 @@ async def get_market_stats(
     market_stats = {}
     subscribed_symbols = 0
     try:
-        orch = _get_engines()
-        market_stats = orch.market_service.stats
+        market_stats = orch.market_service.stats if orch else {}
         # 统计已订阅交易对数量
-        for collector in orch.market_service._collectors.values():
+        for collector in (orch.market_service._collectors.values() if orch else []):
             subscribed_symbols += len(collector.subscriptions)
     except Exception:
         pass

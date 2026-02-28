@@ -14,7 +14,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Coroutine, TypeVar
+from typing import Any, Callable, Coroutine
 
 import structlog
 
@@ -137,8 +137,6 @@ class Event:
 # 事件处理器类型
 EventHandler = Callable[[Event], Coroutine[Any, Any, None]]
 SyncEventHandler = Callable[[Event], None]
-
-T = TypeVar("T", bound=Event)
 
 
 class EventEngine:
@@ -452,39 +450,3 @@ class EventEngine:
         }
 
 
-def event_handler(event_type: EventType):
-    """事件处理器装饰器"""
-    def decorator(func: EventHandler) -> EventHandler:
-        func._event_type = event_type  # type: ignore
-        return func
-    return decorator
-
-
-class EventEmitter:
-    """
-    事件发射器混入类
-
-    为类添加事件发射能力
-    """
-
-    def __init__(self) -> None:
-        self._event_engine: EventEngine | None = None
-
-    def set_event_engine(self, engine: EventEngine) -> None:
-        """设置事件引擎"""
-        self._event_engine = engine
-
-    async def emit(self, event: Event) -> None:
-        """发射事件"""
-        if self._event_engine:
-            await self._event_engine.put(event)
-
-    def emit_sync(self, event: Event) -> bool:
-        """同步发射事件"""
-        if self._event_engine:
-            return self._event_engine.put_nowait(event)
-        return False
-
-
-# 全局EventEngine实例
-_event_engine: EventEngine | None = None

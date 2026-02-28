@@ -26,26 +26,6 @@ def serve(
     reload: bool,
     workers: int,
 ) -> None:
-    """启动 API 服务
-
-    服务启动时会自动加载所有已注册策略（stopped 状态）。
-    策略不会自动运行，需通过 API 显式创建并启动。
-
-    示例：
-
-      # 启动 API 服务（默认地址和端口）
-      serve
-
-      # 指定地址和端口
-      serve --host 127.0.0.1 --port 8080
-
-      # 开发模式（自动重载）
-      serve --reload
-    """
-    click.echo(f"Starting API server at http://{host}:{port}")
-    click.echo("  策略将在服务启动时自动加载（stopped 状态）")
-    click.echo("  请通过 API 创建并启动策略")
-
     uvicorn.run(
         "quant_trading_system.api.main:app",
         host=host,
@@ -78,14 +58,13 @@ def backtest(
 ) -> None:
     """运行回测"""
     # 导入策略模块以触发注册
-    import quant_trading_system.strategies  # noqa: F401
+    import quant_trading_system.strategies
 
     from quant_trading_system.models.market import TimeFrame
     from quant_trading_system.services.backtest.backtest_engine import (
         BacktestConfig,
         BacktestEngine,
     )
-    from quant_trading_system.services.market.binance_api import BinanceAPI
     from quant_trading_system.services.strategy.base import get_strategy_class
 
     click.echo(f"Running backtest for {strategy} on {symbol}")
@@ -140,9 +119,11 @@ def backtest(
                 click.echo(f"Converted symbol format: {symbol} -> {symbol_formatted}")
 
             # 检查策略是否需要多周期数据
-            strategy_tfs = list(strategy_class.timeframes) if strategy_class.timeframes else [tf]
+            strategy_tfs = list(
+                strategy_class.timeframes) if strategy_class.timeframes else [tf]
             if len(strategy_tfs) > 1:
-                click.echo(f"Multi-timeframe strategy detected: {[t.value for t in strategy_tfs]}")
+                click.echo(
+                    f"Multi-timeframe strategy detected: {[t.value for t in strategy_tfs]}")
                 tf_bars = generate_multi_timeframe_klines(
                     symbol=symbol_formatted,
                     timeframes=strategy_tfs,
@@ -151,7 +132,8 @@ def backtest(
                 )
                 bars = {symbol_formatted: tf_bars}
                 total_bars = sum(len(ba) for ba in tf_bars.values())
-                click.echo(f"Generated {total_bars} bars across {len(strategy_tfs)} timeframes")
+                click.echo(
+                    f"Generated {total_bars} bars across {len(strategy_tfs)} timeframes")
             else:
                 bars = generate_mock_klines(
                     symbol=symbol_formatted,
@@ -163,9 +145,11 @@ def backtest(
             click.echo(f"Fetching historical data from Binance...")
             from quant_trading_system.services.market.binance_api import BinanceAPI
 
-            strategy_tfs = list(strategy_class.timeframes) if strategy_class.timeframes else [tf]
+            strategy_tfs = list(
+                strategy_class.timeframes) if strategy_class.timeframes else [tf]
             if len(strategy_tfs) > 1:
-                click.echo(f"Multi-timeframe strategy: {[t.value for t in strategy_tfs]}")
+                click.echo(
+                    f"Multi-timeframe strategy: {[t.value for t in strategy_tfs]}")
                 tf_bars = {}
                 with BinanceAPI(market_type="spot") as api:
                     for stf in strategy_tfs:
@@ -288,8 +272,10 @@ def backtest(
 @click.option("--market-type", default="spot", help="市场类型 (spot/futures)")
 @click.option("--capital", default=100000.0, help="初始资金（paper 模式）")
 @click.option("--api-key", default="", envvar="EXCHANGE_API_KEY", help="交易所 API Key")
-@click.option("--api-secret", default="", envvar="EXCHANGE_API_SECRET", help="交易所 API Secret")
-@click.option("--mode", default="paper", type=click.Choice(["paper", "live"]), help="运行模式")
+@click.option("--api-secret", default="", envvar="EXCHANGE_API_SECRET",
+              help="交易所 API Secret")
+@click.option("--mode", default="paper", type=click.Choice(["paper", "live"]),
+              help="运行模式")
 def trade(
     strategy: str,
     symbol: tuple[str, ...],
@@ -310,7 +296,8 @@ def trade(
     from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
 
     click.echo(f"{'=' * 60}")
-    click.echo(f"  Quant Trading System — {'LIVE' if mode == 'live' else 'PAPER'} Trading")
+    click.echo(
+        f"  Quant Trading System — {'LIVE' if mode == 'live' else 'PAPER'} Trading")
     click.echo(f"{'=' * 60}")
     click.echo()
 

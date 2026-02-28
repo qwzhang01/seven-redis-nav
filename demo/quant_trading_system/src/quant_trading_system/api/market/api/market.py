@@ -15,11 +15,13 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
 from quant_trading_system.models.market import TimeFrame
 from quant_trading_system.core.enums import DefaultTradingPair
+
+from quant_trading_system.api.deps import get_orchestrator_dep
 
 # 创建行情路由实例
 router = APIRouter()
@@ -39,23 +41,6 @@ TIMEFRAME_MAP = {
 # 合法枚举值
 VALID_EXCHANGES = {"binance", "okx", "bybit", "bitget"}
 VALID_MARKET_TYPES = {"spot", "futures", "margin"}
-
-
-def _get_orchestrator():
-    """
-    获取编排器中的引擎实例
-
-    返回当前系统的编排器实例，用于访问市场服务和其他引擎组件。
-
-    异常：
-    - HTTPException: 当交易系统未启动时返回503错误
-    """
-    from quant_trading_system.api.main import get_orchestrator
-
-    orch = get_orchestrator()
-    if orch is None:
-        raise HTTPException(status_code=503, detail="交易系统未启动")
-    return orch
 
 
 class SubscribeRequest(BaseModel):
@@ -82,7 +67,10 @@ class SubscribeRequest(BaseModel):
 
 
 @router.post("/subscribe")
-async def subscribe_market(request: SubscribeRequest) -> dict[str, Any]:
+async def subscribe_market(
+    request: SubscribeRequest,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     订阅行情数据
 
@@ -101,7 +89,6 @@ async def subscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    orch = _get_orchestrator()
     await orch.market_service.subscribe(
         symbols=request.symbols,
         exchange=request.exchange,
@@ -115,7 +102,10 @@ async def subscribe_market(request: SubscribeRequest) -> dict[str, Any]:
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_market(request: SubscribeRequest) -> dict[str, Any]:
+async def unsubscribe_market(
+    request: SubscribeRequest,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     取消行情订阅
 
@@ -134,7 +124,6 @@ async def unsubscribe_market(request: SubscribeRequest) -> dict[str, Any]:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    orch = _get_orchestrator()
     await orch.market_service.unsubscribe(
         symbols=request.symbols,
         exchange=request.exchange,
@@ -152,6 +141,7 @@ async def get_kline(
     symbol: str,
     timeframe: str = Query("1m", description="时间周期"),
     limit: int = Query(100, description="数量限制", ge=1, le=1000),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     获取K线数据
@@ -172,7 +162,6 @@ async def get_kline(
     # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
     symbol = symbol.replace("-", "/")
 
-    orch = _get_orchestrator()
     tf = TIMEFRAME_MAP.get(timeframe)
     if not tf:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
@@ -193,7 +182,10 @@ async def get_kline(
 
 
 @router.get("/tick/{symbol}")
-async def get_latest_tick(symbol: str) -> dict[str, Any]:
+async def get_latest_tick(
+    symbol: str,
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取最新Tick数据
 
@@ -213,7 +205,6 @@ async def get_latest_tick(symbol: str) -> dict[str, Any]:
     # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
     symbol = symbol.replace("-", "/")
 
-    orch = _get_orchestrator()
     tick = orch.strategy_engine._latest_ticks.get(symbol)
     if not tick:
         return {
@@ -238,6 +229,7 @@ async def get_latest_tick(symbol: str) -> dict[str, Any]:
 async def get_depth(
     symbol: str,
     limit: int = Query(20, description="深度档位"),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     获取市场深度数据
@@ -257,7 +249,6 @@ async def get_depth(
     # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
     symbol = symbol.replace("-", "/")
 
-    orch = _get_orchestrator()
     depth = orch.strategy_engine._latest_depths.get(symbol)
     if not depth:
         return {"symbol": symbol, "bids": [], "asks": [], "timestamp": 0}
@@ -273,6 +264,7 @@ async def get_depth(
 async def get_symbols(
     exchange: str = Query("binance", description="交易所"),
     market_type: str = Query("spot", description="市场类型"),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     获取已订阅的交易对列表
@@ -288,7 +280,6 @@ async def get_symbols(
     - market_type: 市场类型
     - symbols: 已订阅的交易对列表
     """
-    orch = _get_orchestrator()
     collector_key = f"{exchange}_{market_type}"
     collector = orch.market_service._collectors.get(collector_key)
     symbols = list(collector.subscriptions) if collector else []
@@ -296,7 +287,9 @@ async def get_symbols(
 
 
 @router.get("/stats")
-async def get_market_stats() -> dict[str, Any]:
+async def get_market_stats(
+    orch=Depends(get_orchestrator_dep),
+) -> dict[str, Any]:
     """
     获取行情服务统计信息
 
@@ -305,13 +298,13 @@ async def get_market_stats() -> dict[str, Any]:
     返回：
     - 市场服务的统计信息字典
     """
-    orch = _get_orchestrator()
     return orch.market_service.stats
 
 
 @router.post("/load-history")
 async def load_history(
     limit: int = Query(500, description="每个周期拉取的K线数量", ge=1, le=1000),
+    orch=Depends(get_orchestrator_dep),
 ) -> dict[str, Any]:
     """
     手动拉取历史K线数据
@@ -328,8 +321,6 @@ async def load_history(
     - symbols: 使用的交易对列表
     - stats: 各交易对加载的K线数量统计
     """
-    orch = _get_orchestrator()
-
     # 从 DefaultTradingPair 枚举获取交易对列表
     symbols = DefaultTradingPair.values()
 

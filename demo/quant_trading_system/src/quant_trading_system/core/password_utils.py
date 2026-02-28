@@ -7,7 +7,6 @@
 
 import bcrypt
 import logging
-from typing import Union
 
 from quant_trading_system.core.config import settings
 
@@ -59,10 +58,6 @@ class PasswordUtils:
 
     @staticmethod
     def validate_password_strength(password: str) -> tuple[bool, str]:
-        from quant_trading_system.core.config import settings
-        if settings.debug:
-            return True, "密码强度符合要求"
-
         """
         验证密码强度
 
@@ -72,6 +67,9 @@ class PasswordUtils:
         返回：
         - (是否通过验证, 错误消息)
         """
+        from quant_trading_system.core.config import settings
+        if settings.debug:
+            return True, "密码强度符合要求"
         if len(password) < settings.PASSWORD_MIN_LENGTH:
             return False, f"密码长度至少{settings.PASSWORD_MIN_LENGTH}位"
 
@@ -92,34 +90,3 @@ class PasswordUtils:
             return False, "密码必须包含至少一个特殊字符"
 
         return True, "密码强度符合要求"
-
-    @staticmethod
-    def generate_random_password(length: int = 12) -> str:
-        """
-        生成随机密码
-
-        参数：
-        - length: 密码长度（默认12位）
-
-        返回：
-        - 随机生成的密码
-        """
-        import secrets
-        import string
-
-        if length < 8:
-            length = 8
-        elif length > 128:
-            length = 128
-
-        # 定义字符集
-        characters = string.ascii_letters + string.digits + "!@#$%^&*()_+-=[]{}|;:,.<>?"
-
-        # 确保密码包含各种类型的字符
-        while True:
-            password = ''.join(secrets.choice(characters) for _ in range(length))
-
-            # 验证密码强度
-            is_valid, _ = PasswordUtils.validate_password_strength(password)
-            if is_valid:
-                return password

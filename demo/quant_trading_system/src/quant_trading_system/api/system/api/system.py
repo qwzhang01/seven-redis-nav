@@ -13,7 +13,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Depends
 
 from quant_trading_system.core.config import settings
 
@@ -21,21 +21,19 @@ from quant_trading_system.core.config import settings
 router = APIRouter()
 
 
-def _get_orchestrator():
+async def _get_optional_orchestrator(request: Request):
     """
-    获取编排器实例
+    可选的编排器依赖注入
 
-    返回当前系统的编排器实例，用于访问系统状态和组件信息。
-
-    返回：
-    - Orchestrator实例或None（系统未启动时）
+    返回编排器实例或 None（系统未启动时不抛异常）。
     """
-    from quant_trading_system.api.main import get_orchestrator
-    return get_orchestrator()
+    return getattr(request.app.state, "orchestrator", None)
 
 
 @router.get("/info")
-async def get_system_info() -> dict[str, Any]:
+async def get_system_info(
+    orch=Depends(_get_optional_orchestrator),
+) -> dict[str, Any]:
     """
     获取系统基本信息
 
@@ -49,7 +47,6 @@ async def get_system_info() -> dict[str, Any]:
     - trading_mode: 交易模式（live/backtest）
     - trading_running: 交易系统是否正在运行
     """
-    orch = _get_orchestrator()
     return {
         "name": settings.app_name,
         "version": settings.app_version,
@@ -94,7 +91,9 @@ async def get_config() -> dict[str, Any]:
 
 
 @router.get("/health")
-async def health_check() -> dict[str, Any]:
+async def health_check(
+    orch=Depends(_get_optional_orchestrator),
+) -> dict[str, Any]:
     """
     系统健康检查
 
@@ -111,7 +110,6 @@ async def health_check() -> dict[str, Any]:
     - strategy_engine: 策略引擎状态
     - trading_engine: 交易引擎状态
     """
-    orch = _get_orchestrator()
     return {
         "status": "healthy" if (orch and orch.is_running) else "degraded",
         "checks": {
@@ -125,7 +123,9 @@ async def health_check() -> dict[str, Any]:
 
 
 @router.get("/metrics")
-async def get_metrics() -> dict[str, Any]:
+async def get_metrics(
+    orch=Depends(_get_optional_orchestrator),
+) -> dict[str, Any]:
     """
     获取系统性能指标
 
@@ -140,7 +140,6 @@ async def get_metrics() -> dict[str, Any]:
 
     当系统未启动时返回空的统计信息字典。
     """
-    orch = _get_orchestrator()
     if not orch:
         return {
             "event_engine": {},

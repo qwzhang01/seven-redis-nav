@@ -14,9 +14,9 @@ load_dotenv(env_path)
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -43,28 +43,226 @@ from .websocket.manager import ws_manager
 
 from ..services.database.database import init_database
 
+# 从 deps 模块导入公共依赖，避免循环导入
+from quant_trading_system.api.deps import (
+    get_orchestrator,
+    get_orchestrator_dep,
+    set_app_ref,
+    clear_app_ref,
+)
+
 # 设置日志
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# 全局编排器实例（仅在启动交易引擎时设置）
-_orchestrator = None
+
+# ── Lifespan 启动步骤 ────────────────────────────────────────────
 
 
-def get_orchestrator():
+async def _startup_database() -> None:
+    """初始化数据库表"""
+    try:
+        await init_database()
+        print("✅ 数据库表初始化完成")
+    except Exception as e:
+        print(f"❌ 数据库初始化失败: {e}")
+        raise
+
+
+async def _startup_orchestrator(app: FastAPI) -> None:
     """
-    获取全局交易编排器实例
-
-    返回当前系统的 TradingOrchestrator 实例。
-    若交易系统未启动，则返回 None，调用方应返回 503 错误。
+    创建编排器，加载所有已注册策略（stopped 状态），
+    订阅默认交易对行情，并预加载历史K线数据。
     """
-    return _orchestrator
+    # 导入策略模块以触发注册
+    import quant_trading_system.strategies  # noqa: F401
+
+    from quant_trading_system.services.strategy.base import (
+        list_strategies as list_registered,
+        get_strategy_class,
+    )
+    from quant_trading_system.services.trading.orchestrator import \
+        TradingOrchestrator
+
+    # 开发环境使用 mock 数据源，无需连接真实交易所
+    use_mock = settings.is_development
+    exchange_name = "mock" if use_mock else "binance"
+    if use_mock:
+        print("🎭 开发环境：使用 MockDataCollector 模拟行情数据")
+
+    orchestrator = TradingOrchestrator(
+        mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
+        exchange=exchange_name,
+        market_type="spot",
+        api_key=settings.BINANCE_API_KEY or "",  # 从配置读取API key
+        api_secret=settings.BINANCE_SECRET_KEY or "",  # 从配置读取API secret
+    )
+    await orchestrator.start()
+
+    # 将所有已注册策略以 stopped 状态加入编排器（不启动、不订阅行情）
+    registered = list_registered()
+    for name in registered:
+        cls = get_strategy_class(name)
+        if cls is None:
+            continue
+        # 使用策略类自带的默认交易对（若有），否则留空
+        default_symbols = list(cls.symbols) if cls.symbols else []
+        orchestrator.add_strategy(cls, symbols=default_symbols)
+
+    # 保存到 app.state
+    app.state.orchestrator = orchestrator
+    print(
+        f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
+    print(f"   已注册策略: {registered}")
+
+    # 自动订阅默认交易对的 WebSocket 实时行情
+    await _subscribe_default_symbols(orchestrator)
+
+    # 自动拉取/加载历史K线数据
+    await _preload_history(orchestrator, use_mock)
 
 
-def set_orchestrator(orch) -> None:
-    """设置全局交易编排器实例"""
-    global _orchestrator
-    _orchestrator = orch
+async def _subscribe_default_symbols(orchestrator) -> None:
+    """自动订阅默认交易对的 WebSocket 实时行情"""
+    try:
+        await orchestrator.subscribe_default_symbols()
+        from quant_trading_system.core.enums import DefaultTradingPair
+        default_symbols = DefaultTradingPair.values()
+        print(f"✅ 已自动订阅默认交易对行情: {default_symbols}")
+    except Exception as e:
+        print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
+
+
+async def _preload_history(orchestrator, use_mock: bool) -> None:
+    """
+    自动拉取历史K线数据，预加载到内存缓冲区。
+    - 开发环境：从数据库加载（快速启动，无需访问交易所）
+    - 生产环境：从交易所拉取，并保存到数据库（补充发版期间的数据缺口）
+    """
+    try:
+        from quant_trading_system.core.enums import DefaultTradingPair
+        default_symbols = DefaultTradingPair.values()
+
+        # mock 模式下历史数据仍从 binance 查询（数据库中存储的是 binance 数据）
+        history_exchange = "binance" if use_mock else orchestrator.exchange
+
+        if settings.is_production:
+            # 生产环境：从交易所拉取，同时保存到数据库以补充发版期间的数据缺口
+            print("📡 生产环境：从交易所拉取历史K线数据...")
+            stats = await orchestrator.market_service.load_history(
+                symbols=default_symbols,
+                limit=500,
+                exchange=history_exchange,
+                source="exchange",
+                save_to_db=True,
+            )
+            total = sum(stats.values())
+            print(
+                f"✅ 已从交易所预加载历史K线数据并保存到数据库: {total} 条 ({stats})")
+        else:
+            # 开发环境：从数据库加载，快速启动
+            print("💾 开发环境：从数据库加载历史K线数据...")
+            stats = await orchestrator.market_service.load_history(
+                symbols=default_symbols,
+                limit=500,
+                exchange=history_exchange,
+                source="database",
+            )
+            total = sum(stats.values())
+            if total > 0:
+                print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
+            else:
+                # 数据库无数据时，回退到从交易所拉取
+                print("⚠️ 数据库中无历史K线数据，回退到从交易所拉取...")
+                stats = await orchestrator.market_service.load_history(
+                    symbols=default_symbols,
+                    limit=500,
+                    exchange=history_exchange,
+                    source="exchange",
+                )
+                total = sum(stats.values())
+                print(f"✅ 已从交易所预加载历史K线数据: {total} 条 ({stats})")
+    except Exception as e:
+        print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
+
+
+async def _startup_websocket_heartbeat() -> None:
+    """启动 WebSocket 心跳检测"""
+    try:
+        await ws_manager.start_heartbeat()
+        print("✅ WebSocket 心跳检测已启动")
+    except Exception as e:
+        print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
+
+
+async def _startup_subscription_monitor() -> None:
+    """启动订阅监听器"""
+    try:
+        from quant_trading_system.services.market.subscription_monitor import \
+            init_subscription_monitor
+        await init_subscription_monitor()
+        print("✅ 订阅监听器启动完成")
+    except Exception as e:
+        print(f"❌ 订阅监听器启动失败: {e}")
+        raise
+
+
+async def _startup_historical_sync_executor() -> None:
+    """启动历史数据同步执行器"""
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            init_historical_sync_executor
+        await init_historical_sync_executor()
+        print("✅ 历史数据同步执行器启动完成")
+    except Exception as e:
+        print(f"❌ 历史数据同步执行器启动失败: {e}")
+        raise
+
+
+# ── Lifespan 关闭步骤 ────────────────────────────────────────────
+
+
+async def _shutdown_websocket_heartbeat() -> None:
+    """停止 WebSocket 心跳检测"""
+    try:
+        await ws_manager.stop_heartbeat()
+        print("✅ WebSocket 心跳检测已停止")
+    except Exception as e:
+        print(f"❌ WebSocket 心跳检测停止失败: {e}")
+
+
+async def _shutdown_historical_sync_executor() -> None:
+    """关闭历史数据同步执行器"""
+    try:
+        from quant_trading_system.services.market.historical_sync_executor import \
+            close_historical_sync_executor
+        await close_historical_sync_executor()
+        print("✅ 历史数据同步执行器已停止")
+    except Exception as e:
+        print(f"❌ 历史数据同步执行器停止失败: {e}")
+
+
+async def _shutdown_subscription_monitor() -> None:
+    """关闭订阅监听器"""
+    try:
+        from quant_trading_system.services.market.subscription_monitor import \
+            close_subscription_monitor
+        await close_subscription_monitor()
+        print("✅ 订阅监听器已停止")
+    except Exception as e:
+        print(f"❌ 订阅监听器停止失败: {e}")
+
+
+async def _shutdown_orchestrator(app: FastAPI) -> None:
+    """停止编排器并清理状态"""
+    orch = getattr(app.state, "orchestrator", None)
+    if orch is not None:
+        await orch.stop()
+        app.state.orchestrator = None
+        print("✅ 交易引擎已停止")
+
+
+# ── Lifespan 主函数 ──────────────────────────────────────────────
 
 
 @asynccontextmanager
@@ -75,182 +273,25 @@ async def lifespan(app: FastAPI):
     - 策略不会自动运行，需用户通过 API 显式启动
     - 关闭时清理资源
     """
-    # 启动时执行
+    set_app_ref(app)
+
+    # ── 启动 ──
     print("🚀 启动量化交易系统...")
-
-    # 初始化数据库表
-    try:
-        await init_database()
-        print("✅ 数据库表初始化完成")
-    except Exception as e:
-        print(f"❌ 数据库初始化失败: {e}")
-        raise
-
-    # 自动初始化编排器，加载所有已注册策略（不启动、不订阅行情）
-    try:
-        # 导入策略模块以触发注册
-        import quant_trading_system.strategies  # noqa: F401
-
-        from quant_trading_system.services.strategy.base import (
-            list_strategies as list_registered,
-            get_strategy_class,
-        )
-        from quant_trading_system.services.trading.orchestrator import \
-            TradingOrchestrator
-
-        # 开发环境使用 mock 数据源，无需连接真实交易所
-        use_mock = settings.is_development
-        exchange_name = "mock" if use_mock else "binance"
-        if use_mock:
-            print("🎭 开发环境：使用 MockDataCollector 模拟行情数据")
-
-        orchestrator = TradingOrchestrator(
-            mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
-            exchange=exchange_name,
-            market_type="spot",
-            api_key=settings.BINANCE_API_KEY or "",  # 从配置读取API key
-            api_secret=settings.BINANCE_SECRET_KEY or "",  # 从配置读取API secret
-        )
-        await orchestrator.start()
-
-        # 将所有已注册策略以 stopped 状态加入编排器（不启动、不订阅行情）
-        registered = list_registered()
-        for name in registered:
-            cls = get_strategy_class(name)
-            if cls is None:
-                continue
-            # 使用策略类自带的默认交易对（若有），否则留空
-            default_symbols = list(cls.symbols) if cls.symbols else []
-            orchestrator.add_strategy(cls, symbols=default_symbols)
-
-        set_orchestrator(orchestrator)
-        print(
-            f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
-        print(f"   已注册策略: {registered}")
-
-        # 自动订阅默认交易对的 WebSocket 实时行情
-        try:
-            await orchestrator.subscribe_default_symbols()
-            from quant_trading_system.core.enums import DefaultTradingPair
-            default_symbols = DefaultTradingPair.values()
-            print(f"✅ 已自动订阅默认交易对行情: {default_symbols}")
-        except Exception as e:
-            print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
-
-        # 自动拉取历史K线数据，预加载到内存缓冲区
-        # 开发环境：从数据库加载（快速启动，无需访问交易所）
-        # 生产环境：从交易所拉取，并保存到数据库（补充发版期间实时行情同步暂停的数据缺口）
-        try:
-            from quant_trading_system.core.enums import DefaultTradingPair
-            default_symbols = DefaultTradingPair.values()
-
-            # mock 模式下历史数据仍从 binance 查询（数据库中存储的是 binance 数据）
-            history_exchange = "binance" if use_mock else orchestrator.exchange
-
-            if settings.is_production:
-                # 生产环境：从交易所拉取，同时保存到数据库以补充发版期间的数据缺口
-                print("📡 生产环境：从交易所拉取历史K线数据...")
-                stats = await orchestrator.market_service.load_history(
-                    symbols=default_symbols,
-                    limit=500,
-                    exchange=history_exchange,
-                    source="exchange",
-                    save_to_db=True,
-                )
-                total = sum(stats.values())
-                print(f"✅ 已从交易所预加载历史K线数据并保存到数据库: {total} 条 ({stats})")
-            else:
-                # 开发环境：从数据库加载，快速启动
-                print("💾 开发环境：从数据库加载历史K线数据...")
-                stats = await orchestrator.market_service.load_history(
-                    symbols=default_symbols,
-                    limit=500,
-                    exchange=history_exchange,
-                    source="database",
-                )
-                total = sum(stats.values())
-                if total > 0:
-                    print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
-                else:
-                    # 数据库无数据时，回退到从交易所拉取
-                    print("⚠️ 数据库中无历史K线数据，回退到从交易所拉取...")
-                    stats = await orchestrator.market_service.load_history(
-                        symbols=default_symbols,
-                        limit=500,
-                        exchange=history_exchange,
-                        source="exchange",
-                    )
-                    total = sum(stats.values())
-                    print(f"✅ 已从交易所预加载历史K线数据: {total} 条 ({stats})")
-        except Exception as e:
-            print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
-
-    except Exception as e:
-        print(f"❌ 编排器初始化失败: {e}")
-        raise
-
-    # 启动 WebSocket 心跳检测
-    try:
-        await ws_manager.start_heartbeat()
-        print("✅ WebSocket 心跳检测已启动")
-    except Exception as e:
-        print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
-
-    # 启动订阅监听器
-    try:
-        from quant_trading_system.services.market.subscription_monitor import \
-            init_subscription_monitor
-        await init_subscription_monitor()
-        print("✅ 订阅监听器启动完成")
-    except Exception as e:
-        print(f"❌ 订阅监听器启动失败: {e}")
-        raise
-
-    # 启动历史数据同步执行器
-    try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            init_historical_sync_executor
-        await init_historical_sync_executor()
-        print("✅ 历史数据同步执行器启动完成")
-    except Exception as e:
-        print(f"❌ 历史数据同步执行器启动失败: {e}")
-        raise
+    await _startup_database()
+    await _startup_orchestrator(app)
+    await _startup_websocket_heartbeat()
+    await _startup_subscription_monitor()
+    await _startup_historical_sync_executor()
 
     yield
 
-    # 关闭时执行
+    # ── 关闭 ──
     print("🛑 停止量化交易系统...")
-
-    # 停止 WebSocket 心跳检测
-    try:
-        await ws_manager.stop_heartbeat()
-        print("✅ WebSocket 心跳检测已停止")
-    except Exception as e:
-        print(f"❌ WebSocket 心跳检测停止失败: {e}")
-
-    # 关闭历史数据同步执行器
-    try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            close_historical_sync_executor
-        await close_historical_sync_executor()
-        print("✅ 历史数据同步执行器已停止")
-    except Exception as e:
-        print(f"❌ 历史数据同步执行器停止失败: {e}")
-
-    # 关闭订阅监听器
-    try:
-        from quant_trading_system.services.market.subscription_monitor import \
-            close_subscription_monitor
-        await close_subscription_monitor()
-        print("✅ 订阅监听器已停止")
-    except Exception as e:
-        print(f"❌ 订阅监听器停止失败: {e}")
-
-    orch = get_orchestrator()
-    if orch is not None:
-        await orch.stop()
-        set_orchestrator(None)
-        print("✅ 交易引擎已停止")
+    await _shutdown_websocket_heartbeat()
+    await _shutdown_historical_sync_executor()
+    await _shutdown_subscription_monitor()
+    await _shutdown_orchestrator(app)
+    clear_app_ref()
 
 
 # 创建FastAPI应用实例
@@ -323,6 +364,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+
 # 注册路由
 # C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
 #                  /api/v1/c/signal、/api/v1/c/follows、/api/v1/c/leaderboard、/api/v1/c/user/signal-follows
@@ -333,19 +375,12 @@ app.include_router(c_router, prefix=f"{settings.API_PREFIX}/c")
 app.include_router(m_router, prefix=f"{settings.API_PREFIX}/m")
 
 # WebSocket 路由：/api/v1/ws/market、/api/v1/ws/trading、/api/v1/ws/strategy
-app.include_router(market_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-行情推送"])
-app.include_router(trading_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-交易推送"])
-app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-策略推送"])
-
-
-# 测试路由：验证异常处理器
-@app.get(f"{settings.API_PREFIX}/test/exception")
-async def test_exception_handler():
-    """测试异常处理器 - 抛出HTTPException应该被专门的处理器捕获"""
-    raise HTTPException(
-        status_code=418,
-        detail="这是一个测试异常，应该被HTTPException处理器捕获"
-    )
+app.include_router(market_ws_router, prefix=f"{settings.API_PREFIX}/ws",
+                   tags=["WebSocket-行情推送"])
+app.include_router(trading_ws_router, prefix=f"{settings.API_PREFIX}/ws",
+                   tags=["WebSocket-交易推送"])
+app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws",
+                   tags=["WebSocket-策略推送"])
 
 
 # 根路径

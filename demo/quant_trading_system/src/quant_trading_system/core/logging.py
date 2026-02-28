@@ -16,7 +16,6 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import structlog
 from structlog.types import Processor
@@ -196,21 +195,3 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """获取日志器"""
     return structlog.get_logger(name)
 
-
-class LogContext:
-    """日志上下文管理器"""
-
-    @staticmethod
-    def bind(**kwargs: Any) -> None:
-        """绑定上下文变量"""
-        structlog.contextvars.bind_contextvars(**kwargs)
-
-    @staticmethod
-    def unbind(*keys: str) -> None:
-        """解绑上下文变量"""
-        structlog.contextvars.unbind_contextvars(*keys)
-
-    @staticmethod
-    def clear() -> None:
-        """清除所有上下文变量"""
-        structlog.contextvars.clear_contextvars()

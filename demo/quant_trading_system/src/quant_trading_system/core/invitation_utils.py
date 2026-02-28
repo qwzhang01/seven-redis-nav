@@ -7,7 +7,6 @@
 
 import random
 import string
-from typing import Optional
 
 
 class InvitationUtils:
@@ -32,24 +31,3 @@ class InvitationUtils:
         # 生成随机邀请码
         code = ''.join(random.choice(characters) for _ in range(length))
         return code
-
-    @staticmethod
-    def validate_invitation_code_format(code: str, min_length: int = 6) -> bool:
-        """
-        验证邀请码格式
-
-        参数：
-        - code: 邀请码
-        - min_length: 最小长度
-
-        返回：
-        - 格式是否有效
-        """
-        if not code or len(code) < min_length:
-            return False
-
-        # 检查是否只包含大写字母和数字
-        if not all(c in string.ascii_uppercase + string.digits for c in code):
-            return False
-
-        return True

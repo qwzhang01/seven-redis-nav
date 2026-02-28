@@ -553,7 +553,4 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# 兼容外层 config.py 的 get_config 函数名
-get_config = get_settings
-
 settings = get_settings()
