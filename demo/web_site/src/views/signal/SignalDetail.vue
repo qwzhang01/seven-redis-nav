@@ -762,8 +762,9 @@ async function fetchKlineData() {
       limit: 200,
     })
     // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
+    // 时间戳从 UTC 转换为东八区（UTC+8），加上 8 小时的秒数偏移
     klineData.value = rawData.map((item: any) => ({
-      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
+      time: (item.time ?? Math.floor((item.timestamp || 0) / 1000)) + 8 * 3600,
       open: item.open,
       high: item.high,
       low: item.low,
