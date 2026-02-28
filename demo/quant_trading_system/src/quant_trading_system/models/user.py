@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from quant_trading_system.models.exchange import ExchangeType, ExchangeStatus
+from quant_trading_system.core.enums import MarketType as ExchangeType, ExchangeStatus
 
 
 class UserType(str, Enum):

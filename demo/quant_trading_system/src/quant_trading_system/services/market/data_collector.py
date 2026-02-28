@@ -719,8 +719,8 @@ class BinanceDataCollector(DataCollector):
             timestamp=TimeUtils.timestamp_to_datetime(depth_data["timestamp"]) if depth_data["timestamp"] else datetime.now(),
             symbol=symbol,
             exchange="binance",
-            bids=depth_data["bids"],
-            asks=depth_data["asks"],
+            bids=Depth.parse_levels(depth_data["bids"]),
+            asks=Depth.parse_levels(depth_data["asks"]),
             sequence=depth_data.get("sequence"),
         )
 
@@ -983,8 +983,8 @@ class OKXDataCollector(DataCollector):
             timestamp=datetime.fromtimestamp(depth_data["timestamp"] / 1000),
             symbol=depth_data["symbol"],
             exchange="okx",
-            bids=depth_data["bids"],
-            asks=depth_data["asks"],
+            bids=Depth.parse_levels(depth_data["bids"]),
+            asks=Depth.parse_levels(depth_data["asks"]),
         )
 
         # 存储到数据库

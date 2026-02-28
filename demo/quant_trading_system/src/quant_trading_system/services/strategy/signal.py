@@ -6,27 +6,13 @@
 """
 
 import time
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
+from pydantic import BaseModel, Field
 from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
+from quant_trading_system.core.enums import SignalType
 
 
-class SignalType(Enum):
-    """信号类型"""
-
-    BUY = "buy"                 # 买入
-    SELL = "sell"               # 卖出
-    OPEN_LONG = "open_long"     # 开多
-    OPEN_SHORT = "open_short"   # 开空
-    CLOSE_LONG = "close_long"   # 平多
-    CLOSE_SHORT = "close_short" # 平空
-    CANCEL = "cancel"           # 取消
-    HOLD = "hold"               # 持有（不操作）
-
-
-@dataclass
-class Signal:
+class Signal(BaseModel):
     """
     交易信号
 
@@ -38,7 +24,7 @@ class Signal:
     signal_type: SignalType
 
     # 信号ID
-    signal_id: str = field(default_factory=lambda: str(generate_backtest_snowflake_id()))
+    signal_id: str = Field(default_factory=lambda: str(generate_backtest_snowflake_id()))
 
     # 策略信息
     strategy_id: str = ""
@@ -56,12 +42,12 @@ class Signal:
     strength: float = 1.0
 
     # 时间
-    timestamp: float = field(default_factory=lambda: time.time() * 1000)
+    timestamp: float = Field(default_factory=lambda: time.time() * 1000)
     expire_time: float = 0.0    # 信号过期时间
 
     # 额外信息
     reason: str = ""            # 信号原因
-    data: dict[str, Any] = field(default_factory=dict)  # 附加数据
+    data: dict[str, Any] = Field(default_factory=dict)  # 附加数据
 
     @property
     def is_buy(self) -> bool:

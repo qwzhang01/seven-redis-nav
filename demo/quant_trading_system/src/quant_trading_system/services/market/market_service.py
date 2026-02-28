@@ -30,26 +30,26 @@ TickCallback = Callable[[Tick], Coroutine[Any, Any, None]]
 BarCallback = Callable[[Bar], Coroutine[Any, Any, None]]
 DepthCallback = Callable[[Depth], Coroutine[Any, Any, None]]
 
-# 全局MarketService实例
-_market_service: "MarketService | None" = None
-
-
 def get_market_service(event_engine: EventEngine | None = None) -> "MarketService":
     """
-    获取MarketService单例实例
+    获取MarketService单例实例（委托到 ServiceContainer）
 
     Args:
-        event_engine: 事件引擎实例，如果为None则创建新的
+        event_engine: 事件引擎实例（仅在首次创建时生效）
 
     Returns:
         MarketService实例
     """
-    global _market_service
+    from quant_trading_system.core.container import container
 
-    if _market_service is None:
-        _market_service = MarketService(event_engine=event_engine)
+    if container._market_service is None:
+        if event_engine is not None:
+            container.market_service = MarketService(event_engine=event_engine)
+        else:
+            # 使用容器中的 event_engine
+            container.market_service = MarketService(event_engine=container.event_engine)
 
-    return _market_service
+    return container.market_service
 
 
 class MarketService:
@@ -356,8 +356,8 @@ class MarketService:
             symbol=data["symbol"],
             exchange=data["exchange"],
             timestamp=data["timestamp"],
-            bids=[DepthLevel(price=b[0], size=b[1]) for b in data.get("bids", [])],
-            asks=[DepthLevel(price=a[0], size=a[1]) for a in data.get("asks", [])],
+            bids=[DepthLevel(price=b[0], volume=b[1]) for b in data.get("bids", [])],
+            asks=[DepthLevel(price=a[0], volume=a[1]) for a in data.get("asks", [])],
         )
 
         self._depth_count += 1
@@ -375,8 +375,8 @@ class MarketService:
             await push_depth(symbol_key, {
                 "symbol": depth.symbol,
                 "exchange": depth.exchange,
-                "bids": depth.bids,
-                "asks": depth.asks,
+                "bids": [d.to_list() for d in depth.bids],
+                "asks": [d.to_list() for d in depth.asks],
                 "timestamp": str(depth.timestamp),
             })
         except Exception as e:

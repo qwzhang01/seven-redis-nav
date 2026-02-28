@@ -10,26 +10,16 @@
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 import structlog
 
+from quant_trading_system.core.enums import RiskLevel, OrderSide
 from quant_trading_system.core.events import Event, EventEngine, EventType
-from quant_trading_system.models.trading import Order, OrderSide, Position
+from quant_trading_system.models.trading import Order, Position
 from quant_trading_system.models.account import Account
 
 logger = structlog.get_logger(__name__)
-
-
-class RiskLevel(Enum):
-    """风险级别"""
-
-    NORMAL = "normal"       # 正常
-    WARNING = "warning"     # 警告
-    ALERT = "alert"         # 告警
-    CRITICAL = "critical"   # 危险
-    EMERGENCY = "emergency" # 紧急
 
 
 @dataclass

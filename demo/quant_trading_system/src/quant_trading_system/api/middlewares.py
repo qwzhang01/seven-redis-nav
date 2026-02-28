@@ -30,8 +30,9 @@ logger = logging.getLogger(__name__)
 # 认证中间件白名单（这些路径不需要 Token）
 # ──────────────────────────────────────────────
 _prefix = settings.API_PREFIX
-
 AUTH_WHITELIST: set[str] = {
+    "/.well-known/appspecific/com.chrome.devtools.json",
+    "/favicon.ico",
     "/",
     "/docs",
     "/redoc",
@@ -43,6 +44,7 @@ AUTH_WHITELIST: set[str] = {
     f"{_prefix}/c/user/password/reset",
     f"{_prefix}/c/user/token/refresh",
     # Admin 端健康探针（供运维/K8s 使用，无需登录）
+    f"{_prefix}/m/health",
     f"{_prefix}/m/health/",
     f"{_prefix}/m/health/ready",
     f"{_prefix}/m/health/live",

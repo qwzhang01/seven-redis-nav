@@ -398,6 +398,14 @@ async def root() -> Dict[str, Any]:
     }
 
 
+# favicon.ico - 返回空响应，避免浏览器 404
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """返回空的 favicon 响应"""
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
+
 # 自定义OpenAPI文档
 @app.get("/docs", include_in_schema=False)
 async def custom_docs():

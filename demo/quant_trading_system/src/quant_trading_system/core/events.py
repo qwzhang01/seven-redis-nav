@@ -20,10 +20,6 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# 全局EventEngine实例
-_event_engine: "EventEngine | None" = None
-
-
 def get_event_engine(
     queue_size: int = 100000,
     num_workers: int = 4,
@@ -31,6 +27,8 @@ def get_event_engine(
 ) -> "EventEngine":
     """
     获取EventEngine单例实例
+
+    委托到 ServiceContainer 统一管理。
 
     Args:
         queue_size: 事件队列大小
@@ -40,16 +38,16 @@ def get_event_engine(
     Returns:
         EventEngine实例
     """
-    global _event_engine
+    from quant_trading_system.core.container import container
 
-    if _event_engine is None:
-        _event_engine = EventEngine(
+    if container._event_engine is None:
+        container.event_engine = EventEngine(
             queue_size=queue_size,
             num_workers=num_workers,
-            name=name
+            name=name,
         )
 
-    return _event_engine
+    return container.event_engine
 
 
 class EventType(Enum):
@@ -448,5 +446,3 @@ class EventEngine:
             "events_per_second": self._total_events / uptime if uptime > 0 else 0,
             "event_counts": dict(self._event_count),
         }
-
-

@@ -61,31 +61,50 @@ class BaseEnum(str, Enum):
 # ========== 风险等级 ==========
 
 class RiskLevel(BaseEnum):
-    """风险等级"""
+    """风险等级（统一定义，供策略定义和风控引擎共用）"""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    NORMAL = "normal"
+    WARNING = "warning"
+    ALERT = "alert"
+    CRITICAL = "critical"
+    EMERGENCY = "emergency"
 
 
 _register_enum_meta("RiskLevel", {
     "low": "低风险",
     "medium": "中风险",
     "high": "高风险",
+    "normal": "正常",
+    "warning": "警告",
+    "alert": "告警",
+    "critical": "危险",
+    "emergency": "紧急",
 }, {
     "low": "保守型策略，回撤较小",
     "medium": "均衡型策略，收益与风险适中",
     "high": "激进型策略，潜在高收益高回撤",
+    "normal": "风控指标正常",
+    "warning": "风控指标接近阈值",
+    "alert": "风控指标超过阈值",
+    "critical": "风控指标严重超标",
+    "emergency": "触发熔断",
 })
 
 
 # ========== 策略状态 ==========
 
 class StrategyStatus(BaseEnum):
-    """策略状态"""
+    """策略状态（统一定义，涵盖策略定义状态和运行实例状态）"""
     DRAFT = "draft"
     TESTING = "testing"
+    CREATED = "created"
+    INITIALIZING = "initializing"
+    READY = "ready"
     RUNNING = "running"
     PAUSED = "paused"
+    STOPPING = "stopping"
     STOPPED = "stopped"
     ERROR = "error"
 
@@ -93,18 +112,29 @@ class StrategyStatus(BaseEnum):
 _register_enum_meta("StrategyStatus", {
     "draft": "草稿",
     "testing": "测试中",
+    "created": "已创建",
+    "initializing": "初始化中",
+    "ready": "就绪",
     "running": "运行中",
     "paused": "已暂停",
+    "stopping": "停止中",
     "stopped": "已停止",
     "error": "异常",
 }, {
     "draft": "策略创建未发布",
     "testing": "策略正在回测或测试",
+    "created": "策略实例已创建",
+    "initializing": "策略实例初始化中",
+    "ready": "策略实例就绪等待启动",
     "running": "策略正在运行交易",
     "paused": "策略暂时停止，保留持仓",
+    "stopping": "策略停止中",
     "stopped": "策略已停止并平仓",
     "error": "策略运行出错",
 })
+
+# 向后兼容别名：StrategyState = StrategyStatus
+StrategyState = StrategyStatus
 
 
 # ========== 市场类型 ==========
@@ -166,35 +196,56 @@ _register_enum_meta("StrategyType", {
 
 class KlineInterval(BaseEnum):
     """K线周期"""
+    SEC_1 = "1s"
     MIN_1 = "1m"
+    MIN_3 = "3m"
     MIN_5 = "5m"
     MIN_15 = "15m"
     MIN_30 = "30m"
     HOUR_1 = "1h"
+    HOUR_2 = "2h"
     HOUR_4 = "4h"
+    HOUR_6 = "6h"
+    HOUR_8 = "8h"
+    HOUR_12 = "12h"
     DAY_1 = "1d"
+    DAY_3 = "3d"
     WEEK_1 = "1w"
     MONTH_1 = "1M"
 
 
 _register_enum_meta("KlineInterval", {
+    "1s": "1秒",
     "1m": "1分钟",
+    "3m": "3分钟",
     "5m": "5分钟",
     "15m": "15分钟",
     "30m": "30分钟",
     "1h": "1小时",
+    "2h": "2小时",
     "4h": "4小时",
+    "6h": "6小时",
+    "8h": "8小时",
+    "12h": "12小时",
     "1d": "日线",
+    "3d": "3日线",
     "1w": "周线",
     "1M": "月线",
 }, {
+    "1s": "1秒K线",
     "1m": "1分钟K线",
+    "3m": "3分钟K线",
     "5m": "5分钟K线",
     "15m": "15分钟K线",
     "30m": "30分钟K线",
     "1h": "1小时K线",
+    "2h": "2小时K线",
     "4h": "4小时K线",
+    "6h": "6小时K线",
+    "8h": "8小时K线",
+    "12h": "12小时K线",
     "1d": "1天K线",
+    "3d": "3天K线",
     "1w": "1周K线",
     "1M": "1月K线",
 })
@@ -336,23 +387,35 @@ _register_enum_meta("StopMode", {
 # ========== 信号类型 ==========
 
 class SignalType(BaseEnum):
-    """信号类型"""
+    """信号类型（统一定义，涵盖所有交易信号）"""
     BUY = "buy"
     SELL = "sell"
+    OPEN_LONG = "open_long"
+    OPEN_SHORT = "open_short"
     CLOSE_LONG = "close_long"
     CLOSE_SHORT = "close_short"
+    CANCEL = "cancel"
+    HOLD = "hold"
 
 
 _register_enum_meta("SignalType", {
     "buy": "买入",
     "sell": "卖出",
+    "open_long": "开多",
+    "open_short": "开空",
     "close_long": "平多",
     "close_short": "平空",
+    "cancel": "取消",
+    "hold": "持有",
 }, {
     "buy": "买入信号",
     "sell": "卖出信号",
+    "open_long": "开多头仓位",
+    "open_short": "开空头仓位",
     "close_long": "平多头仓位",
     "close_short": "平空头仓位",
+    "cancel": "取消信号",
+    "hold": "持有不操作",
 })
 
 
@@ -410,6 +473,115 @@ _register_enum_meta("RebalancingFrequency", {
 })
 
 
+# ========== 交易所状态 ==========
+
+class ExchangeStatus(BaseEnum):
+    """交易所状态"""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    MAINTENANCE = "maintenance"
+
+
+_register_enum_meta("ExchangeStatus", {
+    "active": "正常",
+    "inactive": "停用",
+    "maintenance": "维护中",
+}, {
+    "active": "交易所正常运行",
+    "inactive": "交易所已停用",
+    "maintenance": "交易所维护中",
+})
+
+
+# ========== 订单方向 ==========
+
+class OrderSide(BaseEnum):
+    """订单方向"""
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+_register_enum_meta("OrderSide", {
+    "BUY": "买入",
+    "SELL": "卖出",
+}, {
+    "BUY": "买入订单",
+    "SELL": "卖出订单",
+})
+
+
+# ========== 持仓方向 ==========
+
+class PositionSide(BaseEnum):
+    """持仓方向"""
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
+_register_enum_meta("PositionSide", {
+    "LONG": "多头",
+    "SHORT": "空头",
+}, {
+    "LONG": "多头持仓",
+    "SHORT": "空头持仓",
+})
+
+
+# ========== 订单类型 ==========
+
+class OrderType(BaseEnum):
+    """订单类型"""
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    STOP = "STOP"
+    STOP_LIMIT = "STOP_LIMIT"
+
+
+_register_enum_meta("OrderType", {
+    "MARKET": "市价",
+    "LIMIT": "限价",
+    "STOP": "止损",
+    "STOP_LIMIT": "止损限价",
+}, {
+    "MARKET": "市价订单",
+    "LIMIT": "限价订单",
+    "STOP": "止损订单",
+    "STOP_LIMIT": "止损限价订单",
+})
+
+
+# ========== 订单状态 ==========
+
+class OrderStatus(BaseEnum):
+    """订单状态"""
+    PENDING = "PENDING"
+    SUBMITTED = "SUBMITTED"
+    OPEN = "OPEN"
+    PARTIAL_FILLED = "PARTIAL_FILLED"
+    FILLED = "FILLED"
+    CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+
+
+_register_enum_meta("OrderStatus", {
+    "PENDING": "待提交",
+    "SUBMITTED": "已提交",
+    "OPEN": "已挂单",
+    "PARTIAL_FILLED": "部分成交",
+    "FILLED": "已成交",
+    "CANCELLED": "已取消",
+    "REJECTED": "已拒绝",
+}, {
+    "PENDING": "订单待提交",
+    "SUBMITTED": "订单已提交到交易所",
+    "OPEN": "订单已挂单等待成交",
+    "PARTIAL_FILLED": "订单部分成交",
+    "FILLED": "订单完全成交",
+    "CANCELLED": "订单已取消",
+    "REJECTED": "订单被拒绝",
+})
+
+
 # ========== 枚举注册表 ==========
 
 # 所有可供前端查询的枚举类注册表
@@ -420,6 +592,7 @@ ENUM_REGISTRY: dict[str, type[BaseEnum]] = {
     "StrategyType": StrategyType,
     "KlineInterval": KlineInterval,
     "ExchangeEnum": ExchangeEnum,
+    "ExchangeStatus": ExchangeStatus,
     "TradingPair": TradingPair,
     "DefaultTradingPair": DefaultTradingPair,
     "TradeMode": TradeMode,
@@ -428,4 +601,8 @@ ENUM_REGISTRY: dict[str, type[BaseEnum]] = {
     "TradeDirection": TradeDirection,
     "StrategyMode": StrategyMode,
     "RebalancingFrequency": RebalancingFrequency,
+    "OrderSide": OrderSide,
+    "PositionSide": PositionSide,
+    "OrderType": OrderType,
+    "OrderStatus": OrderStatus,
 }

@@ -16,11 +16,8 @@ import structlog
 from quant_trading_system.core.enums import DefaultTradingPair
 from quant_trading_system.core.events import EventEngine, EventType, Event
 from quant_trading_system.models.account import Account, AccountType, Balance
-from quant_trading_system.services.market.market_service import MarketService
-from quant_trading_system.services.strategy.strategy_engine import StrategyEngine
 from quant_trading_system.services.strategy.base import Strategy
-from quant_trading_system.services.trading.trading_engine import TradingEngine
-from quant_trading_system.services.risk.risk_manager import RiskManager, RiskConfig
+from quant_trading_system.services.risk.risk_manager import RiskConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -63,16 +60,14 @@ class TradingOrchestrator:
         self.api_secret = api_secret
         self.initial_capital = initial_capital
 
-        # ---- 核心组件 ----
-        from quant_trading_system.core.events import get_event_engine
-        self.event_engine = get_event_engine(name="MainEventEngine")
-        self.market_service = MarketService(event_engine=self.event_engine)
-        self.strategy_engine = StrategyEngine(event_engine=self.event_engine)
-        self.trading_engine = TradingEngine(event_engine=self.event_engine)
-        self.risk_manager = RiskManager(
-            config=risk_config or RiskConfig(),
-            event_engine=self.event_engine,
-        )
+        # ---- 核心组件（通过 ServiceContainer 统一管理） ----
+        from quant_trading_system.core.container import container
+
+        self.event_engine = container.event_engine
+        self.market_service = container.market_service
+        self.strategy_engine = container.strategy_engine
+        self.trading_engine = container.trading_engine
+        self.risk_manager = container.risk_manager
 
         # ---- 状态 ----
         self._running = False

@@ -79,7 +79,8 @@ async def place_order(
     - 市价单：立即按当前市场价格成交，无需指定价格
     - 限价单：按指定价格或更优价格成交
     """
-    from quant_trading_system.services.strategy.signal import Signal, SignalType
+    from quant_trading_system.services.strategy.signal import Signal
+    from quant_trading_system.core.enums import SignalType
 
     # 确定交易方向
     signal_type = SignalType.BUY if request.side.upper() == "BUY" else SignalType.SELL

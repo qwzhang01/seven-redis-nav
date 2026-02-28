@@ -18,16 +18,14 @@ import numpy as np
 import structlog
 
 from quant_trading_system.models.market import Bar, BarArray, TimeFrame
+from quant_trading_system.core.enums import OrderSide, OrderStatus, OrderType, StrategyState
 from quant_trading_system.models.trading import (
     Order,
-    OrderSide,
-    OrderStatus,
-    OrderType,
     Position,
     Trade,
 )
 from quant_trading_system.models.account import Account, AccountType, Balance
-from quant_trading_system.services.strategy.base import Strategy, StrategyContext, StrategyState
+from quant_trading_system.services.strategy.base import Strategy, StrategyContext
 from quant_trading_system.services.strategy.signal import Signal
 from quant_trading_system.services.indicators.indicator_engine import (
     get_indicator_engine,

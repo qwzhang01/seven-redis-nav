@@ -55,3 +55,36 @@ async def get_orchestrator_dep(request: Request):
     if orch is None:
         raise HTTPException(status_code=503, detail="交易系统未就绪")
     return orch
+
+
+# ── 通过 ServiceContainer 获取各服务实例的便捷函数 ──
+
+
+def get_event_engine_dep():
+    """FastAPI 依赖注入：获取事件引擎"""
+    from quant_trading_system.core.container import container
+    return container.event_engine
+
+
+def get_market_service_dep():
+    """FastAPI 依赖注入：获取行情服务"""
+    from quant_trading_system.core.container import container
+    return container.market_service
+
+
+def get_indicator_engine_dep():
+    """FastAPI 依赖注入：获取指标引擎"""
+    from quant_trading_system.core.container import container
+    return container.indicator_engine
+
+
+def get_strategy_engine_dep():
+    """FastAPI 依赖注入：获取策略引擎"""
+    from quant_trading_system.core.container import container
+    return container.strategy_engine
+
+
+def get_trading_engine_dep():
+    """FastAPI 依赖注入：获取交易引擎"""
+    from quant_trading_system.core.container import container
+    return container.trading_engine

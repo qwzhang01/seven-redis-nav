@@ -69,6 +69,20 @@ class BarArray:
         self.volume = np.append(self.volume, bar.volume)
         self.turnover = np.append(self.turnover, bar.volume * bar.close)
 
+    def update_last(self, bar: Bar) -> None:
+        """更新最后一根K线的数据（用于未关闭的K线实时更新）"""
+        if len(self) == 0:
+            # 如果数组为空，则直接添加
+            self.append(bar)
+            return
+        self.timestamp[-1] = np.datetime64(int(bar.timestamp), "ms")
+        self.open[-1] = bar.open
+        self.high[-1] = bar.high
+        self.low[-1] = bar.low
+        self.close[-1] = bar.close
+        self.volume[-1] = bar.volume
+        self.turnover[-1] = bar.volume * bar.close
+
 
 class Tick(BaseModel):
     """实时行情数据"""
@@ -89,17 +103,31 @@ class Tick(BaseModel):
     trade_id: str = ""
 
 
+class DepthLevel(BaseModel):
+    """深度级别"""
+    price: float
+    volume: float
+
+    @property
+    def size(self) -> float:
+        """volume的别名，向后兼容"""
+        return self.volume
+
+    def to_list(self) -> List[float]:
+        """转为 [price, volume] 列表格式（兼容旧序列化）"""
+        return [self.price, self.volume]
+
+
 class Depth(BaseModel):
     """深度数据"""
     timestamp: datetime
     symbol: str
     exchange: str = "unknown"
-    bids: List[List[float]]  # [price, volume]
-    asks: List[List[float]]  # [price, volume]
+    bids: List[DepthLevel]  # 买盘深度列表（价格从高到低）
+    asks: List[DepthLevel]  # 卖盘深度列表（价格从低到高）
     sequence: Optional[int] = None  # lastUpdateId (币安) 或其他序列号
 
-
-class DepthLevel(BaseModel):
-    """深度级别"""
-    price: float
-    volume: float
+    @staticmethod
+    def parse_levels(raw: List[List[float]]) -> List[DepthLevel]:
+        """将 [[price, volume], ...] 原始数据解析为 DepthLevel 列表"""
+        return [DepthLevel(price=item[0], volume=item[1]) for item in raw]

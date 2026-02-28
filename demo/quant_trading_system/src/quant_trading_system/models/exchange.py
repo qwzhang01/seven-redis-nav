@@ -1,33 +1,22 @@
 """
 交易所枚举定义
-包含BG、芝麻、币安等交易所的枚举定义
+从 core/enums.py 统一导入，此文件保留向后兼容的别名
 """
 
-from enum import Enum
+from quant_trading_system.core.enums import (
+    ExchangeEnum,
+    ExchangeStatus,
+    MarketType,
+)
 
+# 向后兼容别名
+ExchangeCode = ExchangeEnum
+ExchangeType = MarketType
 
-class ExchangeCode(str, Enum):
-    """
-    交易所代码枚举
-    """
-    BG = "bg"
-    ZHI_MA = "zhima"
-    BINANCE = "binance"
-
-
-class ExchangeType(str, Enum):
-    """
-    交易所类型枚举
-    """
-    SPOT = "spot"
-    FUTURES = "futures"
-    MARGIN = "margin"
-
-
-class ExchangeStatus(str, Enum):
-    """
-    交易所状态枚举
-    """
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    MAINTENANCE = "maintenance"
+__all__ = [
+    "ExchangeEnum",
+    "ExchangeCode",
+    "ExchangeType",
+    "ExchangeStatus",
+    "MarketType",
+]

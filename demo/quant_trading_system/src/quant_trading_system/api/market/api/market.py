@@ -254,8 +254,8 @@ async def get_depth(
         return {"symbol": symbol, "bids": [], "asks": [], "timestamp": 0}
     return {
         "symbol": symbol,
-        "bids": [{"price": d.price, "size": d.size} for d in depth.bids[:limit]],
-        "asks": [{"price": d.price, "size": d.size} for d in depth.asks[:limit]],
+        "bids": [{"price": d.price, "volume": d.volume} for d in depth.bids[:limit]],
+        "asks": [{"price": d.price, "volume": d.volume} for d in depth.asks[:limit]],
         "timestamp": depth.timestamp,
     }
 

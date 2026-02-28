@@ -232,8 +232,8 @@ class DataStore:
                     "symbol": depth.symbol,
                     "exchange": depth.exchange,
                     "timestamp": depth_datetime,
-                    "bids": json.dumps(depth.bids) if depth.bids else None,
-                    "asks": json.dumps(depth.asks) if depth.asks else None,
+                    "bids": json.dumps([d.to_list() for d in depth.bids]) if depth.bids else None,
+                    "asks": json.dumps([d.to_list() for d in depth.asks]) if depth.asks else None,
                     "sequence": depth.sequence
                 })
 

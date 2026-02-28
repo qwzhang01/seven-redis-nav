@@ -7,75 +7,63 @@
 
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, ClassVar, Type
 
 import structlog
+from pydantic import BaseModel, Field
 
 from quant_trading_system.models.market import Bar, BarArray, Depth, Tick, TimeFrame
 from quant_trading_system.models.trading import Order, Position, Trade
 from quant_trading_system.models.account import Account
-from quant_trading_system.services.strategy.signal import Signal, SignalType
+from quant_trading_system.services.strategy.signal import Signal
+from quant_trading_system.core.enums import SignalType, StrategyStatus, StrategyState
 from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
 from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 
 logger = structlog.get_logger(__name__)
 
 
-class StrategyState(Enum):
-    """策略状态"""
-
-    CREATED = "created"         # 已创建
-    INITIALIZING = "initializing"  # 初始化中
-    READY = "ready"             # 就绪
-    RUNNING = "running"         # 运行中
-    PAUSED = "paused"           # 已暂停
-    STOPPING = "stopping"       # 停止中
-    STOPPED = "stopped"         # 已停止
-    ERROR = "error"             # 错误
-
-
-@dataclass
-class StrategyContext:
+class StrategyContext(BaseModel):
     """
     策略上下文
 
     提供策略运行时所需的数据和服务
     """
 
+    model_config = {"arbitrary_types_allowed": True, "validate_assignment": False}
+
     # 策略ID
     strategy_id: str
 
     # 交易品种
-    symbols: list[str] = field(default_factory=list)
+    symbols: list[str] = Field(default_factory=list)
 
     # 时间周期
-    timeframes: list[TimeFrame] = field(default_factory=list)
+    timeframes: list[TimeFrame] = Field(default_factory=list)
 
     # 账户信息
     account: Account | None = None
 
     # 持仓信息 {symbol: Position}
-    positions: dict[str, Position] = field(default_factory=dict)
+    positions: dict[str, Position] = Field(default_factory=dict)
 
     # 活跃订单 {order_id: Order}
-    active_orders: dict[str, Order] = field(default_factory=dict)
+    active_orders: dict[str, Order] = Field(default_factory=dict)
 
     # 指标引擎
     indicator_engine: IndicatorEngine | None = None
 
     # K线数据 {symbol: {timeframe: BarArray}}
-    bars: dict[str, dict[TimeFrame, BarArray]] = field(default_factory=dict)
+    bars: dict[str, dict[TimeFrame, BarArray]] = Field(default_factory=dict)
 
     # 最新Tick {symbol: Tick}
-    latest_ticks: dict[str, Tick] = field(default_factory=dict)
+    latest_ticks: dict[str, Tick] = Field(default_factory=dict)
 
     # 最新深度 {symbol: Depth}
-    latest_depths: dict[str, Depth] = field(default_factory=dict)
+    latest_depths: dict[str, Depth] = Field(default_factory=dict)
 
     # 策略参数
-    params: dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
     # 运行模式
     is_backtest: bool = False
@@ -110,8 +98,7 @@ class StrategyContext:
         return 0.0
 
 
-@dataclass
-class StrategyInfo:
+class StrategyInfo(BaseModel):
     """策略信息"""
 
     strategy_id: str
@@ -119,7 +106,7 @@ class StrategyInfo:
     description: str
     version: str
     author: str
-    params: dict[str, Any]
+    params: dict[str, Any] = Field(default_factory=dict)
     state: StrategyState
     created_at: float
     started_at: float = 0.0

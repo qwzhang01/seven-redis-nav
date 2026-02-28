@@ -245,18 +245,14 @@ _subscription_monitor: Optional[SubscriptionMonitor] = None
 
 
 def get_subscription_monitor() -> SubscriptionMonitor:
-    """获取订阅监听器实例（单例模式）"""
+    """获取订阅监听器实例（委托到 ServiceContainer 获取依赖）"""
     global _subscription_monitor
     if _subscription_monitor is None:
-        from quant_trading_system.services.market.market_service import get_market_service
-        from quant_trading_system.core.events import get_event_engine
-
-        market_service = get_market_service()
-        event_engine = get_event_engine()
+        from quant_trading_system.core.container import container
 
         _subscription_monitor = SubscriptionMonitor(
-            market_service=market_service,
-            event_engine=event_engine
+            market_service=container.market_service,
+            event_engine=container.event_engine,
         )
     return _subscription_monitor
 

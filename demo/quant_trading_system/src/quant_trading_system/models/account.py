@@ -1,14 +1,12 @@
-from enum import Enum
 from typing import Dict
 from datetime import datetime
 from pydantic import BaseModel
 
+from quant_trading_system.core.enums import MarketType
 
-class AccountType(str, Enum):
-    """账户类型"""
-    SPOT = "SPOT"
-    MARGIN = "MARGIN"
-    FUTURES = "FUTURES"
+
+# 向后兼容别名：AccountType -> MarketType
+AccountType = MarketType
 
 
 class Balance(BaseModel):

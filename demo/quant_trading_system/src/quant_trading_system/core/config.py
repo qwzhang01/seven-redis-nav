@@ -256,8 +256,8 @@ class NotificationSettings(BaseSettings):
 
     model_config = SettingsConfigDict()  # 直接读取环境变量
 
-    # 邮件配置
-    smtp_server: Optional[str] = None
+    # 邮件 SMTP 配置（统一，同时用于通知和告警）
+    smtp_host: Optional[str] = None
     smtp_port: int = 587
     smtp_username: Optional[str] = None
     smtp_password: Optional[str] = None
@@ -266,12 +266,6 @@ class NotificationSettings(BaseSettings):
     # Telegram 配置
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-
-    # 邮件告警
-    email_smtp_host: Optional[str] = None
-    email_smtp_port: int = 587
-    email_username: Optional[str] = None
-    email_password: Optional[str] = None
 
 
 class FileUploadSettings(BaseSettings):
@@ -356,8 +350,8 @@ class MonitorSettings(BaseSettings):
     # 告警配置
     alert_webhook_url: str = ""
     alert_email_enabled: bool = False
-    alert_email_smtp_host: str = ""
-    alert_email_smtp_port: int = 587
+    # 告警邮件的 SMTP 连接复用 NotificationSettings 中的统一配置
+    # 此处仅保留告警特有的发件人和收件人
     alert_email_from: str = ""
     alert_email_to: list[str] = Field(default_factory=list)
 
