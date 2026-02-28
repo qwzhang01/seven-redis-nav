@@ -60,7 +60,7 @@ def backtest(
     # 导入策略模块以触发注册
     import quant_trading_system.strategies
 
-    from quant_trading_system.models.market import TimeFrame
+    from quant_trading_system.core.enums import KlineInterval
     from quant_trading_system.services.backtest.backtest_engine import (
         BacktestConfig,
         BacktestEngine,
@@ -86,14 +86,14 @@ def backtest(
 
         # 2. 解析时间周期
         timeframe_map = {
-            "1m": TimeFrame.M1,
-            "5m": TimeFrame.M5,
-            "15m": TimeFrame.M15,
-            "30m": TimeFrame.M30,
-            "1h": TimeFrame.H1,
-            "4h": TimeFrame.H4,
-            "1d": TimeFrame.D1,
-            "1w": TimeFrame.W1,
+            "1m": KlineInterval.MIN_1,
+            "5m": KlineInterval.MIN_5,
+            "15m": KlineInterval.MIN_15,
+            "30m": KlineInterval.MIN_30,
+            "1h": KlineInterval.HOUR_1,
+            "4h": KlineInterval.HOUR_4,
+            "1d": KlineInterval.DAY_1,
+            "1w": KlineInterval.WEEK_1,
         }
         tf = timeframe_map.get(timeframe.lower())
         if not tf:

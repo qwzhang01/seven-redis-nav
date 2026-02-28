@@ -12,7 +12,8 @@ from typing import Any, ClassVar, Type
 import structlog
 from pydantic import BaseModel, Field
 
-from quant_trading_system.models.market import Bar, BarArray, Depth, Tick, TimeFrame
+from quant_trading_system.models.market import Bar, BarArray, Depth, Tick
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.trading import Order, Position, Trade
 from quant_trading_system.models.account import Account
 from quant_trading_system.services.strategy.signal import Signal
@@ -39,7 +40,7 @@ class StrategyContext(BaseModel):
     symbols: list[str] = Field(default_factory=list)
 
     # 时间周期
-    timeframes: list[TimeFrame] = Field(default_factory=list)
+    timeframes: list[KlineInterval] = Field(default_factory=list)
 
     # 账户信息
     account: Account | None = None
@@ -54,7 +55,7 @@ class StrategyContext(BaseModel):
     indicator_engine: IndicatorEngine | None = None
 
     # K线数据 {symbol: {timeframe: BarArray}}
-    bars: dict[str, dict[TimeFrame, BarArray]] = Field(default_factory=dict)
+    bars: dict[str, dict[KlineInterval, BarArray]] = Field(default_factory=dict)
 
     # 最新Tick {symbol: Tick}
     latest_ticks: dict[str, Tick] = Field(default_factory=dict)
@@ -78,7 +79,7 @@ class StrategyContext(BaseModel):
     def get_bars(
         self,
         symbol: str,
-        timeframe: TimeFrame
+        timeframe: KlineInterval
     ) -> BarArray | None:
         """获取K线数据"""
         return self.bars.get(symbol, {}).get(timeframe)
@@ -90,7 +91,7 @@ class StrategyContext(BaseModel):
             return tick.last_price
 
         # 从K线获取
-        for tf in [TimeFrame.M1, TimeFrame.M5, TimeFrame.M15]:
+        for tf in [KlineInterval.MIN_1, KlineInterval.MIN_5, KlineInterval.MIN_15]:
             bars = self.get_bars(symbol, tf)
             if bars and len(bars) > 0:
                 return float(bars.close[-1])
@@ -129,9 +130,9 @@ class Strategy(ABC):
     # 参数定义
     params_def: ClassVar[dict[str, dict[str, Any]]] = {}
 
-    # 订阅的数据
-    symbols: ClassVar[list[str]] = []
-    timeframes: ClassVar[list[TimeFrame]] = [TimeFrame.M1]
+    # 订阅的数据（使用 tuple 避免子类间意外共享修改）
+    symbols: ClassVar[tuple[str, ...]] = ()
+    timeframes: ClassVar[tuple[KlineInterval, ...]] = (KlineInterval.MIN_1,)
 
     def __init__(
         self,
@@ -432,7 +433,7 @@ class Strategy(ABC):
         self,
         indicator_name: str,
         symbol: str | None = None,
-        timeframe: TimeFrame | None = None,
+        timeframe: KlineInterval | None = None,
         **params: Any,
     ):
         """计算技术指标"""
@@ -441,7 +442,7 @@ class Strategy(ABC):
 
         # 获取K线数据
         sym = symbol or (self.symbols[0] if self.symbols else None)
-        tf = timeframe or (self.timeframes[0] if self.timeframes else TimeFrame.M1)
+        tf = timeframe or (self.timeframes[0] if self.timeframes else KlineInterval.MIN_1)
 
         if sym is None:
             raise ValueError("Symbol not specified")

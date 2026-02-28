@@ -732,7 +732,8 @@ class BinanceDataCollector(DataCollector):
 
     async def _process_kline(self, data: dict[str, Any]) -> None:
         """处理 Binance K线数据"""
-        from quant_trading_system.models.market import Bar, TimeFrame
+        from quant_trading_system.models.market import Bar
+        from quant_trading_system.core.enums import KlineInterval
 
         kline_data = BinanceDataConverter.convert_kline_data(data)
         if not kline_data or not kline_data.get("symbol"):
@@ -744,7 +745,7 @@ class BinanceDataCollector(DataCollector):
             timestamp=kline_data["timestamp"],
             symbol=kline_data["symbol"],
             exchange="binance",
-            timeframe=TimeFrame(kline_data["interval"]),
+            timeframe=KlineInterval(kline_data["interval"]),
             open=kline_data["open"],
             high=kline_data["high"],
             low=kline_data["low"],

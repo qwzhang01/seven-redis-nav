@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from quant_trading_system.services.backtest.backtest_engine import BacktestEngine, BacktestConfig
 from quant_trading_system.services.strategy.base import get_strategy_class
-from quant_trading_system.models.market import TimeFrame
+from quant_trading_system.core.enums import KlineInterval
 
 # 创建回测路由实例
 router = APIRouter()
@@ -30,14 +30,14 @@ _backtest_results: dict[str, Any] = {}
 
 # 时间周期映射表
 TIMEFRAME_MAP = {
-    "1m": TimeFrame.M1,
-    "5m": TimeFrame.M5,
-    "15m": TimeFrame.M15,
-    "30m": TimeFrame.M30,
-    "1h": TimeFrame.H1,
-    "4h": TimeFrame.H4,
-    "1d": TimeFrame.D1,
-    "1w": TimeFrame.W1,
+    "1m": KlineInterval.MIN_1,
+    "5m": KlineInterval.MIN_5,
+    "15m": KlineInterval.MIN_15,
+    "30m": KlineInterval.MIN_30,
+    "1h": KlineInterval.HOUR_1,
+    "4h": KlineInterval.HOUR_4,
+    "1d": KlineInterval.DAY_1,
+    "1w": KlineInterval.WEEK_1,
 }
 
 
@@ -155,7 +155,7 @@ async def _execute_backtest(
     engine: BacktestEngine,
     strategy: Any,
     symbol: str,
-    timeframe: TimeFrame,
+    timeframe: KlineInterval,
     start_time: datetime,
     end_time: datetime,
 ) -> None:

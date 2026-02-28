@@ -13,7 +13,8 @@ import httpx
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import BarArray, TimeFrame
+from quant_trading_system.models.market import BarArray
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.market.common_utils import (
     TimeUtils,
     OKXDataConverter,
@@ -54,7 +55,7 @@ class OKXAPI:
     def fetch_klines(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         start_time: str | None = None,
         end_time: str | None = None,
         limit: int = 100,
@@ -168,7 +169,7 @@ class OKXAPI:
     def _convert_to_bar_array(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         klines: list[list[str]],
     ) -> BarArray:
         """

@@ -13,7 +13,8 @@ import structlog
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.events import Event, EventEngine, EventType
-from quant_trading_system.models.market import Bar, Depth, Tick, TimeFrame
+from quant_trading_system.models.market import Bar, Depth, Tick
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.market.data_collector import (
     BinanceDataCollector,
     DataCollector,
@@ -77,7 +78,7 @@ class MarketService:
 
         # 回调
         self._tick_callbacks: list[TickCallback] = []
-        self._bar_callbacks: dict[TimeFrame | None, list[BarCallback]] = defaultdict(list)
+        self._bar_callbacks: dict[KlineInterval | None, list[BarCallback]] = defaultdict(list)
         self._depth_callbacks: list[DepthCallback] = []
 
         # 运行状态
@@ -236,7 +237,7 @@ class MarketService:
     def add_bar_callback(
         self,
         callback: BarCallback,
-        timeframe: TimeFrame | None = None,
+        timeframe: KlineInterval | None = None,
     ) -> None:
         """添加K线回调"""
         self._bar_callbacks[timeframe].append(callback)
@@ -302,7 +303,7 @@ class MarketService:
             symbol=data["symbol"],
             exchange=data["exchange"],
             timestamp=data["timestamp"],
-            timeframe=TimeFrame(data["interval"]),
+            timeframe=KlineInterval(data["interval"]),
             open=data["open"],
             high=data["high"],
             low=data["low"],
@@ -390,7 +391,7 @@ class MarketService:
     def get_bars(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         limit: int | None = None,
     ) -> list[Bar]:
         """获取K线数据"""
@@ -399,7 +400,7 @@ class MarketService:
     def get_bar_array(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         limit: int | None = None,
     ):
         """获取K线数组"""
@@ -408,7 +409,7 @@ class MarketService:
     async def load_history(
         self,
         symbols: list[str] | None = None,
-        timeframes: list[TimeFrame] | None = None,
+        timeframes: list[KlineInterval] | None = None,
         limit: int = 500,
         exchange: str = "binance",
         source: str = "exchange",
@@ -440,7 +441,7 @@ class MarketService:
     def get_current_bar(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
     ) -> Bar | None:
         """获取当前未完成的K线"""
         return self._kline_engine.get_current_bar(symbol, timeframe)

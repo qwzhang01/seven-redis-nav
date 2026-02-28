@@ -14,7 +14,8 @@ import httpx
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import BarArray, TimeFrame
+from quant_trading_system.models.market import BarArray
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.market.common_utils import (
     TimeUtils,
     BinanceDataConverter,
@@ -56,7 +57,7 @@ class BinanceAPI:
     def fetch_klines(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         start_time: str | None = None,
         end_time: str | None = None,
         limit: int = 1000,
@@ -192,7 +193,7 @@ class BinanceAPI:
     def _convert_to_bar_array(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         klines: list[list[Any]],
     ) -> BarArray:
         """

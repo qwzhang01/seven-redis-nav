@@ -17,7 +17,8 @@ from typing import Any, Callable, Coroutine
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, BarArray, Tick, TimeFrame
+from quant_trading_system.models.market import Bar, BarArray, Tick
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.core.enums import DefaultTradingPair
 
 logger = structlog.get_logger(__name__)
@@ -37,7 +38,7 @@ class KLineBuffer:
 
     symbol: str
     exchange: str
-    timeframe: TimeFrame
+    timeframe: KlineInterval
     max_size: int = 1000
 
     # 数据存储（使用预分配的数组）
@@ -167,26 +168,26 @@ class KLineEngine:
         self.buffer_size = buffer_size
 
         # K线缓冲区: {symbol: {timeframe: KLineBuffer}}
-        self._buffers: dict[str, dict[TimeFrame, KLineBuffer]] = defaultdict(dict)
+        self._buffers: dict[str, dict[KlineInterval, KLineBuffer]] = defaultdict(dict)
 
         # 当前K线: {symbol: {timeframe: Bar}}
-        self._current_bars: dict[str, dict[TimeFrame, Bar]] = defaultdict(dict)
+        self._current_bars: dict[str, dict[KlineInterval, Bar]] = defaultdict(dict)
 
         # 回调: {timeframe: [callbacks]}
-        self._callbacks: dict[TimeFrame, list[BarCallback]] = defaultdict(list)
+        self._callbacks: dict[KlineInterval, list[BarCallback]] = defaultdict(list)
 
         # 通用回调（所有周期）
         self._general_callbacks: list[BarCallback] = []
 
         # 支持的周期
-        self._timeframes: list[TimeFrame] = [
-            TimeFrame.M1,
-            TimeFrame.M5,
-            TimeFrame.M15,
-            TimeFrame.M30,
-            TimeFrame.H1,
-            TimeFrame.H4,
-            TimeFrame.D1,
+        self._timeframes: list[KlineInterval] = [
+            KlineInterval.MIN_1,
+            KlineInterval.MIN_5,
+            KlineInterval.MIN_15,
+            KlineInterval.MIN_30,
+            KlineInterval.HOUR_1,
+            KlineInterval.HOUR_4,
+            KlineInterval.DAY_1,
         ]
 
         # 统计
@@ -224,7 +225,7 @@ class KLineEngine:
             timeframes=[tf.value for tf in self._timeframes],
         )
 
-    def add_timeframe(self, timeframe: TimeFrame) -> None:
+    def add_timeframe(self, timeframe: KlineInterval) -> None:
         """添加支持的周期"""
         if timeframe not in self._timeframes:
             self._timeframes.append(timeframe)
@@ -232,7 +233,7 @@ class KLineEngine:
     def add_callback(
         self,
         callback: BarCallback,
-        timeframe: TimeFrame | None = None,
+        timeframe: KlineInterval | None = None,
     ) -> None:
         """添加K线回调"""
         if timeframe:
@@ -243,7 +244,7 @@ class KLineEngine:
     def remove_callback(
         self,
         callback: BarCallback,
-        timeframe: TimeFrame | None = None,
+        timeframe: KlineInterval | None = None,
     ) -> None:
         """移除K线回调"""
         if timeframe:
@@ -281,7 +282,7 @@ class KLineEngine:
         self,
         symbol: str,
         exchange: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         timestamp: float,
         price: float,
         volume: float,
@@ -337,7 +338,7 @@ class KLineEngine:
             current_bar.close = price
             current_bar.volume += volume
 
-    def _get_bar_start_time(self, timestamp: float, timeframe: TimeFrame) -> float:
+    def _get_bar_start_time(self, timestamp: float, timeframe: KlineInterval) -> float:
         """计算K线开始时间"""
         seconds = timeframe.seconds
         if seconds == 0:
@@ -404,7 +405,7 @@ class KLineEngine:
     def get_bars(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         limit: int | None = None,
     ) -> list[Bar]:
         """获取K线列表（包含已关闭K线 + 当前未完成K线）"""
@@ -432,7 +433,7 @@ class KLineEngine:
     def get_bar_array(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
         limit: int | None = None,
     ) -> BarArray:
         """获取K线数组"""
@@ -457,7 +458,7 @@ class KLineEngine:
     def get_current_bar(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
     ) -> Bar | None:
         """获取当前未完成的K线"""
         return self._current_bars.get(symbol, {}).get(timeframe)
@@ -465,7 +466,7 @@ class KLineEngine:
     def get_last_bar(
         self,
         symbol: str,
-        timeframe: TimeFrame,
+        timeframe: KlineInterval,
     ) -> Bar | None:
         """获取最后一根已完成的K线"""
         bars = self.get_bars(symbol, timeframe, limit=1)
@@ -491,7 +492,7 @@ class KLineEngine:
     async def load_history(
         self,
         symbols: list[str] | None = None,
-        timeframes: list[TimeFrame] | None = None,
+        timeframes: list[KlineInterval] | None = None,
         limit: int = 500,
         exchange: str = "binance",
         source: str = "exchange",
@@ -519,22 +520,22 @@ class KLineEngine:
             symbols = DefaultTradingPair.values()
 
         if timeframes is None:
-            timeframes = ([TimeFrame.S1,
-                          TimeFrame.M1,
-                          TimeFrame.M3,
-                          TimeFrame.M5,
-                          TimeFrame.M15,
-                          TimeFrame.M30,
-                          TimeFrame.H1,
-                          TimeFrame.H2,
-                          TimeFrame.H4,
-                          TimeFrame.H6,
-                          TimeFrame.H8,
-                          TimeFrame.H12,
-                          TimeFrame.D1,
-                          TimeFrame.D3,
-                          TimeFrame.W1,
-                          TimeFrame.MN1])
+            timeframes = ([KlineInterval.SEC_1,
+                          KlineInterval.MIN_1,
+                          KlineInterval.MIN_3,
+                          KlineInterval.MIN_5,
+                          KlineInterval.MIN_15,
+                          KlineInterval.MIN_30,
+                          KlineInterval.HOUR_1,
+                          KlineInterval.HOUR_2,
+                          KlineInterval.HOUR_4,
+                          KlineInterval.HOUR_6,
+                          KlineInterval.HOUR_8,
+                          KlineInterval.HOUR_12,
+                          KlineInterval.DAY_1,
+                          KlineInterval.DAY_3,
+                          KlineInterval.WEEK_1,
+                          KlineInterval.MONTH_1])
 
         stats: dict[str, int] = {}
 
@@ -560,7 +561,7 @@ class KLineEngine:
     async def _load_history_from_database(
         self,
         symbols: list[str],
-        timeframes: list[TimeFrame],
+        timeframes: list[KlineInterval],
         limit: int,
         exchange: str,
     ) -> dict[str, int]:
@@ -663,7 +664,7 @@ class KLineEngine:
     async def _load_history_from_exchange(
         self,
         symbols: list[str],
-        timeframes: list[TimeFrame],
+        timeframes: list[KlineInterval],
         limit: int,
         exchange: str,
         save_to_db: bool = False,
@@ -807,12 +808,12 @@ class KLineAggregator:
     """
 
     def __init__(self) -> None:
-        self._buffers: dict[str, dict[TimeFrame, list[Bar]]] = defaultdict(dict)
+        self._buffers: dict[str, dict[KlineInterval, list[Bar]]] = defaultdict(dict)
 
     def aggregate(
         self,
         bars: list[Bar],
-        target_timeframe: TimeFrame,
+        target_timeframe: KlineInterval,
     ) -> list[Bar]:
         """
         聚合K线

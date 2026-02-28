@@ -17,7 +17,8 @@ from datetime import datetime
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, BarArray, TimeFrame
+from quant_trading_system.models.market import Bar, BarArray
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.core.enums import OrderSide, OrderStatus, OrderType, StrategyState
 from quant_trading_system.models.trading import (
     Order,
@@ -176,7 +177,7 @@ class BacktestEngine:
         self._equity_curve: list[tuple[float, float]] = []  # [(timestamp, equity)]
 
         # K线数据
-        self._bar_data: dict[str, dict[TimeFrame, BarArray]] = {}
+        self._bar_data: dict[str, dict[KlineInterval, BarArray]] = {}
 
         # 当前时间
         self._current_time: float = 0.0
@@ -188,7 +189,7 @@ class BacktestEngine:
     def run(
         self,
         strategy: Strategy,
-        bars: dict[str, BarArray] | BarArray | dict[str, dict[TimeFrame, BarArray]],
+        bars: dict[str, BarArray] | BarArray | dict[str, dict[KlineInterval, BarArray]],
     ) -> BacktestResult:
         """
         运行回测
@@ -231,7 +232,7 @@ class BacktestEngine:
         self,
         strategy: Strategy,
         symbols: list[str],
-        timeframes: list[TimeFrame],
+        timeframes: list[KlineInterval],
         start_time: datetime,
         end_time: datetime,
         limit: int = 10000
@@ -281,8 +282,8 @@ class BacktestEngine:
 
     @staticmethod
     def _normalize_bars(
-        bars: dict[str, BarArray] | BarArray | dict[str, dict[TimeFrame, BarArray]],
-    ) -> dict[str, dict[TimeFrame, BarArray]]:
+        bars: dict[str, BarArray] | BarArray | dict[str, dict[KlineInterval, BarArray]],
+    ) -> dict[str, dict[KlineInterval, BarArray]]:
         """将各种输入格式统一为 {symbol: {timeframe: BarArray}}"""
         if isinstance(bars, BarArray):
             return {bars.symbol: {bars.timeframe: bars}}
@@ -301,7 +302,7 @@ class BacktestEngine:
     def _initialize(
         self,
         strategy: Strategy,
-        bars: dict[str, dict[TimeFrame, BarArray]]
+        bars: dict[str, dict[KlineInterval, BarArray]]
     ) -> None:
         """初始化回测环境"""
         # 创建账户
@@ -337,7 +338,7 @@ class BacktestEngine:
 
         # 存储K线数据（多周期）
         self._bar_data.clear()
-        all_timeframes: list[TimeFrame] = []
+        all_timeframes: list[KlineInterval] = []
         for symbol, tf_bars in bars.items():
             self._bar_data[symbol] = {}
             for tf, bar_array in tf_bars.items():
@@ -367,7 +368,7 @@ class BacktestEngine:
     def _run_backtest(
         self,
         strategy: Strategy,
-        bars: dict[str, dict[TimeFrame, BarArray]]
+        bars: dict[str, dict[KlineInterval, BarArray]]
     ) -> None:
         """执行回测（支持多周期）"""
         # 确定主时间轴：取最小周期作为驱动周期
@@ -376,9 +377,9 @@ class BacktestEngine:
 
         # 按周期秒数排序，最小的作为主驱动
         tf_seconds = {
-            TimeFrame.M1: 60, TimeFrame.M5: 300, TimeFrame.M15: 900,
-            TimeFrame.M30: 1800, TimeFrame.H1: 3600, TimeFrame.H4: 14400,
-            TimeFrame.D1: 86400, TimeFrame.W1: 604800,
+            KlineInterval.MIN_1: 60, KlineInterval.MIN_5: 300, KlineInterval.MIN_15: 900,
+            KlineInterval.MIN_30: 1800, KlineInterval.HOUR_1: 3600, KlineInterval.HOUR_4: 14400,
+            KlineInterval.DAY_1: 86400, KlineInterval.WEEK_1: 604800,
         }
         sorted_tfs = sorted(tf_bars.keys(), key=lambda t: tf_seconds.get(t, 0))
         main_tf = sorted_tfs[0]
@@ -499,17 +500,11 @@ class BacktestEngine:
             strategy.context.current_time = self._current_time
 
             # 创建当前Bar（主周期）
-            if isinstance(ts, np.datetime64):
-                from datetime import datetime
-                bar_timestamp = datetime.fromtimestamp(current_ts_ms / 1000)
-            else:
-                bar_timestamp = ts
-
             bar = Bar(
                 symbol=main_symbol,
                 exchange=main_bars.exchange,
                 timeframe=main_tf,
-                timestamp=bar_timestamp,
+                timestamp=current_ts_ms,
                 open=float(main_bars.open[i]),
                 high=float(main_bars.high[i]),
                 low=float(main_bars.low[i]),

@@ -8,7 +8,8 @@
 from typing import Any, ClassVar
 import numpy as np
 
-from quant_trading_system.models.market import Bar, TimeFrame
+from quant_trading_system.models.market import Bar
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.strategy.base import Strategy, register_strategy
 from quant_trading_system.services.strategy.signal import Signal
 from quant_trading_system.services.indicators.technical import EMA
@@ -32,8 +33,8 @@ class DualMAStrategy(Strategy):
         "slow_period": {"type": int, "default": 20, "min": 1},
     }
 
-    symbols: ClassVar[list[str]] = ["BTC/USDT"]
-    timeframes: ClassVar[list[TimeFrame]] = [TimeFrame.M15]
+    symbols: ClassVar[tuple[str, ...]] = ("BTC/USDT",)
+    timeframes: ClassVar[tuple[KlineInterval, ...]] = (KlineInterval.MIN_15,)
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)

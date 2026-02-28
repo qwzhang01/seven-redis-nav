@@ -9,25 +9,26 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from quant_trading_system.models.market import BarArray, TimeFrame
+from quant_trading_system.models.market import BarArray
+from quant_trading_system.core.enums import KlineInterval
 
 
-# TimeFrame到秒数的映射
+# KlineInterval到秒数的映射
 TIMEFRAME_SECONDS = {
-    TimeFrame.M1: 60,
-    TimeFrame.M5: 300,
-    TimeFrame.M15: 900,
-    TimeFrame.M30: 1800,
-    TimeFrame.H1: 3600,
-    TimeFrame.H4: 14400,
-    TimeFrame.D1: 86400,
-    TimeFrame.W1: 604800,
+    KlineInterval.MIN_1: 60,
+    KlineInterval.MIN_5: 300,
+    KlineInterval.MIN_15: 900,
+    KlineInterval.MIN_30: 1800,
+    KlineInterval.HOUR_1: 3600,
+    KlineInterval.HOUR_4: 14400,
+    KlineInterval.DAY_1: 86400,
+    KlineInterval.WEEK_1: 604800,
 }
 
 
 def generate_mock_klines(
     symbol: str,
-    timeframe: TimeFrame,
+    timeframe: KlineInterval,
     start_time: str,
     end_time: str,
     initial_price: float = 40000.0,
@@ -59,10 +60,10 @@ def generate_mock_klines(
     current_dt = start_dt
 
     # 对于日线及以上周期，按天生成
-    if timeframe in [TimeFrame.D1, TimeFrame.W1]:
+    if timeframe in [KlineInterval.DAY_1, KlineInterval.WEEK_1]:
         while current_dt <= end_dt:
             timestamps.append(int(current_dt.timestamp() * 1000))
-            if timeframe == TimeFrame.D1:
+            if timeframe == KlineInterval.DAY_1:
                 current_dt += timedelta(days=1)
             else:  # W1
                 current_dt += timedelta(weeks=1)
@@ -71,17 +72,17 @@ def generate_mock_klines(
         total_days = (end_dt - start_dt).days + 1
 
         # 计算每个周期在一天内的K线数量
-        if timeframe == TimeFrame.M1:
+        if timeframe == KlineInterval.MIN_1:
             bars_per_day = 1440
-        elif timeframe == TimeFrame.M5:
+        elif timeframe == KlineInterval.MIN_5:
             bars_per_day = 288
-        elif timeframe == TimeFrame.M15:
+        elif timeframe == KlineInterval.MIN_15:
             bars_per_day = 96
-        elif timeframe == TimeFrame.M30:
+        elif timeframe == KlineInterval.MIN_30:
             bars_per_day = 48
-        elif timeframe == TimeFrame.H1:
+        elif timeframe == KlineInterval.HOUR_1:
             bars_per_day = 24
-        elif timeframe == TimeFrame.H4:
+        elif timeframe == KlineInterval.HOUR_4:
             bars_per_day = 6
         else:
             bars_per_day = 24  # 默认
@@ -162,12 +163,12 @@ def generate_mock_klines(
 
 def generate_multi_timeframe_klines(
     symbol: str,
-    timeframes: list[TimeFrame],
+    timeframes: list[KlineInterval],
     start_time: str,
     end_time: str,
     initial_price: float = 40000.0,
     volatility: float = 0.02,
-) -> dict[TimeFrame, BarArray]:
+) -> dict[KlineInterval, BarArray]:
     """
     生成多周期模拟K线数据（各周期数据保持价格一致性）
 
@@ -175,7 +176,7 @@ def generate_multi_timeframe_klines(
 
     Args:
         symbol: 交易对
-        timeframes: 需要生成的周期列表，如 [TimeFrame.M15, TimeFrame.H1]
+        timeframes: 需要生成的周期列表，如 [KlineInterval.MIN_15, KlineInterval.HOUR_1]
         start_time: 开始时间 "YYYY-MM-DD"
         end_time: 结束时间 "YYYY-MM-DD"
         initial_price: 初始价格
@@ -198,7 +199,7 @@ def generate_multi_timeframe_klines(
         volatility=volatility,
     )
 
-    result: dict[TimeFrame, BarArray] = {smallest_tf: base_bars}
+    result: dict[KlineInterval, BarArray] = {smallest_tf: base_bars}
 
     # 对更大的周期进行聚合
     base_seconds = TIMEFRAME_SECONDS[smallest_tf]
@@ -217,7 +218,7 @@ def generate_multi_timeframe_klines(
 
 def _resample_bars(
     base: BarArray,
-    target_tf: TimeFrame,
+    target_tf: KlineInterval,
     ratio: int,
 ) -> BarArray:
     """

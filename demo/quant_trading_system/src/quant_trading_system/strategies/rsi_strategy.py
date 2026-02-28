@@ -8,7 +8,8 @@ RSI低于超卖线买入，高于超买线卖出
 from typing import Any, ClassVar
 import numpy as np
 
-from quant_trading_system.models.market import Bar, TimeFrame
+from quant_trading_system.models.market import Bar
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.strategy.base import Strategy, register_strategy
 from quant_trading_system.services.strategy.signal import Signal
 from quant_trading_system.services.indicators.technical import RSI
@@ -33,8 +34,8 @@ class RSIStrategy(Strategy):
         "oversold": {"type": float, "default": 30.0},
     }
 
-    symbols: ClassVar[list[str]] = ["BTC/USDT"]
-    timeframes: ClassVar[list[TimeFrame]] = [TimeFrame.H4]
+    symbols: ClassVar[tuple[str, ...]] = ("BTC/USDT",)
+    timeframes: ClassVar[tuple[KlineInterval, ...]] = (KlineInterval.HOUR_4,)
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)

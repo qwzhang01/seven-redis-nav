@@ -6,13 +6,15 @@
 """
 
 import asyncio
+import time
 from collections import defaultdict
 from typing import Any, Callable, Coroutine, Type
 
 import structlog
 
 from quant_trading_system.core.events import Event, EventEngine, EventType
-from quant_trading_system.models.market import Bar, Depth, Tick, TimeFrame, BarArray
+from quant_trading_system.models.market import Bar, Depth, Tick, BarArray
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.trading import Order, Position
 from quant_trading_system.models.account import Account
 from quant_trading_system.services.strategy.base import (
@@ -58,7 +60,10 @@ class StrategyEngine:
         self._symbol_subscriptions: dict[str, list[str]] = defaultdict(list)
 
         # K线数据缓存 {symbol: {timeframe: BarArray}}
-        self._bar_cache: dict[str, dict[TimeFrame, BarArray]] = defaultdict(dict)
+        self._bar_cache: dict[str, dict[KlineInterval, BarArray]] = defaultdict(dict)
+
+        # K线缓存最大长度，超过时自动裁剪旧数据
+        self._max_bar_count: int = 1000
 
         # 最新数据
         self._latest_ticks: dict[str, Tick] = {}
@@ -66,7 +71,10 @@ class StrategyEngine:
 
         # 账户和持仓
         self._account: Account | None = None
-        self._positions: dict[str, Position] = {}
+        # 持仓缓存 {(symbol, strategy_id): Position}
+        self._positions: dict[tuple[str, str], Position] = {}
+        # 全局持仓（按symbol，用于不带strategy_id的场景）
+        self._global_positions: dict[str, Position] = {}
 
         # 信号回调
         self._signal_callbacks: list[SignalCallback] = []
@@ -104,6 +112,14 @@ class StrategyEngine:
         # 停止所有策略
         for strategy_id in list(self._strategies.keys()):
             await self.stop_strategy(strategy_id)
+
+        # 注销事件处理器，防止引擎停止后仍收到事件
+        if self._event_engine:
+            self._event_engine.unregister(EventType.BAR, self._on_bar_event)
+            self._event_engine.unregister(EventType.TICK, self._on_tick_event)
+            self._event_engine.unregister(EventType.DEPTH, self._on_depth_event)
+            self._event_engine.unregister(EventType.ORDER, self._on_order_event)
+            self._event_engine.unregister(EventType.POSITION, self._on_position_event)
 
         self._running = False
         logger.info("Strategy engine stopped")
@@ -160,16 +176,16 @@ class StrategyEngine:
 
         return strategy_id
 
-    def remove_strategy(self, strategy_id: str) -> None:
+    async def remove_strategy(self, strategy_id: str) -> None:
         """移除策略"""
         if strategy_id not in self._strategies:
             return
 
         strategy = self._strategies[strategy_id]
 
-        # 如果策略正在运行，先停止
+        # 如果策略正在运行，先等待停止完成
         if strategy.state in (StrategyState.RUNNING, StrategyState.PAUSED):
-            asyncio.create_task(self.stop_strategy(strategy_id))
+            await self.stop_strategy(strategy_id)
 
         # 移除订阅
         for symbol in strategy.symbols:
@@ -197,7 +213,7 @@ class StrategyEngine:
 
             # 启动
             strategy.state = StrategyState.RUNNING
-            strategy.started_at = asyncio.get_event_loop().time()
+            strategy.started_at = time.time()
             strategy.on_start()
 
             logger.info(f"Strategy started",
@@ -226,7 +242,7 @@ class StrategyEngine:
             strategy.on_stop()
 
             strategy.state = StrategyState.STOPPED
-            strategy.stopped_at = asyncio.get_event_loop().time()
+            strategy.stopped_at = time.time()
 
             logger.info(f"Strategy stopped", strategy_id=strategy_id)
 
@@ -287,6 +303,9 @@ class StrategyEngine:
 
         if bar.is_closed:
             bar_array.append(bar)
+            # 裁剪超出最大长度的旧数据，避免内存无限增长
+            if len(bar_array) > self._max_bar_count:
+                bar_array.truncate(self._max_bar_count)
         else:
             bar_array.update_last(bar)
 
@@ -331,9 +350,10 @@ class StrategyEngine:
                 await self._dispatch_depth(strategy, depth)
 
     async def _dispatch_bar(self, strategy: Strategy, bar: Bar) -> None:
-        """分发K线给策略"""
+        """分发K线给策略（在线程池中执行，避免阻塞事件循环）"""
         try:
-            signals = strategy.on_bar(bar)
+            loop = asyncio.get_running_loop()
+            signals = await loop.run_in_executor(None, strategy.on_bar, bar)
             await self._process_signals(signals)
         except Exception as e:
             logger.exception(f"Strategy on_bar error",
@@ -341,9 +361,10 @@ class StrategyEngine:
                            error=str(e))
 
     async def _dispatch_tick(self, strategy: Strategy, tick: Tick) -> None:
-        """分发Tick给策略"""
+        """分发Tick给策略（在线程池中执行，避免阻塞事件循环）"""
         try:
-            signals = strategy.on_tick(tick)
+            loop = asyncio.get_running_loop()
+            signals = await loop.run_in_executor(None, strategy.on_tick, tick)
             await self._process_signals(signals)
         except Exception as e:
             logger.exception(f"Strategy on_tick error",
@@ -351,9 +372,10 @@ class StrategyEngine:
                            error=str(e))
 
     async def _dispatch_depth(self, strategy: Strategy, depth: Depth) -> None:
-        """分发深度给策略"""
+        """分发深度给策略（在线程池中执行，避免阻塞事件循环）"""
         try:
-            signals = strategy.on_depth(depth)
+            loop = asyncio.get_running_loop()
+            signals = await loop.run_in_executor(None, strategy.on_depth, depth)
             await self._process_signals(signals)
         except Exception as e:
             logger.exception(f"Strategy on_depth error",
@@ -416,13 +438,24 @@ class StrategyEngine:
         """持仓事件处理器"""
         position = event.data
         if isinstance(position, Position):
-            # 更新持仓缓存
-            self._positions[position.symbol] = position
+            # 更新全局持仓缓存（按symbol）
+            self._global_positions[position.symbol] = position
 
-            # 通知策略
-            strategy = self._strategies.get(position.strategy_id)
-            if strategy:
-                strategy.on_position(position)
+            # 更新策略级持仓缓存（按(symbol, strategy_id)），避免多策略同品种覆盖
+            strategy_id = getattr(position, 'strategy_id', '')
+            if strategy_id:
+                self._positions[(position.symbol, strategy_id)] = position
+                # 通知对应策略
+                strategy = self._strategies.get(strategy_id)
+                if strategy:
+                    strategy.on_position(position)
+            else:
+                # 没有strategy_id时，通知所有订阅该symbol的策略
+                strategy_ids = self._symbol_subscriptions.get(position.symbol, [])
+                for sid in strategy_ids:
+                    strategy = self._strategies.get(sid)
+                    if strategy:
+                        strategy.on_position(position)
 
     def set_account(self, account: Account) -> None:
         """设置账户"""
@@ -435,7 +468,10 @@ class StrategyEngine:
 
     def update_position(self, position: Position) -> None:
         """更新持仓"""
-        self._positions[position.symbol] = position
+        self._global_positions[position.symbol] = position
+        strategy_id = getattr(position, 'strategy_id', '')
+        if strategy_id:
+            self._positions[(position.symbol, strategy_id)] = position
 
     def get_strategy(self, strategy_id: str) -> Strategy | None:
         """获取策略"""

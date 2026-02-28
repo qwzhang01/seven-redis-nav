@@ -9,7 +9,8 @@ from typing import List, Dict, Any, Optional, Union
 import structlog
 import numpy as np
 
-from quant_trading_system.models.market import BarArray, TimeFrame, Bar
+from quant_trading_system.models.market import BarArray, Bar
+from quant_trading_system.core.enums import KlineInterval
 from .database import get_database
 
 logger = structlog.get_logger(__name__)
@@ -24,7 +25,7 @@ class DataQueryService:
     async def get_kline_data(
         self,
         symbol: str,
-        timeframe: Union[str, TimeFrame],
+        timeframe: Union[str, KlineInterval],
         start_time: datetime,
         end_time: datetime,
         limit: int = 10000
@@ -44,7 +45,7 @@ class DataQueryService:
         """
         try:
             # 转换时间框架格式
-            if isinstance(timeframe, TimeFrame):
+            if isinstance(timeframe, KlineInterval):
                 tf_str = timeframe.value
             else:
                 tf_str = timeframe
@@ -132,11 +133,11 @@ class DataQueryService:
     async def get_multiple_kline_data(
         self,
         symbols: List[str],
-        timeframes: List[Union[str, TimeFrame]],
+        timeframes: List[Union[str, KlineInterval]],
         start_time: datetime,
         end_time: datetime,
         limit: int = 10000
-    ) -> Dict[str, Dict[TimeFrame, BarArray]]:
+    ) -> Dict[str, Dict[KlineInterval, BarArray]]:
         """
         获取多个品种多个周期的K线数据
 
@@ -148,7 +149,7 @@ class DataQueryService:
             limit: 每个品种的最大数据条数
 
         Returns:
-            Dict[str, Dict[TimeFrame, BarArray]]: 多品种多周期数据
+            Dict[str, Dict[KlineInterval, BarArray]]: 多品种多周期数据
         """
         result = {}
 
@@ -239,11 +240,11 @@ class DataQueryService:
     async def get_data_time_range(
         self,
         symbol: str,
-        timeframe: Union[str, TimeFrame]
+        timeframe: Union[str, KlineInterval]
     ) -> Dict[str, datetime]:
         """获取某个品种某个周期的数据时间范围"""
         try:
-            if isinstance(timeframe, TimeFrame):
+            if isinstance(timeframe, KlineInterval):
                 tf_str = timeframe.value
             else:
                 tf_str = timeframe
@@ -286,11 +287,11 @@ class DataQueryService:
     async def get_latest_bar(
         self,
         symbol: str,
-        timeframe: Union[str, TimeFrame]
+        timeframe: Union[str, KlineInterval]
     ) -> Optional[Bar]:
         """获取最新的K线数据"""
         try:
-            if isinstance(timeframe, TimeFrame):
+            if isinstance(timeframe, KlineInterval):
                 tf_str = timeframe.value
             else:
                 tf_str = timeframe

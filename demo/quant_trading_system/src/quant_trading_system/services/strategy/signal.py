@@ -51,18 +51,20 @@ class Signal(BaseModel):
 
     @property
     def is_buy(self) -> bool:
+        """是否为买入方向操作（买入开多 / 买入平空）"""
         return self.signal_type in (
             SignalType.BUY,
             SignalType.OPEN_LONG,
+            SignalType.CLOSE_SHORT,  # 平空 = 买入平仓
         )
 
     @property
     def is_sell(self) -> bool:
+        """是否为卖出方向操作（卖出开空 / 卖出平多）"""
         return self.signal_type in (
             SignalType.SELL,
-            SignalType.OPEN_SHORT,
-            SignalType.CLOSE_LONG,
-            SignalType.CLOSE_SHORT,
+            SignalType.OPEN_SHORT,   # 开空 = 卖出开仓
+            SignalType.CLOSE_LONG,   # 平多 = 卖出平仓
         )
 
     @property

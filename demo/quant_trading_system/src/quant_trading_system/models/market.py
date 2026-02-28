@@ -1,29 +1,12 @@
-from enum import Enum
 from typing import List, Optional
 from datetime import datetime
-from dataclasses import dataclass, field
 from pydantic import BaseModel
 import numpy as np
 
+from quant_trading_system.core.enums import KlineInterval
 
-class TimeFrame(str, Enum):
-    """时间框架枚举"""
-    S1 = "1s"
-    M1 = "1m"
-    M3 = "3m"
-    M5 = "5m"
-    M15 = "15m"
-    M30 = "30m"
-    H1 = "1h"
-    H2 = "2h"
-    H4 = "4h"
-    H6 = "6h"
-    H8 = "8h"
-    H12 = "12h"
-    D1 = "1d"
-    D3 = "3d"
-    W1 = "1w"
-    MN1 = "1M"
+# 向后兼容别名（已废弃，请直接使用 KlineInterval）
+TimeFrame = KlineInterval
 
 
 class Bar(BaseModel):
@@ -36,38 +19,165 @@ class Bar(BaseModel):
     volume: float
     symbol: str
     exchange: str
-    timeframe: TimeFrame
+    timeframe: KlineInterval
     turnover: float = 0.0
     is_closed: bool = True
 
 
-@dataclass
 class BarArray:
-    """K线数据数组（使用numpy数组存储）"""
-    symbol: str
-    exchange: str
-    timeframe: TimeFrame
-    timestamp: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ms]"))
-    open: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    high: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    low: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    close: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    volume: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
-    turnover: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    """
+    K线数据数组
+
+    内部使用 list 缓冲区 + numpy 延迟转换，避免 np.append 的 O(n) 性能问题。
+    支持两种构造方式：
+      1. 只传 symbol/exchange/timeframe，后续通过 append() 逐条追加（实盘/流式场景）
+      2. 直接传入 numpy 数组（timestamp/open/high/low/close/volume/turnover）批量初始化（回测/数据加载场景）
+    """
+
+    __slots__ = (
+        "symbol", "exchange", "timeframe", "max_size",
+        "_timestamp_buf", "_open_buf", "_high_buf", "_low_buf",
+        "_close_buf", "_volume_buf", "_turnover_buf",
+        "_np_dirty", "_ts_cache", "_open_cache", "_high_cache",
+        "_low_cache", "_close_cache", "_volume_cache", "_turnover_cache",
+    )
+
+    def __init__(
+        self,
+        symbol: str,
+        exchange: str,
+        timeframe: KlineInterval,
+        timestamp: np.ndarray | None = None,
+        open: np.ndarray | None = None,
+        high: np.ndarray | None = None,
+        low: np.ndarray | None = None,
+        close: np.ndarray | None = None,
+        volume: np.ndarray | None = None,
+        turnover: np.ndarray | None = None,
+        max_size: int = 0,
+    ) -> None:
+        self.symbol = symbol
+        self.exchange = exchange
+        self.timeframe = timeframe
+        self.max_size = max_size  # 0 表示不限制（回测场景），>0 时自动裁剪（实盘场景）
+
+        # 如果传入了 numpy 数组，则直接使用（向后兼容批量构造）
+        if close is not None and len(close) > 0:
+            # 将 numpy 数组转为 list 缓冲区
+            ts_arr = timestamp if timestamp is not None else np.array([], dtype="datetime64[ms]")
+            # timestamp 可能是 datetime64 类型，转为 int 毫秒存储
+            if ts_arr.dtype.kind == 'M':  # datetime64
+                self._timestamp_buf = ts_arr.astype("datetime64[ms]").astype(np.int64).tolist()
+            else:
+                self._timestamp_buf = [int(x) for x in ts_arr]
+            self._open_buf = list(np.asarray(open, dtype=np.float64)) if open is not None else []
+            self._high_buf = list(np.asarray(high, dtype=np.float64)) if high is not None else []
+            self._low_buf = list(np.asarray(low, dtype=np.float64)) if low is not None else []
+            self._close_buf = list(np.asarray(close, dtype=np.float64))
+            self._volume_buf = list(np.asarray(volume, dtype=np.float64)) if volume is not None else []
+            self._turnover_buf = list(np.asarray(turnover, dtype=np.float64)) if turnover is not None else []
+        else:
+            self._timestamp_buf: list = []
+            self._open_buf: list = []
+            self._high_buf: list = []
+            self._low_buf: list = []
+            self._close_buf: list = []
+            self._volume_buf: list = []
+            self._turnover_buf: list = []
+
+        # numpy 数组缓存，按需重建
+        self._np_dirty: bool = True
+        self._ts_cache: np.ndarray = np.array([], dtype="datetime64[ms]")
+        self._open_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._high_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._low_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._close_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._volume_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._turnover_cache: np.ndarray = np.array([], dtype=np.float64)
+
+    def _rebuild_cache(self) -> None:
+        """从 list 缓冲区重建 numpy 数组缓存"""
+        if not self._np_dirty:
+            return
+        self._ts_cache = np.array(self._timestamp_buf, dtype="datetime64[ms]")
+        self._open_cache = np.array(self._open_buf, dtype=np.float64)
+        self._high_cache = np.array(self._high_buf, dtype=np.float64)
+        self._low_cache = np.array(self._low_buf, dtype=np.float64)
+        self._close_cache = np.array(self._close_buf, dtype=np.float64)
+        self._volume_cache = np.array(self._volume_buf, dtype=np.float64)
+        self._turnover_cache = np.array(self._turnover_buf, dtype=np.float64)
+        self._np_dirty = False
+
+    def _trim_if_needed(self) -> None:
+        """当缓冲区超过 max_size 时，裁剪旧数据"""
+        if self.max_size > 0 and len(self._close_buf) > self.max_size:
+            excess = len(self._close_buf) - self.max_size
+            self._timestamp_buf = self._timestamp_buf[excess:]
+            self._open_buf = self._open_buf[excess:]
+            self._high_buf = self._high_buf[excess:]
+            self._low_buf = self._low_buf[excess:]
+            self._close_buf = self._close_buf[excess:]
+            self._volume_buf = self._volume_buf[excess:]
+            self._turnover_buf = self._turnover_buf[excess:]
+
+    # ---- numpy 数组属性（只读，按需重建）----
+
+    @property
+    def timestamp(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._ts_cache
+
+    @property
+    def open(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._open_cache
+
+    @property
+    def high(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._high_cache
+
+    @property
+    def low(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._low_cache
+
+    @property
+    def close(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._close_cache
+
+    @property
+    def volume(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._volume_cache
+
+    @property
+    def turnover(self) -> np.ndarray:
+        self._rebuild_cache()
+        return self._turnover_cache
 
     def __len__(self):
         """返回数组长度"""
-        return len(self.close)
+        return len(self._close_buf)
+
+    def __repr__(self) -> str:
+        return (
+            f"BarArray(symbol={self.symbol!r}, exchange={self.exchange!r}, "
+            f"timeframe={self.timeframe!r}, len={len(self)})"
+        )
 
     def append(self, bar: Bar) -> None:
-        """添加一个Bar对象到数组"""
-        self.timestamp = np.append(self.timestamp, np.datetime64(int(bar.timestamp), "ms"))
-        self.open = np.append(self.open, bar.open)
-        self.high = np.append(self.high, bar.high)
-        self.low = np.append(self.low, bar.low)
-        self.close = np.append(self.close, bar.close)
-        self.volume = np.append(self.volume, bar.volume)
-        self.turnover = np.append(self.turnover, bar.volume * bar.close)
+        """添加一个Bar对象到数组（O(1) 均摊复杂度）"""
+        self._timestamp_buf.append(int(bar.timestamp))
+        self._open_buf.append(bar.open)
+        self._high_buf.append(bar.high)
+        self._low_buf.append(bar.low)
+        self._close_buf.append(bar.close)
+        self._volume_buf.append(bar.volume)
+        self._turnover_buf.append(bar.volume * bar.close)
+        self._np_dirty = True
+        self._trim_if_needed()
 
     def update_last(self, bar: Bar) -> None:
         """更新最后一根K线的数据（用于未关闭的K线实时更新）"""
@@ -75,13 +185,43 @@ class BarArray:
             # 如果数组为空，则直接添加
             self.append(bar)
             return
-        self.timestamp[-1] = np.datetime64(int(bar.timestamp), "ms")
-        self.open[-1] = bar.open
-        self.high[-1] = bar.high
-        self.low[-1] = bar.low
-        self.close[-1] = bar.close
-        self.volume[-1] = bar.volume
-        self.turnover[-1] = bar.volume * bar.close
+        self._timestamp_buf[-1] = int(bar.timestamp)
+        self._open_buf[-1] = bar.open
+        self._high_buf[-1] = bar.high
+        self._low_buf[-1] = bar.low
+        self._close_buf[-1] = bar.close
+        self._volume_buf[-1] = bar.volume
+        self._turnover_buf[-1] = bar.volume * bar.close
+        self._np_dirty = True
+
+    def truncate(self, max_count: int) -> None:
+        """裁剪缓冲区，只保留最新的 max_count 条数据"""
+        if len(self._close_buf) <= max_count:
+            return
+        excess = len(self._close_buf) - max_count
+        self._timestamp_buf = self._timestamp_buf[excess:]
+        self._open_buf = self._open_buf[excess:]
+        self._high_buf = self._high_buf[excess:]
+        self._low_buf = self._low_buf[excess:]
+        self._close_buf = self._close_buf[excess:]
+        self._volume_buf = self._volume_buf[excess:]
+        self._turnover_buf = self._turnover_buf[excess:]
+        self._np_dirty = True
+
+    @classmethod
+    def from_bars(cls, bars: list["Bar"]) -> "BarArray":
+        """从 Bar 列表批量构建 BarArray"""
+        if not bars:
+            raise ValueError("bars cannot be empty")
+        first = bars[0]
+        arr = cls(
+            symbol=first.symbol,
+            exchange=first.exchange,
+            timeframe=first.timeframe,
+        )
+        for bar in bars:
+            arr.append(bar)
+        return arr
 
 
 class Tick(BaseModel):

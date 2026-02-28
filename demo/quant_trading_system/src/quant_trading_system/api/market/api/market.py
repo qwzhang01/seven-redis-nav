@@ -18,24 +18,23 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
-from quant_trading_system.models.market import TimeFrame
-from quant_trading_system.core.enums import DefaultTradingPair
+from quant_trading_system.core.enums import KlineInterval, DefaultTradingPair
 
 from quant_trading_system.api.deps import get_orchestrator_dep
 
 # 创建行情路由实例
 router = APIRouter()
 
-# 时间周期映射表，将字符串时间周期映射为TimeFrame枚举
+# 时间周期映射表，将字符串时间周期映射为KlineInterval枚举
 TIMEFRAME_MAP = {
-    "1m": TimeFrame.M1,
-    "5m": TimeFrame.M5,
-    "15m": TimeFrame.M15,
-    "30m": TimeFrame.M30,
-    "1h": TimeFrame.H1,
-    "4h": TimeFrame.H4,
-    "1d": TimeFrame.D1,
-    "1w": TimeFrame.W1,
+    "1m": KlineInterval.MIN_1,
+    "5m": KlineInterval.MIN_5,
+    "15m": KlineInterval.MIN_15,
+    "30m": KlineInterval.MIN_30,
+    "1h": KlineInterval.HOUR_1,
+    "4h": KlineInterval.HOUR_4,
+    "1d": KlineInterval.DAY_1,
+    "1w": KlineInterval.WEEK_1,
 }
 
 # 合法枚举值

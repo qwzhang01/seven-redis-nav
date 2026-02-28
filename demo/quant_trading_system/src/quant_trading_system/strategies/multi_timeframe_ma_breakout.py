@@ -24,18 +24,19 @@ from typing import Any, ClassVar
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, TimeFrame
+from quant_trading_system.models.market import Bar
+from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.strategy.base import Strategy, register_strategy
 from quant_trading_system.services.strategy.signal import Signal
 
 logger = structlog.get_logger(__name__)
 
 # 周期关联映射：入场周期 -> 趋势参考周期
-TIMEFRAME_MAP: dict[TimeFrame, TimeFrame] = {
-    TimeFrame.M15: TimeFrame.H1,
-    TimeFrame.M30: TimeFrame.H4,   # 30分钟 -> 近似2小时用H4
-    TimeFrame.H1: TimeFrame.H4,
-    TimeFrame.H4: TimeFrame.D1,
+TIMEFRAME_MAP: dict[KlineInterval, KlineInterval] = {
+    KlineInterval.MIN_15: KlineInterval.HOUR_1,
+    KlineInterval.MIN_30: KlineInterval.HOUR_4,   # 30分钟 -> 近似2小时用H4
+    KlineInterval.HOUR_1: KlineInterval.HOUR_4,
+    KlineInterval.HOUR_4: KlineInterval.DAY_1,
 }
 
 
@@ -91,14 +92,14 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         },
     }
 
-    symbols: ClassVar[list[str]] = ["BTC/USDT"]
-    timeframes: ClassVar[list[TimeFrame]] = [TimeFrame.M15, TimeFrame.H1]
+    symbols: ClassVar[tuple[str, ...]] = ("BTC/USDT",)
+    timeframes: ClassVar[tuple[KlineInterval, ...]] = (KlineInterval.MIN_15, KlineInterval.HOUR_1)
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
         # 入场周期 & 趋势周期
-        self._entry_tf: TimeFrame = self.timeframes[0]   # 默认 M15
-        self._trend_tf: TimeFrame = self.timeframes[1] if len(self.timeframes) > 1 else TIMEFRAME_MAP.get(self._entry_tf, TimeFrame.H1)
+        self._entry_tf: KlineInterval = self.timeframes[0]   # 默认 MIN_15
+        self._trend_tf: KlineInterval = self.timeframes[1] if len(self.timeframes) > 1 else TIMEFRAME_MAP.get(self._entry_tf, KlineInterval.HOUR_1)
 
     # ------------------------------------------------------------------
     # 生命周期
