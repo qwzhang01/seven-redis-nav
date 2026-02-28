@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from quant_trading_system.models.exchange import ExchangeType, ExchangeStatus
 
 
 class UserType(str, Enum):
@@ -15,19 +16,6 @@ class UserStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     LOCKED = "locked"
-
-
-class ExchangeType(str, Enum):
-    """交易所类型"""
-    SPOT = "spot"
-    FUTURES = "futures"
-    MARGIN = "margin"
-
-
-class ExchangeStatus(str, Enum):
-    """交易所状态"""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
 
 
 class APIKeyStatus(str, Enum):
