@@ -16,7 +16,8 @@ import structlog
 
 from quant_trading_system.core.enums import RiskLevel, OrderSide
 from quant_trading_system.core.events import Event, EventEngine, EventType
-from quant_trading_system.models.trading import Order, Position
+from quant_trading_system.models.trading import Order, Position, Trade
+from quant_trading_system.models.market import Bar
 from quant_trading_system.models.account import Account
 
 logger = structlog.get_logger(__name__)
@@ -100,7 +101,13 @@ class RiskManager:
     """
     风险管理器
 
-    提供多层次的风险控制
+    提供多层次的风险控制：
+    - 事前风控：check_order() 订单提交前检查
+    - 事中风控：on_bar() 行情驱动的实时监控
+    - 事后风控：on_order_filled() 订单成交后的风险评估
+
+    支持通过事件引擎订阅 BAR 和 ORDER_FILLED 事件，
+    实现"订单+行情共同驱动"的风控模式。
     """
 
     def __init__(
@@ -133,6 +140,140 @@ class RiskManager:
         # 风险状态
         self._risk_level = RiskLevel.NORMAL
         self._trading_enabled = True
+
+        # 最新价格缓存 {symbol: price}
+        self._latest_prices: dict[str, float] = {}
+
+        # 价格异常检测
+        self._price_history: dict[str, list[float]] = {}
+        self._max_price_history = 100
+
+    async def start(self) -> None:
+        """启动风控管理器，注册事件监听"""
+        if self._event_engine:
+            self._event_engine.register(EventType.BAR, self._on_bar_event)
+            self._event_engine.register(EventType.ORDER_FILLED, self._on_order_filled_event)
+            logger.info("风控管理器已启动，已订阅 BAR 和 ORDER_FILLED 事件")
+
+    async def stop(self) -> None:
+        """停止风控管理器"""
+        if self._event_engine:
+            self._event_engine.unregister(EventType.BAR, self._on_bar_event)
+            self._event_engine.unregister(EventType.ORDER_FILLED, self._on_order_filled_event)
+            logger.info("风控管理器已停止")
+
+    async def _on_bar_event(self, event: Event) -> None:
+        """BAR 事件处理器"""
+        bar = event.data
+        if isinstance(bar, Bar):
+            self.on_bar(bar)
+
+    async def _on_order_filled_event(self, event: Event) -> None:
+        """ORDER_FILLED 事件处理器"""
+        trade = event.data
+        if isinstance(trade, Trade):
+            self.on_order_filled(trade)
+
+    def on_bar(self, bar: Bar) -> None:
+        """
+        事中风控：行情数据驱动的实时监控
+
+        每根 K 线到达时调用，用于：
+        - 更新持仓最新价格
+        - 检测价格异常（大幅波动）
+        - 更新权益和回撤
+        - 检查熔断条件
+
+        Args:
+            bar: K线数据
+        """
+        symbol = bar.symbol
+        price = bar.close
+
+        # 更新最新价格
+        self._latest_prices[symbol] = price
+
+        # 价格异常检测
+        self._check_price_anomaly(symbol, price)
+
+        # 更新持仓的最新价格
+        if symbol in self._positions:
+            position = self._positions[symbol]
+            position.last_price = price
+            if position.quantity > 0:
+                position.unrealized_pnl = (price - position.avg_price) * position.quantity
+
+        # 重新计算风险指标
+        self._update_metrics()
+
+        # 计算权益并更新回撤
+        total_position_value = self._metrics.total_position_value
+        if self._account:
+            equity = self._account.total_balance + total_position_value
+            self.update_equity(equity)
+
+    def on_order_filled(self, trade: Trade) -> None:
+        """
+        事后风控：订单成交后的风险评估
+
+        订单成交后调用，用于：
+        - 更新持仓信息
+        - 重新评估风险指标
+        - 检查是否触发熔断
+
+        Args:
+            trade: 成交记录
+        """
+        # 更新持仓信息（如果外部已通过 PositionManager 更新，这里做同步）
+        symbol = trade.symbol
+        if symbol in self._positions:
+            self._update_metrics()
+
+        # 记录成交后重新评估
+        if self._account:
+            total_position_value = self._metrics.total_position_value
+            equity = self._account.total_balance + total_position_value
+            self.update_equity(equity)
+
+        logger.debug(
+            "风控：成交后评估",
+            symbol=symbol,
+            side=trade.side.value,
+            risk_level=self._risk_level.value,
+            trading_enabled=self._trading_enabled,
+        )
+
+    def _check_price_anomaly(self, symbol: str, price: float) -> None:
+        """
+        检测价格异常（大幅波动）
+
+        Args:
+            symbol: 交易品种
+            price: 当前价格
+        """
+        if symbol not in self._price_history:
+            self._price_history[symbol] = []
+
+        history = self._price_history[symbol]
+        history.append(price)
+
+        # 保持历史长度
+        if len(history) > self._max_price_history:
+            self._price_history[symbol] = history[-self._max_price_history:]
+
+        # 至少需要2个价格才能检测异常
+        if len(history) >= 2:
+            prev_price = history[-2]
+            if prev_price > 0:
+                change_rate = abs(price - prev_price) / prev_price
+                if change_rate > self.config.max_price_deviation:
+                    logger.warning(
+                        "价格异常波动",
+                        symbol=symbol,
+                        price=price,
+                        prev_price=prev_price,
+                        change_rate=f"{change_rate:.2%}",
+                    )
 
     def set_account(self, account: Account) -> None:
         """设置账户"""
@@ -393,6 +534,10 @@ class RiskManager:
     @property
     def metrics(self) -> RiskMetrics:
         return self._metrics
+
+    def set_positions(self, positions: dict[str, Position]) -> None:
+        """设置持仓引用（与 PositionManager 共享）"""
+        self._positions = positions
 
     @property
     def stats(self) -> dict[str, Any]:

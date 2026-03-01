@@ -2,11 +2,12 @@
 回测引擎
 ========
 
-事件驱动的回测引擎，支持：
+事件驱动的回测引擎，职责精简为：
 - 历史数据回放
-- 交易成本模拟
-- 滑点模拟
-- 资金管理
+- 驱动策略产生信号
+- 委托 OrderProcessor 处理订单/仓位/账户
+- 委托 StrategyEvaluator 计算绩效
+- 收集权益曲线并计算回测结果
 """
 
 import time
@@ -17,21 +18,25 @@ from datetime import datetime
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, BarArray
-from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.core.enums import OrderSide, OrderStatus, OrderType, StrategyState
-from quant_trading_system.models.trading import (
-    Order,
-    Position,
-    Trade,
-)
-from quant_trading_system.models.account import Account, AccountType, Balance
+from quant_trading_system.models.market import Bar, BarArray, BarArrayView
+from quant_trading_system.core.enums import KlineInterval, StrategyState
 from quant_trading_system.services.strategy.base import Strategy, StrategyContext
 from quant_trading_system.services.strategy.signal import Signal
 from quant_trading_system.services.indicators.indicator_engine import (
     get_indicator_engine,
 )
-from quant_trading_system.services.database.data_query import get_data_query_service
+from quant_trading_system.services.order.order_executor import (
+    BacktestExecutor,
+    ExecutionConfig,
+)
+from quant_trading_system.services.order.position_manager import PositionManager
+from quant_trading_system.services.order.account_manager import AccountManager
+from quant_trading_system.services.order.order_processor import (
+    OrderProcessor,
+    OrderProcessorConfig,
+)
+from quant_trading_system.services.evaluation.strategy_evaluator import StrategyEvaluator
+from quant_trading_system.services.risk.risk_manager import RiskManager, RiskConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -62,6 +67,9 @@ class BacktestConfig:
 
     # 其他
     margin_rate: float = 1.0  # 保证金率（1.0 = 全额）
+
+    # 风控配置（可选）
+    risk_config: RiskConfig | None = None
 
 
 @dataclass
@@ -144,7 +152,12 @@ class BacktestEngine:
     """
     回测引擎
 
-    提供事件驱动的策略回测能力
+    职责：
+    - 历史数据回放，驱动策略产生信号
+    - 委托 OrderProcessor 处理信号→订单→仓位→账户的完整流程
+    - 委托 StrategyEvaluator 增量计算策略绩效
+    - 驱动 RiskManager 进行回测风控
+    - 收集权益曲线并生成回测结果
     """
 
     def __init__(
@@ -161,17 +174,41 @@ class BacktestEngine:
         # 数据查询服务（如果使用数据库）
         self._data_query_service = None
         if use_database:
+            from quant_trading_system.services.database.data_query import get_data_query_service
             self._data_query_service = get_data_query_service()
 
-        # 账户
-        self._account: Account | None = None
+        # ---- 核心模块（统一订单管理） ----
+        self._position_manager = PositionManager()
+        self._account_manager = AccountManager()
 
-        # 持仓 {symbol: Position}
-        self._positions: dict[str, Position] = {}
+        executor = BacktestExecutor(config=ExecutionConfig(
+            commission_rate=self.config.commission_rate,
+            min_commission=self.config.min_commission,
+            slippage_rate=self.config.slippage_rate,
+            slippage_fixed=self.config.slippage_fixed,
+        ))
 
-        # 订单
-        self._orders: list[Order] = []
-        self._trades: list[Trade] = []
+        # 风控管理器（回测模式，无事件引擎）
+        self._risk_manager = RiskManager(
+            config=self.config.risk_config,
+        ) if self.config.risk_config else None
+
+        self._order_processor = OrderProcessor(
+            executor=executor,
+            position_manager=self._position_manager,
+            account_manager=self._account_manager,
+            risk_manager=self._risk_manager,
+            config=OrderProcessorConfig(
+                position_sizing=self.config.position_sizing,
+                fixed_quantity=self.config.fixed_quantity,
+                percent_risk=self.config.percent_risk,
+            ),
+        )
+
+        # 策略评价器（回测模式，同步调用）
+        self._evaluator = StrategyEvaluator(
+            initial_equity=self.config.initial_capital,
+        )
 
         # 权益曲线
         self._equity_curve: list[tuple[float, float]] = []  # [(timestamp, equity)]
@@ -181,10 +218,6 @@ class BacktestEngine:
 
         # 当前时间
         self._current_time: float = 0.0
-
-        # 统计
-        self._total_commission: float = 0.0
-        self._total_slippage: float = 0.0
 
     def run(
         self,
@@ -305,36 +338,24 @@ class BacktestEngine:
         bars: dict[str, dict[KlineInterval, BarArray]]
     ) -> None:
         """初始化回测环境"""
-        # 创建账户
-        from datetime import datetime
-
-        # 创建初始余额
-        usdt_balance = Balance(
-            asset="USDT",
-            free=self.config.initial_capital,
-            locked=0.0,
-            total=self.config.initial_capital
-        )
-
-        self._account = Account(
-            id="backtest",
-            type=AccountType.SPOT,
-            balances={"USDT": usdt_balance},
-            total_balance=self.config.initial_capital,
-            available_balance=self.config.initial_capital,
-            margin_balance=self.config.initial_capital,
-            unrealized_pnl=0.0,
-            realized_pnl=0.0,
-            updated_at=datetime.now()
-        )
-
-        # 重置状态
-        self._positions.clear()
-        self._orders.clear()
-        self._trades.clear()
+        # 重置 OrderProcessor 和评价器
+        self._order_processor.reset()
+        self._evaluator.reset()
         self._equity_curve.clear()
-        self._total_commission = 0.0
-        self._total_slippage = 0.0
+
+        # 创建账户
+        account = self._account_manager.create_account(
+            initial_capital=self.config.initial_capital,
+            account_id="backtest",
+        )
+
+        # 初始化风控
+        if self._risk_manager:
+            self._risk_manager.set_account(account)
+            self._risk_manager.set_positions(self._position_manager.positions)
+
+        # 初始化评价器
+        self._evaluator.set_initial_equity(self.config.initial_capital)
 
         # 存储K线数据（多周期）
         self._bar_data.clear()
@@ -346,14 +367,14 @@ class BacktestEngine:
                 if tf not in all_timeframes:
                     all_timeframes.append(tf)
 
-        # 创建策略上下文
+        # 创建策略上下文（使用 PositionManager 的持仓引用）
         context = StrategyContext(
             strategy_id=strategy.strategy_id,
             symbols=list(bars.keys()),
             timeframes=all_timeframes,
             indicator_engine=self._indicator_engine,
-            account=self._account,
-            positions=self._positions,
+            account=account,
+            positions=self._position_manager.positions,
             bars=self._bar_data,
             is_backtest=True,
         )
@@ -370,7 +391,7 @@ class BacktestEngine:
         strategy: Strategy,
         bars: dict[str, dict[KlineInterval, BarArray]]
     ) -> None:
-        """执行回测（支持多周期）"""
+        """执行回测（支持多周期）—— 使用 BarArrayView 零拷贝优化"""
         # 确定主时间轴：取最小周期作为驱动周期
         main_symbol = list(bars.keys())[0]
         tf_bars = bars[main_symbol]
@@ -388,11 +409,48 @@ class BacktestEngine:
         # 预热期（确保有足够的数据计算指标）
         warmup_period = 100
 
+        # --- 预处理阶段：构建视图和缓存时间戳 ---
+        # 1) 确保所有 BarArray 的 numpy 缓存已构建
+        for symbol, symbol_tf_bars in bars.items():
+            for tf, bar_array in symbol_tf_bars.items():
+                bar_array.ensure_numpy_cache()
+
+        # 2) 为每个 (symbol, tf) 创建 BarArrayView，直接写入 strategy.context.bars
+        #    注意：Pydantic 在初始化时深拷贝了 dict，所以必须直接操作 context.bars
+        views: dict[str, dict[KlineInterval, BarArrayView]] = {}
+        ctx_bars = strategy.context.bars  # 获取 context 持有的（已拷贝的）字典引用
+        for symbol, symbol_tf_bars in bars.items():
+            views[symbol] = {}
+            if symbol not in ctx_bars:
+                ctx_bars[symbol] = {}
+            for tf, bar_array in symbol_tf_bars.items():
+                view = BarArrayView(bar_array)
+                views[symbol][tf] = view
+                ctx_bars[symbol][tf] = view  # 直接写入 context.bars
+
+        # 3) 预计算主周期时间戳毫秒数组（避免逐根转换）
+        main_ts_ms = main_bars.get_timestamp_ms()
+
+        # 4) 预计算高周期时间戳毫秒数组并缓存
+        higher_tf_ts_ms: dict[str, dict[KlineInterval, np.ndarray]] = {}
+        for symbol, symbol_tf_bars in bars.items():
+            higher_tf_ts_ms[symbol] = {}
+            for tf, bar_array in symbol_tf_bars.items():
+                if tf != main_tf:
+                    higher_tf_ts_ms[symbol][tf] = bar_array.get_timestamp_ms()
+
+        # 5) 预取主周期的 numpy 数组引用（避免循环内反复 property 调用）
+        main_open_arr = main_bars.open
+        main_high_arr = main_bars.high
+        main_low_arr = main_bars.low
+        main_close_arr = main_bars.close
+        main_volume_arr = main_bars.volume
+
         # --- 回测进度跟踪 ---
         total_bars = len(main_bars) - warmup_period
         backtest_start_time = time.time()
-        last_progress_pct = -1  # 上次打印的进度百分比
-        progress_interval = 10  # 每 10% 打印一次进度
+        last_progress_pct = -1
+        progress_interval = 10
         trade_count_at_last_log = 0
 
         logger.info(
@@ -405,6 +463,13 @@ class BacktestEngine:
             total_data_bars=len(main_bars),
         )
 
+        # 高周期上一次的 end_idx 缓存（利用时间单调递增，使用 searchsorted 增量查找）
+        higher_tf_last_end: dict[str, dict[KlineInterval, int]] = {}
+        for symbol in higher_tf_ts_ms:
+            higher_tf_last_end[symbol] = {}
+            for tf in higher_tf_ts_ms[symbol]:
+                higher_tf_last_end[symbol][tf] = 0
+
         # 遍历主周期K线
         for i in range(warmup_period, len(main_bars)):
             # --- 进度日志 ---
@@ -415,7 +480,7 @@ class BacktestEngine:
                 elapsed = time.time() - backtest_start_time
                 bars_per_sec = processed / elapsed if elapsed > 0 else 0
                 eta = (total_bars - processed) / bars_per_sec if bars_per_sec > 0 else 0
-                new_trades = len(self._trades) - trade_count_at_last_log
+                new_trades = len(self._order_processor.trades) - trade_count_at_last_log
 
                 logger.info(
                     "Backtest progress",
@@ -426,114 +491,89 @@ class BacktestEngine:
                     elapsed=f"{elapsed:.1f}s",
                     speed=f"{bars_per_sec:.0f} bars/s",
                     eta=f"{eta:.1f}s",
-                    trades_so_far=len(self._trades),
+                    trades_so_far=len(self._order_processor.trades),
                     new_trades=new_trades,
                     current_equity=f"{self._equity_curve[-1][1]:,.2f}" if self._equity_curve else "N/A",
                 )
                 last_progress_pct = progress_pct
-                trade_count_at_last_log = len(self._trades)
-            # 当前主周期时间戳
-            ts = main_bars.timestamp[i]
-            if isinstance(ts, np.datetime64):
-                current_ts_ms = float(ts.astype('datetime64[ms]').astype(np.int64))
-            else:
-                current_ts_ms = ts.timestamp() * 1000 if hasattr(ts, 'timestamp') else float(ts)
+                trade_count_at_last_log = len(self._order_processor.trades)
 
-            # 更新所有周期的 context.bars 切片（避免未来函数）
-            for symbol, symbol_tf_bars in bars.items():
-                for tf, bar_array in symbol_tf_bars.items():
+            # 当前主周期时间戳（直接从预计算数组取值，O(1)）
+            current_ts_ms = main_ts_ms[i]
+
+            # 更新所有周期的视图范围（O(1) 操作，无数据拷贝）
+            for symbol, symbol_views in views.items():
+                for tf, view in symbol_views.items():
                     if tf == main_tf:
-                        # 主周期：按索引切片
-                        sliced = BarArray(
-                            symbol=bar_array.symbol,
-                            exchange=bar_array.exchange,
-                            timeframe=bar_array.timeframe,
-                            timestamp=bar_array.timestamp[:i+1],
-                            open=bar_array.open[:i+1],
-                            high=bar_array.high[:i+1],
-                            low=bar_array.low[:i+1],
-                            close=bar_array.close[:i+1],
-                            volume=bar_array.volume[:i+1],
-                            turnover=bar_array.turnover[:i+1] if bar_array.turnover is not None else None,
-                        )
+                        # 主周期：直接设置 end = i + 1
+                        view.set_end(i + 1)
                     else:
-                        # 高周期：按时间戳切片，只保留 <= 当前时间的K线
-                        higher_ts = bar_array.timestamp
-                        if len(higher_ts) > 0:
-                            # 将时间戳转换为毫秒进行比较
-                            if isinstance(higher_ts[0], np.datetime64):
-                                higher_ts_ms = higher_ts.astype('datetime64[ms]').astype(np.int64).astype(float)
-                            else:
-                                higher_ts_ms = np.array([
-                                    t.timestamp() * 1000 if hasattr(t, 'timestamp') else float(t)
-                                    for t in higher_ts
-                                ])
-                            mask = higher_ts_ms <= current_ts_ms
-                            end_idx = int(np.sum(mask))
+                        # 高周期：利用时间单调递增，从上次位置开始搜索
+                        ts_arr = higher_tf_ts_ms[symbol][tf]
+                        if len(ts_arr) > 0:
+                            last_end = higher_tf_last_end[symbol][tf]
+                            # 从 last_end 开始向右搜索（因为时间单调递增）
+                            end_idx = last_end
+                            while end_idx < len(ts_arr) and ts_arr[end_idx] <= current_ts_ms:
+                                end_idx += 1
+                            higher_tf_last_end[symbol][tf] = end_idx
+                            view.set_end(end_idx)
                         else:
-                            end_idx = 0
-
-                        if end_idx > 0:
-                            sliced = BarArray(
-                                symbol=bar_array.symbol,
-                                exchange=bar_array.exchange,
-                                timeframe=bar_array.timeframe,
-                                timestamp=bar_array.timestamp[:end_idx],
-                                open=bar_array.open[:end_idx],
-                                high=bar_array.high[:end_idx],
-                                low=bar_array.low[:end_idx],
-                                close=bar_array.close[:end_idx],
-                                volume=bar_array.volume[:end_idx],
-                                turnover=bar_array.turnover[:end_idx] if bar_array.turnover is not None else None,
-                            )
-                        else:
-                            sliced = BarArray(
-                                symbol=bar_array.symbol,
-                                exchange=bar_array.exchange,
-                                timeframe=bar_array.timeframe,
-                            )
-
-                    self._bar_data[symbol][tf] = sliced
+                            view.set_end(0)
 
             # 更新当前时间
             self._current_time = current_ts_ms
             strategy.context.current_time = self._current_time
 
-            # 创建当前Bar（主周期）
+            # 创建当前Bar（主周期）—— 直接从预取的数组引用取值
             bar = Bar(
                 symbol=main_symbol,
                 exchange=main_bars.exchange,
                 timeframe=main_tf,
                 timestamp=current_ts_ms,
-                open=float(main_bars.open[i]),
-                high=float(main_bars.high[i]),
-                low=float(main_bars.low[i]),
-                close=float(main_bars.close[i]),
-                volume=float(main_bars.volume[i]),
+                open=float(main_open_arr[i]),
+                high=float(main_high_arr[i]),
+                low=float(main_low_arr[i]),
+                close=float(main_close_arr[i]),
+                volume=float(main_volume_arr[i]),
                 is_closed=True,
             )
 
-            # 更新持仓市值
-            self._update_positions(bar.close)
+            # 更新持仓市场价格（修复多品种同价bug：使用对应品种的价格）
+            self._position_manager.update_market_price(bar.symbol, bar.close)
 
-            # 调用策略
+            # 驱动风控的 on_bar（事中风控）
+            if self._risk_manager:
+                self._risk_manager.on_bar(bar)
+
+            # 调用策略产生信号
             try:
                 signals = strategy.on_bar(bar)
 
-                # 处理信号
+                # 通过 OrderProcessor 处理信号
                 if signals:
                     if isinstance(signals, Signal):
                         signals = [signals]
 
                     for signal in signals:
-                        self._process_signal(signal, bar)
+                        result = self._order_processor.process_signal_sync(signal, bar.close)
+
+                        # 通知评价器和风控
+                        if result and result.success and result.trade:
+                            self._evaluator.on_trade(result.trade)
+                            if self._risk_manager:
+                                self._risk_manager.on_order_filled(result.trade)
 
             except Exception as e:
                 logger.error(f"Strategy error at bar {i}", error=str(e))
 
             # 记录权益
-            equity = self._calculate_equity(bar.close)
+            total_position_value = self._position_manager.get_total_position_value()
+            equity = self._account_manager.calculate_equity(total_position_value)
             self._equity_curve.append((self._current_time, equity))
+
+            # 通知评价器更新权益曲线
+            self._evaluator.on_equity_update(equity, strategy.strategy_id)
 
         # --- 回测循环结束汇总 ---
         total_elapsed = time.time() - backtest_start_time
@@ -543,214 +583,17 @@ class BacktestEngine:
             "Backtest loop finished",
             strategy=strategy.name,
             total_bars_processed=total_bars,
-            total_trades=len(self._trades),
+            total_trades=len(self._order_processor.trades),
             total_elapsed=f"{total_elapsed:.2f}s",
             avg_speed=f"{total_bars / total_elapsed:.0f} bars/s" if total_elapsed > 0 else "N/A",
             final_equity=f"{final_equity:,.2f}",
             total_return=f"{total_return:.2%}",
-            total_commission=f"{self._total_commission:,.2f}",
+            total_commission=f"{self._order_processor.total_commission:,.2f}",
         )
 
         # 停止策略
         strategy.state = StrategyState.STOPPED
         strategy.on_stop()
-
-    def _process_signal(self, signal: Signal, bar: Bar) -> None:
-        """处理交易信号"""
-        symbol = signal.symbol
-        price = bar.close
-
-        # 计算滑点
-        slippage = price * self.config.slippage_rate + self.config.slippage_fixed
-
-        if signal.is_buy:
-            exec_price = price + slippage
-        else:
-            exec_price = price - slippage
-
-        self._total_slippage += abs(slippage)
-
-        # 计算交易数量
-        quantity = self._calculate_quantity(signal, exec_price)
-        if quantity <= 0:
-            return
-
-        # 计算手续费
-        commission = max(
-            quantity * exec_price * self.config.commission_rate,
-            self.config.min_commission
-        )
-        self._total_commission += commission
-
-        # 创建订单
-        import uuid
-        from datetime import datetime
-        from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
-
-        order = Order(
-            id=str(generate_backtest_snowflake_id()),
-            symbol=symbol,
-            side=OrderSide.BUY if signal.is_buy else OrderSide.SELL,
-            type=OrderType.MARKET,
-            quantity=quantity,
-            price=exec_price,
-            status=OrderStatus.FILLED,
-            created_at=datetime.fromtimestamp(self._current_time / 1000),
-            updated_at=datetime.fromtimestamp(self._current_time / 1000),
-        )
-        self._orders.append(order)
-
-        # 创建成交记录
-        trade = Trade(
-            id=str(generate_backtest_snowflake_id()),  # 添加Trade ID
-            symbol=symbol,
-            exchange="backtest",
-            order_id=order.id,
-            side=order.side,
-            price=exec_price,
-            quantity=quantity,
-            amount=quantity * exec_price,
-            commission=commission,
-            timestamp=datetime.fromtimestamp(self._current_time / 1000),  # 修正timestamp格式
-            strategy_id=signal.strategy_id,
-        )
-        self._trades.append(trade)
-
-        logger.debug(
-            "Backtest trade executed",
-            trade_no=len(self._trades),
-            side=order.side.value,
-            symbol=symbol,
-            price=f"{exec_price:.4f}",
-            quantity=f"{quantity:.6f}",
-            amount=f"{quantity * exec_price:,.2f}",
-            commission=f"{commission:.4f}",
-            signal_type=signal.signal_type.value if hasattr(signal, 'signal_type') else "N/A",
-        )
-
-        # 更新持仓
-        self._update_position_from_trade(trade)
-
-        # 更新账户
-        self._update_account_from_trade(trade)
-
-    def _calculate_quantity(self, signal: Signal, price: float) -> float:
-        """计算交易数量"""
-        if signal.quantity > 0:
-            return signal.quantity
-
-        if self.config.position_sizing == "fixed":
-            return self.config.fixed_quantity
-
-        elif self.config.position_sizing == "percent":
-            # 按风险百分比计算
-            equity = self._calculate_equity(price)
-            risk_amount = equity * self.config.percent_risk
-            return risk_amount / price
-
-        return self.config.fixed_quantity
-
-    def _update_position_from_trade(self, trade: Trade) -> None:
-        """根据成交更新持仓"""
-        symbol = trade.symbol
-
-        if symbol not in self._positions:
-            # 创建新持仓，提供所有必需字段
-            self._positions[symbol] = Position(
-                symbol=symbol,
-                quantity=0.0,
-                avg_price=0.0,
-                unrealized_pnl=0.0,
-                realized_pnl=0.0,
-                last_price=trade.price
-            )
-
-        position = self._positions[symbol]
-
-        if trade.side == OrderSide.BUY:
-            # 买入逻辑
-            if position.quantity == 0:
-                position.quantity = trade.quantity
-                position.avg_price = trade.price
-            else:
-                # 加仓逻辑
-                total_cost = position.quantity * position.avg_price + trade.quantity * trade.price
-                position.quantity += trade.quantity
-                position.avg_price = total_cost / position.quantity
-        else:
-            # 卖出逻辑
-            if position.quantity > 0:
-                # 计算盈亏
-                profit = (trade.price - position.avg_price) * trade.quantity
-                position.realized_pnl += profit
-                position.quantity -= trade.quantity
-
-                # 如果完全平仓，重置平均价格
-                if position.quantity == 0:
-                    position.avg_price = 0.0
-
-        # 更新最新价格
-        position.last_price = trade.price
-
-        # 更新未实现盈亏
-        if position.quantity > 0:
-            position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity
-        else:
-            position.unrealized_pnl = 0.0
-
-    def _update_account_from_trade(self, trade: Trade) -> None:
-        """根据成交更新账户"""
-        if self._account is None:
-            return
-
-        cost = trade.quantity * trade.price + trade.commission
-
-        if trade.side == OrderSide.BUY:
-            # 买入：扣除USDT余额
-            if "USDT" in self._account.balances:
-                usdt_balance = self._account.balances["USDT"]
-                usdt_balance.free -= cost
-                usdt_balance.total = usdt_balance.free + usdt_balance.locked
-                self._account.total_balance -= cost
-                self._account.available_balance = usdt_balance.free
-        else:
-            # 卖出：增加USDT余额
-            if "USDT" in self._account.balances:
-                usdt_balance = self._account.balances["USDT"]
-                usdt_balance.free += trade.quantity * trade.price - trade.commission
-                usdt_balance.total = usdt_balance.free + usdt_balance.locked
-                self._account.total_balance += trade.quantity * trade.price - trade.commission
-                self._account.available_balance = usdt_balance.free
-
-        # 更新账户时间
-        from datetime import datetime
-        self._account.updated_at = datetime.now()
-
-    def _update_positions(self, current_price: float) -> None:
-        """更新所有持仓的市值"""
-        for position in self._positions.values():
-            # 直接更新last_price字段
-            position.last_price = current_price
-
-            # 更新未实现盈亏
-            if position.quantity > 0:
-                position.unrealized_pnl = (position.last_price - position.avg_price) * position.quantity
-            else:
-                position.unrealized_pnl = 0.0
-
-    def _calculate_equity(self, current_price: float) -> float:
-        """计算当前权益"""
-        if self._account is None:
-            return 0.0
-
-        # 现金
-        equity = self._account.total_balance
-
-        # 持仓市值
-        for position in self._positions.values():
-            equity += position.quantity * current_price
-
-        return equity
 
     def _calculate_result(self, strategy: Strategy) -> BacktestResult:
         """计算回测结果"""
@@ -776,15 +619,13 @@ class BacktestEngine:
         ) / result.initial_capital
 
         if result.duration_days > 0:
-            # 使用对数计算年化收益率，避免复数问题
-            if result.total_return > -1:  # 确保底数为正数
+            if result.total_return > -1:
                 annualized_factor = 365 / result.duration_days
-                # 使用对数计算避免复数
                 result.annual_return = float(np.exp(np.log(1 + result.total_return) * annualized_factor) - 1)
             else:
-                result.annual_return = -1.0  # 如果总收益率为-100%或更低，年化收益率为-100%
+                result.annual_return = -1.0
         else:
-            result.annual_return = 0.0  # 如果duration_days <= 0，年化收益率为0
+            result.annual_return = 0.0
 
         # 权益曲线转为numpy数组
         equity_array = np.array([e[1] for e in self._equity_curve])
@@ -810,44 +651,45 @@ class BacktestEngine:
         if result.max_drawdown > 0:
             result.calmar_ratio = result.annual_return / result.max_drawdown
 
-        # 交易统计
-        result.total_trades = len(self._trades)
-        result.total_commission = self._total_commission
-        result.total_slippage = self._total_slippage
+        # 从评价器获取交易统计
+        evaluator_metrics = self._evaluator.get_metrics(strategy.strategy_id)
+        if evaluator_metrics:
+            result.winning_trades = evaluator_metrics.winning_trades
+            result.losing_trades = evaluator_metrics.losing_trades
+            result.win_rate = evaluator_metrics.win_rate
+            result.profit_factor = evaluator_metrics.profit_factor
+            result.avg_win = evaluator_metrics.avg_win
+            result.avg_loss = evaluator_metrics.avg_loss
+            result.avg_trade = evaluator_metrics.avg_trade_pnl
+            result.max_win = evaluator_metrics.max_win
+            result.max_loss = evaluator_metrics.max_loss
 
-        # 计算胜率和盈亏
-        profits = []
-        for trade in self._trades:
-            if trade.side == OrderSide.SELL:
-                # 简化计算：卖出即为平仓
-                profit = trade.quantity * trade.price - trade.commission  # 修复amount引用
-                profits.append(profit)
-
-        if profits:
-            wins = [p for p in profits if p > 0]
-            losses = [p for p in profits if p < 0]
-
-            result.winning_trades = len(wins)
-            result.losing_trades = len(losses)
-            result.win_rate = len(wins) / len(profits) if profits else 0
-
-            if wins:
-                result.avg_win = np.mean(wins)
-                result.max_win = max(wins)
-
-            if losses:
-                result.avg_loss = abs(np.mean(losses))
-                result.max_loss = abs(min(losses))
-
-            result.avg_trade = np.mean(profits)
-
-            total_wins = sum(wins) if wins else 0
-            total_losses = abs(sum(losses)) if losses else 0
-
-            if total_losses > 0:
-                result.profit_factor = total_wins / total_losses
+        # 从 OrderProcessor 获取费用和交易统计
+        result.total_trades = len(self._order_processor.trades)
+        result.total_commission = self._order_processor.total_commission
+        result.total_slippage = self._order_processor.total_slippage
 
         # 交易记录
-        result.trades = [t.to_dict() for t in self._trades]
+        result.trades = [t.to_dict() for t in self._order_processor.trades]
 
         return result
+
+    @property
+    def order_processor(self) -> OrderProcessor:
+        """获取订单处理器"""
+        return self._order_processor
+
+    @property
+    def evaluator(self) -> StrategyEvaluator:
+        """获取策略评价器"""
+        return self._evaluator
+
+    @property
+    def position_manager(self) -> PositionManager:
+        """获取仓位管理器"""
+        return self._position_manager
+
+    @property
+    def account_manager(self) -> AccountManager:
+        """获取账户管理器"""
+        return self._account_manager

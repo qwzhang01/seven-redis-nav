@@ -192,19 +192,20 @@ async def get_orders(
     - price: 订单价格
     - strategy_id: 关联策略ID
     """
-    om = orch.trading_engine.order_manager
+    # 通过 TradingEngine 的公开接口获取订单
+    all_orders = orch.trading_engine.get_orders()
 
     # 根据状态和交易对过滤订单
     if status == "active":
+        from quant_trading_system.core.enums import OrderStatus
+        active_statuses = (OrderStatus.PENDING, OrderStatus.SUBMITTED, OrderStatus.PARTIAL_FILLED)
+        orders = [o for o in all_orders if o.status in active_statuses]
         if symbol:
-            orders = om.get_active_orders_by_symbol(symbol)
-        else:
-            orders = om.get_active_orders()
+            orders = [o for o in orders if o.symbol == symbol]
     else:
+        orders = all_orders
         if symbol:
-            orders = om.get_orders_by_symbol(symbol)
-        else:
-            orders = list(om._orders.values())
+            orders = [o for o in orders if o.symbol == symbol]
 
     # 格式化订单信息
     order_list = []
@@ -250,7 +251,7 @@ async def get_order(
     异常：
     - HTTPException: 当订单不存在时返回404错误
     """
-    o = orch.trading_engine.order_manager.get_order(order_id)
+    o = orch.trading_engine.get_order(order_id)
     if not o:
         raise HTTPException(status_code=404, detail="Order not found")
     return {
@@ -296,13 +297,15 @@ async def get_trades(
     - quantity: 成交数量
     - commission: 手续费
     """
-    om = orch.trading_engine.order_manager
+    # 通过 OrderProcessor 获取成交记录
+    op = orch.order_processor
+    all_trades = list(op.trades) if op else []
 
     # 根据过滤条件获取成交记录
     if order_id:
-        trades = om.get_trades_by_order(order_id)
+        trades = [t for t in all_trades if t.order_id == order_id]
     else:
-        trades = list(om._trades.values())
+        trades = all_trades
         if symbol:
             trades = [t for t in trades if t.symbol == symbol]
 
@@ -344,7 +347,7 @@ async def get_positions(
     - realized_pnl: 已实现盈亏
     - value: 持仓价值
     """
-    positions = orch.trading_engine._positions
+    positions = orch.trading_engine.get_positions()
 
     pos_list = []
     total_value = 0.0
@@ -385,7 +388,7 @@ async def get_position(
     - unrealized_pnl: 未实现盈亏
     - realized_pnl: 已实现盈亏
     """
-    pos = orch.trading_engine._positions.get(symbol)
+    pos = orch.trading_engine.get_position(symbol)
     if not pos:
         return {
             "symbol": symbol,
@@ -425,7 +428,7 @@ async def get_account(
     - locked: 冻结余额
     - total: 总余额
     """
-    acc = orch.trading_engine._account
+    acc = orch.account_manager.account if hasattr(orch, 'account_manager') else None
     if not acc:
         return {"total_equity": 0, "available_margin": 0, "used_margin": 0, "balances": {}}
     return {

@@ -12,7 +12,7 @@ from typing import Any, ClassVar, Type
 import structlog
 from pydantic import BaseModel, Field
 
-from quant_trading_system.models.market import Bar, BarArray, Depth, Tick
+from quant_trading_system.models.market import Bar, BarArray, BarArrayView, Depth, Tick
 from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.trading import Order, Position, Trade
 from quant_trading_system.models.account import Account
@@ -54,8 +54,8 @@ class StrategyContext(BaseModel):
     # 指标引擎
     indicator_engine: IndicatorEngine | None = None
 
-    # K线数据 {symbol: {timeframe: BarArray}}
-    bars: dict[str, dict[KlineInterval, BarArray]] = Field(default_factory=dict)
+    # K线数据 {symbol: {timeframe: BarArray | BarArrayView}}
+    bars: dict[str, dict[KlineInterval, Any]] = Field(default_factory=dict)
 
     # 最新Tick {symbol: Tick}
     latest_ticks: dict[str, Tick] = Field(default_factory=dict)

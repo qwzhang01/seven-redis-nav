@@ -2,7 +2,8 @@
 交易系统编排器
 ==============
 
-将 EventEngine, MarketService, StrategyEngine, TradingEngine, RiskManager
+将 EventEngine, MarketService, StrategyEngine, TradingEngine,
+OrderProcessor, StrategyEvaluator, RiskManager
 统一编排、启动和管理，为实盘/模拟交易提供一站式入口。
 """
 
@@ -14,10 +15,22 @@ from typing import Any, Type
 import structlog
 
 from quant_trading_system.core.enums import DefaultTradingPair
-from quant_trading_system.core.events import EventEngine, EventType, Event
+from quant_trading_system.core.events import EventEngine
 from quant_trading_system.models.account import Account, AccountType, Balance
 from quant_trading_system.services.strategy.base import Strategy
 from quant_trading_system.services.risk.risk_manager import RiskConfig
+from quant_trading_system.services.order.order_executor import (
+    SimulationExecutor,
+    LiveExecutor,
+    ExecutionConfig,
+)
+from quant_trading_system.services.order.position_manager import PositionManager
+from quant_trading_system.services.order.account_manager import AccountManager
+from quant_trading_system.services.order.order_processor import (
+    OrderProcessor,
+    OrderProcessorConfig,
+)
+from quant_trading_system.services.evaluation.strategy_evaluator import StrategyEvaluator
 
 logger = structlog.get_logger(__name__)
 
@@ -42,16 +55,26 @@ class TradingOrchestrator:
         api_secret: str = "",
         initial_capital: float = 100_000.0,
         risk_config: RiskConfig | None = None,
+        commission_rate: float = 0.0004,
+        slippage_rate: float = 0.0001,
+        position_sizing: str = "fixed",
+        fixed_quantity: float = 0.01,
+        percent_risk: float = 0.02,
     ) -> None:
         """
         Args:
             mode: 运行模式 "live" | "paper"
-        exchange: 交易所 "binance"
+            exchange: 交易所 "binance"
             market_type: 市场类型 "spot" | "futures"
             api_key: 交易所 API Key（live 模式必填）
             api_secret: 交易所 API Secret（live 模式必填）
             initial_capital: 模拟资金（paper 模式使用）
             risk_config: 风控配置
+            commission_rate: 手续费率
+            slippage_rate: 滑点比例
+            position_sizing: 仓位计算模式 "fixed" | "percent" | "kelly"
+            fixed_quantity: 固定交易数量
+            percent_risk: 风险百分比
         """
         self.mode = mode
         self.exchange = exchange
@@ -60,14 +83,63 @@ class TradingOrchestrator:
         self.api_secret = api_secret
         self.initial_capital = initial_capital
 
-        # ---- 核心组件（通过 ServiceContainer 统一管理） ----
+        # ---- 核心组件（通过 ServiceContainer 获取基础组件） ----
         from quant_trading_system.core.container import container
 
         self.event_engine = container.event_engine
         self.market_service = container.market_service
         self.strategy_engine = container.strategy_engine
         self.trading_engine = container.trading_engine
-        self.risk_manager = container.risk_manager
+
+        # ---- 新增模块：统一订单管理 ----
+        self.position_manager = PositionManager(event_engine=self.event_engine)
+        self.account_manager = AccountManager()
+
+        # 根据模式创建不同的执行器
+        exec_config = ExecutionConfig(
+            commission_rate=commission_rate,
+            slippage_rate=slippage_rate,
+        )
+
+        if mode == "live":
+            self._executor = LiveExecutor(config=exec_config)
+        else:
+            self._executor = SimulationExecutor(config=exec_config)
+
+        # 风控管理器（事件驱动）
+        if risk_config:
+            # 使用自定义风控配置时，创建新实例并同步到全局容器
+            from quant_trading_system.services.risk.risk_manager import RiskManager
+            self.risk_manager = RiskManager(
+                config=risk_config,
+                event_engine=self.event_engine,
+            )
+            container.risk_manager = self.risk_manager
+        else:
+            self.risk_manager = container.risk_manager
+
+        # 订单处理器（核心管道）
+        self.order_processor = OrderProcessor(
+            executor=self._executor,
+            position_manager=self.position_manager,
+            account_manager=self.account_manager,
+            event_engine=self.event_engine,
+            risk_manager=self.risk_manager,
+            config=OrderProcessorConfig(
+                position_sizing=position_sizing,
+                fixed_quantity=fixed_quantity,
+                percent_risk=percent_risk,
+            ),
+        )
+
+        # 策略评价器（事件驱动）
+        self.evaluator = StrategyEvaluator(
+            event_engine=self.event_engine,
+            initial_equity=initial_capital,
+        )
+
+        # ---- 注入依赖到 TradingEngine ----
+        self.trading_engine.set_order_processor(self.order_processor)
 
         # ---- 状态 ----
         self._running = False
@@ -94,19 +166,28 @@ class TradingOrchestrator:
         await self.event_engine.start()
 
         # 2. 创建账户
-        account = self._create_account()
+        account = self.account_manager.create_account(
+            initial_capital=self.initial_capital,
+            account_id=f"{self.mode}_{self.exchange}",
+            account_type=AccountType.SPOT if self.market_type == "spot" else AccountType.FUTURES,
+        )
         self.strategy_engine.set_account(account)
-        self.trading_engine.set_account(account)
-        self.risk_manager.set_account(account)
 
-        # 3. 配置交易所网关（仅 live 模式）
+        # 3. 配置风控
+        self.risk_manager.set_account(account)
+        self.risk_manager.set_positions(self.position_manager.positions)
+
+        # 4. 配置交易所网关（仅 live 模式）
         if self.mode == "live":
             self._setup_gateway()
 
-        # 4. 注入风控到交易引擎
-        self.trading_engine._risk_manager = self.risk_manager
+        # 5. 启动风控管理器（注册事件监听）
+        await self.risk_manager.start()
 
-        # 5. 添加行情数据源
+        # 6. 启动策略评价器（注册事件监听）
+        await self.evaluator.start()
+
+        # 7. 添加行情数据源
         await self.market_service.add_exchange(
             exchange=self.exchange,
             market_type=self.market_type,
@@ -114,17 +195,8 @@ class TradingOrchestrator:
             api_secret=self.api_secret,
         )
 
-        # 6. 将 K 线事件桥接到 EventEngine（KLineEngine 回调 → EventEngine BAR）
-        async def _bar_to_event(bar: Any) -> None:
-            await self.event_engine.put(Event(
-                type=EventType.BAR,
-                data=bar,
-                source="market_service",
-            ))
-
-        self.market_service.add_bar_callback(_bar_to_event)
-
-        # 7. 启动各引擎
+        # 8. 启动各引擎
+        # 注：K线 → EventEngine BAR 的桥接由 TradingEngineSubscriber 自动完成
         await self.strategy_engine.start()
         await self.trading_engine.start()
         await self.market_service.start()
@@ -142,6 +214,8 @@ class TradingOrchestrator:
         await self.market_service.stop()
         await self.trading_engine.stop()
         await self.strategy_engine.stop()
+        await self.evaluator.stop()
+        await self.risk_manager.stop()
         await self.event_engine.stop()
 
         self._running = False
@@ -261,26 +335,6 @@ class TradingOrchestrator:
     # 内部方法
     # ------------------------------------------------------------------
 
-    def _create_account(self) -> Account:
-        """创建账户对象"""
-        usdt_balance = Balance(
-            asset="USDT",
-            free=self.initial_capital,
-            locked=0.0,
-            total=self.initial_capital,
-        )
-        return Account(
-            id=f"{self.mode}_{self.exchange}",
-            type=AccountType.SPOT if self.market_type == "spot" else AccountType.FUTURES,
-            balances={"USDT": usdt_balance},
-            total_balance=self.initial_capital,
-            available_balance=self.initial_capital,
-            margin_balance=self.initial_capital,
-            unrealized_pnl=0.0,
-            realized_pnl=0.0,
-            updated_at=datetime.now(),
-        )
-
     def _setup_gateway(self) -> None:
         """配置交易所网关（实盘模式）"""
         if not self.api_key or not self.api_secret:
@@ -297,8 +351,14 @@ class TradingOrchestrator:
                 api_secret=self.api_secret,
                 market_type=self.market_type,
             )
-            self.trading_engine._gateways[self.exchange] = gateway
-            self.trading_engine._default_exchange = self.exchange
+
+            # 注入到 LiveExecutor
+            if isinstance(self._executor, LiveExecutor):
+                self._executor.set_gateway(gateway)
+
+            # 注册到 TradingEngine
+            self.trading_engine.register_gateway(self.exchange, gateway)
+            self.trading_engine.set_default_exchange(self.exchange)
 
             logger.info("Binance gateway configured for live trading")
         else:
@@ -324,7 +384,11 @@ class TradingOrchestrator:
             "market_service": self.market_service.stats,
             "strategy_engine": self.strategy_engine.stats,
             "trading_engine": self.trading_engine.stats,
+            "order_processor": self.order_processor.stats,
             "risk_manager": self.risk_manager.stats,
+            "evaluator": self.evaluator.stats,
+            "position_manager": self.position_manager.stats,
+            "account_manager": self.account_manager.stats,
         }
 
 

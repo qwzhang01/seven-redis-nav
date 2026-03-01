@@ -40,6 +40,7 @@ class BarArray:
         "_close_buf", "_volume_buf", "_turnover_buf",
         "_np_dirty", "_ts_cache", "_open_cache", "_high_cache",
         "_low_cache", "_close_cache", "_volume_cache", "_turnover_cache",
+        "_ts_ms_cache",
     )
 
     def __init__(
@@ -94,6 +95,7 @@ class BarArray:
         self._close_cache: np.ndarray = np.array([], dtype=np.float64)
         self._volume_cache: np.ndarray = np.array([], dtype=np.float64)
         self._turnover_cache: np.ndarray = np.array([], dtype=np.float64)
+        self._ts_ms_cache: np.ndarray | None = None  # 时间戳毫秒数组（float64），回测用
 
     def _rebuild_cache(self) -> None:
         """从 list 缓冲区重建 numpy 数组缓存"""
@@ -208,6 +210,28 @@ class BarArray:
         self._turnover_buf = self._turnover_buf[excess:]
         self._np_dirty = True
 
+    def ensure_numpy_cache(self) -> None:
+        """预先构建 numpy 缓存，回测初始化时调用一次"""
+        self._rebuild_cache()
+
+    def get_timestamp_ms(self) -> np.ndarray:
+        """获取时间戳毫秒数组（float64），结果会被缓存"""
+        if self._ts_ms_cache is None:
+            ts = self.timestamp
+            if len(ts) == 0:
+                self._ts_ms_cache = np.array([], dtype=np.float64)
+            elif ts.dtype.kind == 'M':  # datetime64
+                self._ts_ms_cache = ts.astype('datetime64[ms]').astype(np.int64).astype(np.float64)
+            else:
+                self._ts_ms_cache = np.asarray(ts, dtype=np.float64)
+        return self._ts_ms_cache
+
+    def get_numpy_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """一次性获取所有 numpy 数组引用（timestamp, open, high, low, close, volume, turnover），避免多次 property 调用触发重建检查"""
+        self._rebuild_cache()
+        return (self._ts_cache, self._open_cache, self._high_cache,
+                self._low_cache, self._close_cache, self._volume_cache, self._turnover_cache)
+
     @classmethod
     def from_bars(cls, bars: list["Bar"]) -> "BarArray":
         """从 Bar 列表批量构建 BarArray"""
@@ -222,6 +246,73 @@ class BarArray:
         for bar in bars:
             arr.append(bar)
         return arr
+
+
+class BarArrayView:
+    """
+    BarArray 的轻量级只读视图（用于回测）
+
+    通过 numpy 切片提供 O(1) 的零拷贝视图，
+    避免回测中每根K线都创建新 BarArray 的 O(n) 开销。
+    """
+
+    __slots__ = (
+        "symbol", "exchange", "timeframe",
+        "_src_ts", "_src_open", "_src_high", "_src_low",
+        "_src_close", "_src_volume", "_src_turnover",
+        "_end",
+    )
+
+    def __init__(self, source: BarArray) -> None:
+        self.symbol = source.symbol
+        self.exchange = source.exchange
+        self.timeframe = source.timeframe
+        # 获取底层 numpy 数组的引用（仅一次）
+        (self._src_ts, self._src_open, self._src_high,
+         self._src_low, self._src_close, self._src_volume,
+         self._src_turnover) = source.get_numpy_arrays()
+        self._end: int = len(self._src_close)  # 可见长度
+
+    def set_end(self, end: int) -> None:
+        """设置可见数据的结束索引（不含），O(1) 操作"""
+        self._end = end
+
+    @property
+    def timestamp(self) -> np.ndarray:
+        return self._src_ts[:self._end]
+
+    @property
+    def open(self) -> np.ndarray:
+        return self._src_open[:self._end]
+
+    @property
+    def high(self) -> np.ndarray:
+        return self._src_high[:self._end]
+
+    @property
+    def low(self) -> np.ndarray:
+        return self._src_low[:self._end]
+
+    @property
+    def close(self) -> np.ndarray:
+        return self._src_close[:self._end]
+
+    @property
+    def volume(self) -> np.ndarray:
+        return self._src_volume[:self._end]
+
+    @property
+    def turnover(self) -> np.ndarray:
+        return self._src_turnover[:self._end]
+
+    def __len__(self) -> int:
+        return self._end
+
+    def __repr__(self) -> str:
+        return (
+            f"BarArrayView(symbol={self.symbol!r}, exchange={self.exchange!r}, "
+            f"timeframe={self.timeframe!r}, len={len(self)})"
+        )
 
 
 class Tick(BaseModel):

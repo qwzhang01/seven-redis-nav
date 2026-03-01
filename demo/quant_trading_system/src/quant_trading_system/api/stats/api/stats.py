@@ -260,18 +260,26 @@ async def get_trading_stats(
     account_info = {}
 
     try:
-        om = orch.trading_engine.order_manager if orch else None
-        active_orders = len(om.get_active_orders()) if om else 0
-        total_positions = len(orch.trading_engine._positions) if orch else 0
+        if orch:
+            # 通过 OrderProcessor 获取订单和持仓信息
+            op = orch.order_processor
+            if op:
+                from quant_trading_system.core.enums import OrderStatus
+                active_orders = sum(
+                    1 for o in op.orders
+                    if o.status in (OrderStatus.PENDING, OrderStatus.SUBMITTED)
+                )
+                total_positions = len(op.position_manager.positions)
 
-        acc = orch.trading_engine._account if orch else None
-        if acc:
-            total_equity = float(acc.total_balance)
-            account_info = {
-                "total_balance": float(acc.total_balance),
-                "available_balance": float(acc.available_balance),
-                "margin_balance": float(acc.margin_balance),
-            }
+            # 通过 AccountManager 获取账户信息
+            acc = orch.account_manager.account
+            if acc:
+                total_equity = float(acc.total_balance)
+                account_info = {
+                    "total_balance": float(acc.total_balance),
+                    "available_balance": float(acc.available_balance),
+                    "margin_balance": float(acc.margin_balance),
+                }
     except Exception:
         pass
 
