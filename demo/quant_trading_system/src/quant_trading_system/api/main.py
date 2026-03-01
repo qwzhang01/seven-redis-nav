@@ -195,28 +195,7 @@ async def _startup_websocket_heartbeat() -> None:
         print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
 
 
-async def _startup_subscription_monitor() -> None:
-    """启动订阅监听器"""
-    try:
-        from quant_trading_system.services.market.subscription_monitor import \
-            init_subscription_monitor
-        await init_subscription_monitor()
-        print("✅ 订阅监听器启动完成")
-    except Exception as e:
-        print(f"❌ 订阅监听器启动失败: {e}")
-        raise
 
-
-async def _startup_historical_sync_executor() -> None:
-    """启动历史数据同步执行器"""
-    try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            init_historical_sync_executor
-        await init_historical_sync_executor()
-        print("✅ 历史数据同步执行器启动完成")
-    except Exception as e:
-        print(f"❌ 历史数据同步执行器启动失败: {e}")
-        raise
 
 
 # ── Lifespan 关闭步骤 ────────────────────────────────────────────
@@ -231,26 +210,7 @@ async def _shutdown_websocket_heartbeat() -> None:
         print(f"❌ WebSocket 心跳检测停止失败: {e}")
 
 
-async def _shutdown_historical_sync_executor() -> None:
-    """关闭历史数据同步执行器"""
-    try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            close_historical_sync_executor
-        await close_historical_sync_executor()
-        print("✅ 历史数据同步执行器已停止")
-    except Exception as e:
-        print(f"❌ 历史数据同步执行器停止失败: {e}")
 
-
-async def _shutdown_subscription_monitor() -> None:
-    """关闭订阅监听器"""
-    try:
-        from quant_trading_system.services.market.subscription_monitor import \
-            close_subscription_monitor
-        await close_subscription_monitor()
-        print("✅ 订阅监听器已停止")
-    except Exception as e:
-        print(f"❌ 订阅监听器停止失败: {e}")
 
 
 async def _shutdown_orchestrator(app: FastAPI) -> None:
@@ -280,16 +240,12 @@ async def lifespan(app: FastAPI):
     await _startup_database()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
-    await _startup_subscription_monitor()
-    await _startup_historical_sync_executor()
 
     yield
 
     # ── 关闭 ──
     print("🛑 停止量化交易系统...")
     await _shutdown_websocket_heartbeat()
-    await _shutdown_historical_sync_executor()
-    await _shutdown_subscription_monitor()
     await _shutdown_orchestrator(app)
     clear_app_ref()
 

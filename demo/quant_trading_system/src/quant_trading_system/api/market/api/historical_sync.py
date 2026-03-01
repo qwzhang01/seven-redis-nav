@@ -249,99 +249,63 @@ async def cancel_historical_sync_task(
     }
 
 
-@router.get("/status/executor")
-async def get_historical_sync_executor_status(
+@router.get("/status/syncer")
+async def get_historical_syncer_status(
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
-    获取历史数据同步执行器状态
+    获取历史数据同步器状态
 
-    返回执行器的运行状态、活跃任务数量等信息。
+    返回同步器的运行状态、同步统计等信息。
+    基于新的事件驱动架构（HistoricalDataSyncer + MarketEventBus）。
     """
     try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            get_historical_sync_executor
+        from quant_trading_system.services.market.market_service import get_market_service
 
-        executor = get_historical_sync_executor()
-        stats = executor.stats
+        market_service = get_market_service()
+        syncer = market_service.historical_syncer
 
         return {
             "success": True,
-            "data": {
-                "executor_running": executor.is_running,
-                "active_tasks": stats["active_tasks"],
-                "task_ids": stats["task_ids"],
-                "max_concurrent_tasks": executor.max_concurrent_tasks,
-                "check_interval": executor.check_interval,
-                "max_retries": executor.max_retries
-            }
+            "data": syncer.stats,
         }
     except Exception as e:
         return {
             "success": False,
-            "error": f"获取执行器状态失败: {str(e)}"
+            "error": f"获取同步器状态失败: {str(e)}"
         }
 
 
-@router.post("/executor/start")
-async def start_historical_sync_executor(
+@router.post("/syncer/trigger")
+async def trigger_historical_sync(
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
-    启动历史数据同步执行器
+    手动触发历史数据同步
 
-    手动启动历史数据同步任务执行器。
+    使用默认配置手动触发一次历史数据同步。
+    同步通过事件总线异步执行：REST API 拉取 → HISTORICAL_KLINE 事件 → DatabaseSubscriber 存储。
     """
     try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            get_historical_sync_executor
+        from quant_trading_system.services.market.market_service import get_market_service
 
-        executor = get_historical_sync_executor()
-        if executor.is_running:
+        market_service = get_market_service()
+        syncer = market_service.historical_syncer
+
+        if syncer.is_running:
             return {
                 "success": True,
-                "message": "历史数据同步执行器已在运行中"
+                "message": "历史数据同步正在进行中，请稍后再试"
             }
 
-        await executor.start()
+        stats = await market_service.sync_history()
         return {
             "success": True,
-            "message": "历史数据同步执行器已启动"
+            "message": "历史数据同步已完成",
+            "data": stats,
         }
     except Exception as e:
         return {
             "success": False,
-            "error": f"启动执行器失败: {str(e)}"
-        }
-
-
-@router.post("/executor/stop")
-async def stop_historical_sync_executor(
-    _admin: User = Depends(_require_admin),
-) -> dict[str, Any]:
-    """
-    停止历史数据同步执行器
-
-    手动停止历史数据同步任务执行器。
-    """
-    try:
-        from quant_trading_system.services.market.historical_sync_executor import \
-            get_historical_sync_executor
-
-        executor = get_historical_sync_executor()
-        if not executor.is_running:
-            return {
-                "success": True,
-                "message": "历史数据同步执行器已停止"
-            }
-
-        await executor.stop()
-        return {
-            "success": True,
-            "message": "历史数据同步执行器已停止"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"停止执行器失败: {str(e)}"
+            "error": f"触发同步失败: {str(e)}"
         }

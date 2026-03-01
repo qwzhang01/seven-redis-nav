@@ -1,106 +1,185 @@
 """
-行情服务
-========
+行情服务（重构版）
+==================
 
-统一的行情数据服务接口
+统一的行情数据服务对外接口。
+
+架构重构要点：
+1. 交易所对接层（ExchangeConnector）—— 纯粹负责对接交易所
+2. 行情事件总线（MarketEventBus）—— 发布/订阅模式解耦生产与消费
+3. 三个订阅器各司其职：
+   - DatabaseSubscriber：行情数据异步存储到数据库
+   - WebSocketSubscriber：实时行情推送到前端 WebSocket
+   - TradingEngineSubscriber：行情数据转发给交易引擎
+4. 历史数据同步器（HistoricalDataSyncer）—— 配置驱动 + 事件机制异步拉取
+
+对外提供：
+- 历史行情查询接口
+- 实时行情 WebSocket 订阅（通过 WebSocketSubscriber 自动推送）
+- 添加/移除交易所数据源
+- 订阅/取消订阅交易对
+
+设计模式：
+- 门面模式（Facade Pattern）：MarketService 作为行情子系统的统一入口
+- 依赖注入（DI）：事件总线、连接器、订阅器通过构造函数注入
 """
 
 import asyncio
-from collections import defaultdict
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 import structlog
 
 from quant_trading_system.core.config import settings
-from quant_trading_system.core.events import Event, EventEngine, EventType
-from quant_trading_system.models.market import Bar, Depth, Tick
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.services.market.data_collector import (
-    BinanceDataCollector,
-    DataCollector,
-    OKXDataCollector,
+from quant_trading_system.models.market import Bar, BarArray
+
+# 事件总线
+from quant_trading_system.services.market.market_event_bus import (
+    MarketEventBus,
+    MarketEventType,
 )
-from quant_trading_system.services.market.mock_collector import MockDataCollector
+
+# 交易所连接器
+from quant_trading_system.services.market.exchange_connector import (
+    BinanceConnector,
+    ExchangeConnector,
+    MockConnector,
+    OKXConnector,
+)
+
+# 订阅器
+from quant_trading_system.services.market.market_subscribers import (
+    DatabaseSubscriber,
+    TradingEngineSubscriber,
+    WebSocketSubscriber,
+)
+
+# 历史数据同步器
+from quant_trading_system.services.market.historical_data_syncer import (
+    HistoricalDataSyncer,
+    HistoricalSyncConfig,
+)
+
+# K线引擎（保持原有实现，负责内存缓冲和K线合成）
 from quant_trading_system.services.market.kline_engine import KLineEngine
-from quant_trading_system.api.websocket.market_ws import push_ticker, push_kline, push_depth
 
 logger = structlog.get_logger(__name__)
 
-# 回调类型定义
-TickCallback = Callable[[Tick], Coroutine[Any, Any, None]]
-BarCallback = Callable[[Bar], Coroutine[Any, Any, None]]
-DepthCallback = Callable[[Depth], Coroutine[Any, Any, None]]
 
-def get_market_service(event_engine: EventEngine | None = None) -> "MarketService":
+# ═══════════════════════════════════════════════════════════════
+# 单例工厂
+# ═══════════════════════════════════════════════════════════════
+
+def get_market_service(event_engine: Any = None) -> "MarketService":
     """
-    获取MarketService单例实例（委托到 ServiceContainer）
+    获取 MarketService 单例实例
 
     Args:
-        event_engine: 事件引擎实例（仅在首次创建时生效）
+        event_engine: 系统事件引擎（仅首次创建时生效）
 
     Returns:
-        MarketService实例
+        MarketService 实例
     """
     from quant_trading_system.core.container import container
 
     if container._market_service is None:
-        if event_engine is not None:
-            container.market_service = MarketService(event_engine=event_engine)
-        else:
-            # 使用容器中的 event_engine
-            container.market_service = MarketService(event_engine=container.event_engine)
+        container.market_service = MarketService()
 
     return container.market_service
 
 
+# ═══════════════════════════════════════════════════════════════
+# MarketService（门面模式）
+# ═══════════════════════════════════════════════════════════════
+
 class MarketService:
     """
-    行情服务
+    行情服务（门面模式）
 
-    提供统一的行情数据接口，包括：
-    - 多交易所数据聚合
-    - K线合成
-    - 数据订阅和分发
-    - 数据缓存
+    作为行情子系统的统一入口，协调以下组件：
+    - MarketEventBus：事件分发中心
+    - ExchangeConnector：交易所连接器（多个）
+    - 3个订阅器：数据库存储、WebSocket推送、交易引擎
+    - HistoricalDataSyncer：历史数据同步器
+    - KLineEngine：K线内存缓冲与合成
+
+    使用流程：
+        service = MarketService()
+        await service.start()
+        await service.add_exchange("binance")
+        await service.subscribe(["BTC/USDT"], exchange="binance")
     """
 
     def __init__(
         self,
-        event_engine: EventEngine | None = None,
+        historical_sync_config: HistoricalSyncConfig | None = None,
     ) -> None:
-        self._event_engine = event_engine
-
-        # 数据采集器
-        self._collectors: dict[str, DataCollector] = {}
-
-        # K线引擎
+        # ── 核心组件 ──
+        self._event_bus = MarketEventBus()
         self._kline_engine = KLineEngine()
 
-        # 回调
-        self._tick_callbacks: list[TickCallback] = []
-        self._bar_callbacks: dict[KlineInterval | None, list[BarCallback]] = defaultdict(list)
-        self._depth_callbacks: list[DepthCallback] = []
+        # ── 交易所连接器 ──
+        self._connectors: dict[str, ExchangeConnector] = {}
 
-        # 运行状态
+        # ── 3个订阅器 ──
+        self._db_subscriber = DatabaseSubscriber()
+        self._ws_subscriber = WebSocketSubscriber()
+        self._trading_subscriber = TradingEngineSubscriber()
+
+        # 注入 KLineEngine 引用给交易引擎订阅器
+        self._trading_subscriber.set_kline_engine(self._kline_engine)
+
+        # ── 历史数据同步器 ──
+        self._historical_syncer = HistoricalDataSyncer(
+            event_bus=self._event_bus,
+            config=historical_sync_config,
+        )
+
+        # ── 运行状态 ──
         self._running = False
 
-        # 统计
+        # ── 统计 ──
         self._tick_count = 0
-        self._depth_count = 0
         self._kline_count = 0
+        self._depth_count = 0
 
     async def start(self) -> None:
-        """启动行情服务"""
+        """
+        启动行情服务
+
+        流程：
+        1. 注册3个订阅器到事件总线
+        2. 启动所有订阅器
+        3. 启动所有已添加的连接器
+        4. 如果配置了启动时同步，执行历史数据同步
+        """
         if self._running:
             return
 
         self._running = True
 
-        # 启动所有采集器
-        for collector in self._collectors.values():
-            await collector.start()
+        # ── 注册订阅器到事件总线 ──
+        self._register_subscribers()
 
-        logger.info("Market service started")
+        # ── 启动所有订阅器 ──
+        await self._event_bus.start_all_subscribers()
+
+        # ── 启动所有连接器 ──
+        for connector in self._connectors.values():
+            await connector.start()
+
+        # ── 启动时历史数据同步 ──
+        if self._historical_syncer.config.sync_on_startup:
+            asyncio.create_task(
+                self._historical_syncer.sync_on_startup(),
+                name="historical-sync-on-startup",
+            )
+
+        logger.info(
+            "行情服务已启动",
+            connectors=list(self._connectors.keys()),
+            subscribers=self._event_bus.stats.get("subscribers", []),
+        )
 
     async def stop(self) -> None:
         """停止行情服务"""
@@ -109,11 +188,41 @@ class MarketService:
 
         self._running = False
 
-        # 停止所有采集器
-        for collector in self._collectors.values():
-            await collector.stop()
+        # 停止所有连接器
+        for connector in self._connectors.values():
+            await connector.stop()
 
-        logger.info("Market service stopped")
+        # 停止所有订阅器
+        await self._event_bus.stop_all_subscribers()
+
+        # 关闭历史同步器的 API 客户端
+        self._historical_syncer.close()
+
+        logger.info("行情服务已停止")
+
+    def _register_subscribers(self) -> None:
+        """注册3个订阅器到事件总线"""
+        # 实时行情事件类型
+        realtime_events = [
+            MarketEventType.TICK,
+            MarketEventType.KLINE,
+            MarketEventType.DEPTH,
+        ]
+
+        # 1. 数据库存储订阅器 —— 订阅所有实时 + 历史事件
+        self._event_bus.subscribe_many(realtime_events, self._db_subscriber)
+        self._event_bus.subscribe(MarketEventType.HISTORICAL_KLINE, self._db_subscriber)
+
+        # 2. WebSocket 前端推送订阅器 —— 仅订阅实时事件
+        self._event_bus.subscribe_many(realtime_events, self._ws_subscriber)
+
+        # 3. 交易引擎订阅器 —— 订阅 Tick 和 K线
+        self._event_bus.subscribe(MarketEventType.TICK, self._trading_subscriber)
+        self._event_bus.subscribe(MarketEventType.KLINE, self._trading_subscriber)
+
+    # ═══════════════════════════════════════════════════════════
+    # 交易所管理
+    # ═══════════════════════════════════════════════════════════
 
     async def add_exchange(
         self,
@@ -127,65 +236,55 @@ class MarketService:
         添加交易所数据源
 
         Args:
-            exchange: 交易所名称 (binance, okx, huobi 等)
-            market_type: 市场类型 (spot, futures, swap)
-            api_key: API密钥
-            api_secret: API密钥
+            exchange: 交易所名称 (binance, okx, mock)
+            market_type: 市场类型 (spot, futures)
+            api_key: API 密钥
+            api_secret: API 密钥
         """
-        collector_key = f"{exchange}_{market_type}"
+        connector_key = f"{exchange}_{market_type}"
 
-        if collector_key in self._collectors:
-            logger.warning(f"Exchange already added", exchange=exchange)
+        if connector_key in self._connectors:
+            logger.warning("交易所已添加", exchange=exchange)
             return
 
-        # 创建采集器
+        # 创建连接器（适配器模式）
+        connector: ExchangeConnector
         if exchange == "binance":
-            collector = BinanceDataCollector(
+            connector = BinanceConnector(
+                event_bus=self._event_bus,
                 market_type=market_type,
                 api_key=api_key or settings.BINANCE_API_KEY,
                 api_secret=api_secret or settings.BINANCE_SECRET_KEY,
             )
         elif exchange == "okx":
-            collector = OKXDataCollector(
+            connector = OKXConnector(
+                event_bus=self._event_bus,
                 api_key=api_key or settings.OKX_API_KEY,
                 api_secret=api_secret or settings.OKX_SECRET_KEY,
                 passphrase=kwargs.get("passphrase", "") or settings.OKX_PASSPHRASE,
             )
         elif exchange == "mock":
-            collector = MockDataCollector(
+            connector = MockConnector(
+                event_bus=self._event_bus,
                 tick_interval=kwargs.get("tick_interval", 0.5),
                 depth_interval=kwargs.get("depth_interval", 1.0),
                 kline_intervals=kwargs.get("kline_intervals", ["1m", "5m", "15m", "1h"]),
             )
         else:
-            logger.error(f"Unsupported exchange", exchange=exchange)
+            logger.error("不支持的交易所", exchange=exchange)
             return
 
-        # 根据配置开关设置回调
-        if settings.SYNC_TICK:
-            collector.add_callback("tick", self._on_tick_data)
-        else:
-            logger.info("Tick 同步已禁用，跳过 tick 回调注册", exchange=exchange)
+        self._connectors[connector_key] = connector
 
-        if settings.SYNC_DEPTH:
-            collector.add_callback("depth", self._on_depth_data)
-        else:
-            logger.info("Depth 同步已禁用，跳过 depth 回调注册", exchange=exchange)
-
-        if settings.SYNC_KLINE:
-            collector.add_callback("kline", self._on_kline_data)
-        else:
-            logger.info("Kline 同步已禁用，跳过 kline 回调注册", exchange=exchange)
-
-        self._collectors[collector_key] = collector
-
-        # 如果服务已经在运行，立即启动新添加的采集器
+        # 如果服务已运行，立即启动连接器
         if self._running:
-            logger.info(f"Market service is running, starting new collector immediately",
-                       exchange=exchange, market_type=market_type)
-            await collector.start()
+            await connector.start()
 
-        logger.info(f"Exchange added", exchange=exchange, market_type=market_type)
+        logger.info("交易所已添加", exchange=exchange, market_type=market_type)
+
+    # ═══════════════════════════════════════════════════════════
+    # 行情订阅
+    # ═══════════════════════════════════════════════════════════
 
     async def subscribe(
         self,
@@ -194,26 +293,22 @@ class MarketService:
         market_type: str = "spot",
     ) -> None:
         """
-        订阅行情
+        订阅实时行情
 
         Args:
             symbols: 交易对列表
             exchange: 交易所
             market_type: 市场类型
         """
-        collector_key = f"{exchange}_{market_type}"
+        connector_key = f"{exchange}_{market_type}"
+        connector = self._connectors.get(connector_key)
 
-        if collector_key not in self._collectors:
-            logger.error(f"Exchange not found", exchange=exchange)
+        if not connector:
+            logger.error("交易所未添加", exchange=exchange, market_type=market_type)
             return
 
-        collector = self._collectors[collector_key]
-        logger.info(f"Subscribing symbols on collector",
-                   exchange=exchange, market_type=market_type,
-                   symbols=symbols,
-                   collector_running=collector.is_running,
-                   ws_connected=getattr(collector, '_ws_client', None) and getattr(collector._ws_client, 'is_connected', False))
-        await collector.subscribe(symbols)
+        await connector.subscribe(symbols)
+        logger.info("已订阅行情", symbols=symbols, exchange=exchange)
 
     async def unsubscribe(
         self,
@@ -222,171 +317,15 @@ class MarketService:
         market_type: str = "spot",
     ) -> None:
         """取消订阅"""
-        collector_key = f"{exchange}_{market_type}"
-
-        if collector_key not in self._collectors:
+        connector_key = f"{exchange}_{market_type}"
+        connector = self._connectors.get(connector_key)
+        if not connector:
             return
+        await connector.unsubscribe(symbols)
 
-        collector = self._collectors[collector_key]
-        await collector.unsubscribe(symbols)
-
-    def add_tick_callback(self, callback: TickCallback) -> None:
-        """添加Tick回调"""
-        self._tick_callbacks.append(callback)
-
-    def add_bar_callback(
-        self,
-        callback: BarCallback,
-        timeframe: KlineInterval | None = None,
-    ) -> None:
-        """添加K线回调"""
-        self._bar_callbacks[timeframe].append(callback)
-        self._kline_engine.add_callback(callback, timeframe)
-
-    def add_depth_callback(self, callback: DepthCallback) -> None:
-        """添加深度回调"""
-        self._depth_callbacks.append(callback)
-
-    async def _on_tick_data(self, data: dict[str, Any]) -> None:
-        """处理Tick数据"""
-        tick = Tick(
-            symbol=data["symbol"],
-            exchange=data["exchange"],
-            timestamp=data["timestamp"],
-            last_price=data["last_price"],
-            bid_price=data.get("bid_price", 0.0),
-            ask_price=data.get("ask_price", 0.0),
-            bid_size=data.get("bid_size", 0.0),
-            ask_size=data.get("ask_size", 0.0),
-            volume=data.get("volume", 0.0),
-            turnover=data.get("turnover", 0.0),
-            is_trade=data.get("is_trade", False),
-            trade_id=data.get("trade_id", ""),
-        )
-
-        self._tick_count += 1
-
-        # 合成K线
-        await self._kline_engine.process_tick(tick)
-
-        # 发送事件
-        if self._event_engine:
-            await self._event_engine.put(Event(
-                type=EventType.TICK,
-                data=tick,
-            ))
-
-        # 推送到 WebSocket 客户端
-        symbol_key = tick.symbol.replace("/", "").replace("-", "")
-        try:
-            await push_ticker(symbol_key, {
-                "symbol": tick.symbol,
-                "exchange": tick.exchange,
-                "last_price": tick.last_price,
-                "bid_price": tick.bid_price,
-                "ask_price": tick.ask_price,
-                "volume": tick.volume,
-                "turnover": tick.turnover,
-                "timestamp": tick.timestamp,
-            })
-        except Exception as e:
-            logger.debug("WebSocket push_ticker 失败", error=str(e))
-
-        # 通知回调
-        if self._tick_callbacks:
-            tasks = [cb(tick) for cb in self._tick_callbacks]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _on_kline_data(self, data: dict[str, Any]) -> None:
-        """处理K线数据（来自交易所WebSocket推送）"""
-        bar = Bar(
-            symbol=data["symbol"],
-            exchange=data["exchange"],
-            timestamp=data["timestamp"],
-            timeframe=KlineInterval(data["interval"]),
-            open=data["open"],
-            high=data["high"],
-            low=data["low"],
-            close=data["close"],
-            volume=data["volume"],
-            is_closed=data.get("is_closed", False),
-        )
-
-        self._kline_count += 1
-
-        # 更新K线引擎的缓冲区
-        symbol_key = bar.symbol.replace("/", "").replace("-", "")
-        self._kline_engine.update_bar_from_ws(symbol_key, bar)
-
-        # 发送事件（仅已关闭的K线）
-        if bar.is_closed and self._event_engine:
-            await self._event_engine.put(Event(
-                type=EventType.BAR,
-                data=bar,
-            ))
-
-        # 推送到 WebSocket 客户端（实时推送，包括未关闭的 K 线）
-        try:
-            await push_kline(symbol_key, bar.timeframe.value, {
-                "symbol": bar.symbol,
-                "exchange": bar.exchange,
-                "timeframe": bar.timeframe.value,
-                "timestamp": bar.timestamp,
-                "open": bar.open,
-                "high": bar.high,
-                "low": bar.low,
-                "close": bar.close,
-                "volume": bar.volume,
-                "is_closed": bar.is_closed,
-            })
-        except Exception as e:
-            logger.debug("WebSocket push_kline 失败", error=str(e))
-
-        # 通知K线回调（仅已关闭的K线）
-        if bar.is_closed:
-            callbacks = self._bar_callbacks.get(bar.timeframe, []) + self._bar_callbacks.get(None, [])
-            if callbacks:
-                tasks = [cb(bar) for cb in callbacks]
-                await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _on_depth_data(self, data: dict[str, Any]) -> None:
-        """处理深度数据"""
-        from quant_trading_system.models.market import DepthLevel
-
-        depth = Depth(
-            symbol=data["symbol"],
-            exchange=data["exchange"],
-            timestamp=data["timestamp"],
-            bids=[DepthLevel(price=b[0], volume=b[1]) for b in data.get("bids", [])],
-            asks=[DepthLevel(price=a[0], volume=a[1]) for a in data.get("asks", [])],
-        )
-
-        self._depth_count += 1
-
-        # 发送事件
-        if self._event_engine:
-            await self._event_engine.put(Event(
-                type=EventType.DEPTH,
-                data=depth,
-            ))
-
-        # 推送到 WebSocket 客户端
-        symbol_key = depth.symbol.replace("/", "").replace("-", "")
-        try:
-            await push_depth(symbol_key, {
-                "symbol": depth.symbol,
-                "exchange": depth.exchange,
-                "bids": [d.to_list() for d in depth.bids],
-                "asks": [d.to_list() for d in depth.asks],
-                "timestamp": str(depth.timestamp),
-            })
-        except Exception as e:
-            logger.debug("WebSocket push_depth 失败", error=str(e))
-
-        # 通知回调
-        if self._depth_callbacks:
-            tasks = [cb(depth) for cb in self._depth_callbacks]
-            await asyncio.gather(*tasks, return_exceptions=True)
+    # ═══════════════════════════════════════════════════════════
+    # 历史数据查询（对外接口）
+    # ═══════════════════════════════════════════════════════════
 
     def get_bars(
         self,
@@ -394,7 +333,7 @@ class MarketService:
         timeframe: KlineInterval,
         limit: int | None = None,
     ) -> list[Bar]:
-        """获取K线数据"""
+        """获取K线数据（从内存缓冲区）"""
         return self._kline_engine.get_bars(symbol, timeframe, limit)
 
     def get_bar_array(
@@ -402,9 +341,36 @@ class MarketService:
         symbol: str,
         timeframe: KlineInterval,
         limit: int | None = None,
-    ):
+    ) -> BarArray:
         """获取K线数组"""
         return self._kline_engine.get_bar_array(symbol, timeframe, limit)
+
+    def get_current_bar(
+        self,
+        symbol: str,
+        timeframe: KlineInterval,
+    ) -> Bar | None:
+        """获取当前未完成的K线"""
+        return self._kline_engine.get_current_bar(symbol, timeframe)
+
+    # ═══════════════════════════════════════════════════════════
+    # 历史数据同步（对外接口）
+    # ═══════════════════════════════════════════════════════════
+
+    async def sync_history(
+        self,
+        config: HistoricalSyncConfig | None = None,
+    ) -> dict[str, int]:
+        """
+        手动触发历史数据同步
+
+        Args:
+            config: 同步配置（None 使用默认配置）
+
+        Returns:
+            各交易对同步的K线数量统计
+        """
+        return await self._historical_syncer.sync(config)
 
     async def load_history(
         self,
@@ -418,16 +384,18 @@ class MarketService:
         """
         拉取历史K线数据并预加载到内存缓冲区
 
+        兼容旧接口，内部委托给 KLineEngine。
+
         Args:
-            symbols: 交易对列表，为 None 则使用 DefaultTradingPair 配置
-            timeframes: 时间周期列表，为 None 则使用默认周期
-            limit: 每个周期拉取的K线数量
-            exchange: 交易所名称
-            source: 数据源，"exchange" 从交易所拉取，"database" 从数据库加载
-            save_to_db: 从交易所拉取后是否同时保存到数据库
+            symbols: 交易对列表
+            timeframes: 时间周期列表
+            limit: 拉取数量
+            exchange: 交易所
+            source: 数据源 ("exchange" 或 "database")
+            save_to_db: 是否保存到数据库
 
         Returns:
-            各交易对加载的K线数量统计
+            加载统计
         """
         return await self._kline_engine.load_history(
             symbols=symbols,
@@ -438,13 +406,24 @@ class MarketService:
             save_to_db=save_to_db,
         )
 
-    def get_current_bar(
-        self,
-        symbol: str,
-        timeframe: KlineInterval,
-    ) -> Bar | None:
-        """获取当前未完成的K线"""
-        return self._kline_engine.get_current_bar(symbol, timeframe)
+    # ═══════════════════════════════════════════════════════════
+    # 属性与统计
+    # ═══════════════════════════════════════════════════════════
+
+    @property
+    def event_bus(self) -> MarketEventBus:
+        """获取事件总线（供外部注册自定义订阅器）"""
+        return self._event_bus
+
+    @property
+    def kline_engine(self) -> KLineEngine:
+        """获取K线引擎"""
+        return self._kline_engine
+
+    @property
+    def historical_syncer(self) -> HistoricalDataSyncer:
+        """获取历史数据同步器"""
+        return self._historical_syncer
 
     @property
     def is_running(self) -> bool:
@@ -455,9 +434,8 @@ class MarketService:
         """获取统计信息"""
         return {
             "running": self._running,
-            "tick_count": self._tick_count,
-            "depth_count": self._depth_count,
-            "kline_count": self._kline_count,
-            "collectors": list(self._collectors.keys()),
+            "connectors": list(self._connectors.keys()),
+            "event_bus": self._event_bus.stats,
             "kline_stats": self._kline_engine.stats,
+            "historical_syncer": self._historical_syncer.stats,
         }

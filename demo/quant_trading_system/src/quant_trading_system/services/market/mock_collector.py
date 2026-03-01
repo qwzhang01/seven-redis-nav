@@ -5,8 +5,8 @@
 在开发环境中替代真实交易所 WebSocket 连接，
 生成逼真的实时 tick / kline / depth 模拟数据流。
 
-数据通过 DataCollector._notify 分发，
-完全兼容 MarketService 的回调管道（_on_tick_data / _on_kline_data / _on_depth_data）。
+数据通过回调函数分发，
+兼容 exchange_connector.MockConnector 的回调管道。
 
 用法：
     MarketService.add_exchange("mock") 即可在开发环境启用。
@@ -16,14 +16,16 @@ import asyncio
 import random
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Coroutine
 
 import structlog
 
 from quant_trading_system.core.config import settings
-from quant_trading_system.services.market.data_collector import DataCollector
 
 logger = structlog.get_logger(__name__)
+
+# 回调类型
+DataCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 # ── 交易对默认配置 ──────────────────────────────────────────────
@@ -69,9 +71,9 @@ class _SymbolState:
     trend_remaining: int = 0
 
 
-class MockDataCollector(DataCollector):
+class MockDataCollector:
     """
-    模拟行情数据采集器
+    模拟行情数据采集器（独立实现，不依赖旧 DataCollector 基类）
 
     功能：
     - 模拟 ticker（逐笔行情）   ：默认每 500ms 推送一次
@@ -93,11 +95,20 @@ class MockDataCollector(DataCollector):
         kline_intervals: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(name="mock", enable_storage=False)
-
         self.tick_interval = tick_interval
         self.depth_interval = depth_interval
         self.kline_intervals = kline_intervals or ["1m", "5m", "15m", "1h"]
+
+        # 运行状态
+        self._running = False
+        self._subscriptions: set[str] = set()
+
+        # 回调注册表：{data_type: [callback, ...]}
+        self._callbacks: dict[str, list[DataCallback]] = {
+            "tick": [],
+            "kline": [],
+            "depth": [],
+        }
 
         # 运行时状态：symbol_key → _SymbolState
         self._states: dict[str, _SymbolState] = {}
@@ -106,6 +117,37 @@ class MockDataCollector(DataCollector):
         self._tick_task: asyncio.Task | None = None
         self._depth_task: asyncio.Task | None = None
         self._kline_task: asyncio.Task | None = None
+
+    # ── 回调管理 ────────────────────────────────────────────────
+
+    def add_callback(self, data_type: str, callback: DataCallback) -> None:
+        """
+        注册数据回调
+
+        Args:
+            data_type: 数据类型（tick, kline, depth）
+            callback: 异步回调函数
+        """
+        if data_type in self._callbacks:
+            self._callbacks[data_type].append(callback)
+
+    def remove_callback(self, data_type: str, callback: DataCallback) -> None:
+        """移除数据回调"""
+        if data_type in self._callbacks and callback in self._callbacks[data_type]:
+            self._callbacks[data_type].remove(callback)
+
+    async def _notify(self, data_type: str, data: dict[str, Any]) -> None:
+        """通知所有注册的回调"""
+        callbacks = self._callbacks.get(data_type, [])
+        for callback in callbacks:
+            try:
+                await callback(data)
+            except Exception as e:
+                logger.error(
+                    "Mock 回调执行失败",
+                    data_type=data_type,
+                    error=str(e),
+                )
 
     # ── 生命周期 ────────────────────────────────────────────────
 
