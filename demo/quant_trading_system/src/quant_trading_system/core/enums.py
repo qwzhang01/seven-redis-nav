@@ -256,7 +256,6 @@ _register_enum_meta("KlineInterval", {
 class ExchangeEnum(BaseEnum):
     """交易所"""
     BINANCE = "binance"
-    OKX = "okx"
     BYBIT = "bybit"
     BITGET = "bitget"
     GATE_IO = "gate_io"
@@ -268,7 +267,6 @@ class ExchangeEnum(BaseEnum):
 
 _register_enum_meta("ExchangeEnum", {
     "binance": "Binance",
-    "okx": "OKX",
     "bybit": "Bybit",
     "bitget": "Bitget",
     "gate_io": "Gate.io",
@@ -278,7 +276,6 @@ _register_enum_meta("ExchangeEnum", {
     "weex": "WEEX",
 }, {
     "binance": "币安",
-    "okx": "OKX",
     "bybit": "Bybit",
     "bitget": "Bitget",
     "gate_io": "Gate.io",

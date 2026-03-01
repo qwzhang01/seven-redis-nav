@@ -91,7 +91,7 @@ class ServiceContainer:
         """获取行情服务（懒加载）"""
         if self._market_service is None:
             from quant_trading_system.services.market.market_service import MarketService
-            self._market_service = MarketService(event_engine=self.event_engine)
+            self._market_service = MarketService()
             logger.debug("MarketService created by container")
         return self._market_service
 

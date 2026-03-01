@@ -20,13 +20,16 @@ from quant_trading_system.services.market.exchange_connector import (
     BinanceConnector,
     ExchangeConnector,
     MockConnector,
-    OKXConnector,
     WebSocketClient,
 )
 from quant_trading_system.services.market.market_subscribers import (
     DatabaseSubscriber,
     TradingEngineSubscriber,
     WebSocketSubscriber,
+)
+from quant_trading_system.services.market.historical_kline_syncer import (
+    HistoricalKlineSyncer,
+    SyncerConfig,
 )
 
 from quant_trading_system.services.market.kline_engine import KLineEngine
@@ -41,13 +44,15 @@ __all__ = [
     # 交易所连接器
     "ExchangeConnector",
     "BinanceConnector",
-    "OKXConnector",
     "MockConnector",
     "WebSocketClient",
     # 订阅器
     "DatabaseSubscriber",
     "WebSocketSubscriber",
     "TradingEngineSubscriber",
+    # 历史数据同步
+    "HistoricalKlineSyncer",
+    "SyncerConfig",
     # K线引擎
     "KLineEngine",
     # 对外服务

@@ -44,7 +44,6 @@ from quant_trading_system.services.market.exchange_connector import (
     BinanceConnector,
     ExchangeConnector,
     MockConnector,
-    OKXConnector,
 )
 
 # 订阅器
@@ -55,10 +54,11 @@ from quant_trading_system.services.market.market_subscribers import (
 )
 
 # 历史数据同步器
-from quant_trading_system.services.market.historical_data_syncer import (
-    HistoricalDataSyncer,
-    HistoricalSyncConfig,
+from quant_trading_system.services.market.historical_kline_syncer import (
+    HistoricalKlineSyncer,
+    SyncerConfig,
 )
+from quant_trading_system.services.market.binance_api import BinanceAPI
 
 # K线引擎（保持原有实现，负责内存缓冲和K线合成）
 from quant_trading_system.services.market.kline_engine import KLineEngine
@@ -112,7 +112,6 @@ class MarketService:
 
     def __init__(
         self,
-        historical_sync_config: HistoricalSyncConfig | None = None,
     ) -> None:
         # ── 核心组件 ──
         self._event_bus = MarketEventBus()
@@ -130,9 +129,12 @@ class MarketService:
         self._trading_subscriber.set_kline_engine(self._kline_engine)
 
         # ── 历史数据同步器 ──
-        self._historical_syncer = HistoricalDataSyncer(
+        self._historical_syncer = HistoricalKlineSyncer(
+            binance_api=BinanceAPI(
+                api_key=settings.BINANCE_API_KEY,
+                api_secret=settings.BINANCE_SECRET_KEY,
+            ),
             event_bus=self._event_bus,
-            config=historical_sync_config,
         )
 
         # ── 运行状态 ──
@@ -236,7 +238,7 @@ class MarketService:
         添加交易所数据源
 
         Args:
-            exchange: 交易所名称 (binance, okx, mock)
+            exchange: 交易所名称 (binance, mock)
             market_type: 市场类型 (spot, futures)
             api_key: API 密钥
             api_secret: API 密钥
@@ -255,13 +257,6 @@ class MarketService:
                 market_type=market_type,
                 api_key=api_key or settings.BINANCE_API_KEY,
                 api_secret=api_secret or settings.BINANCE_SECRET_KEY,
-            )
-        elif exchange == "okx":
-            connector = OKXConnector(
-                event_bus=self._event_bus,
-                api_key=api_key or settings.OKX_API_KEY,
-                api_secret=api_secret or settings.OKX_SECRET_KEY,
-                passphrase=kwargs.get("passphrase", "") or settings.OKX_PASSPHRASE,
             )
         elif exchange == "mock":
             connector = MockConnector(
@@ -353,25 +348,6 @@ class MarketService:
         """获取当前未完成的K线"""
         return self._kline_engine.get_current_bar(symbol, timeframe)
 
-    # ═══════════════════════════════════════════════════════════
-    # 历史数据同步（对外接口）
-    # ═══════════════════════════════════════════════════════════
-
-    async def sync_history(
-        self,
-        config: HistoricalSyncConfig | None = None,
-    ) -> dict[str, int]:
-        """
-        手动触发历史数据同步
-
-        Args:
-            config: 同步配置（None 使用默认配置）
-
-        Returns:
-            各交易对同步的K线数量统计
-        """
-        return await self._historical_syncer.sync(config)
-
     async def load_history(
         self,
         symbols: list[str] | None = None,
@@ -419,11 +395,6 @@ class MarketService:
     def kline_engine(self) -> KLineEngine:
         """获取K线引擎"""
         return self._kline_engine
-
-    @property
-    def historical_syncer(self) -> HistoricalDataSyncer:
-        """获取历史数据同步器"""
-        return self._historical_syncer
 
     @property
     def is_running(self) -> bool:

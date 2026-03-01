@@ -212,11 +212,6 @@ class ExchangeSettings(BaseSettings):
     binance_secret_key: Optional[str] = None
     binance_testnet: bool = True
 
-    # OKX
-    okx_api_key: Optional[str] = None
-    okx_secret_key: Optional[str] = None
-    okx_passphrase: Optional[str] = None
-
     # 通用交易所 API 配置
     exchange_api_timeout: int = 30
     exchange_api_retry_count: int = 3
@@ -448,18 +443,6 @@ class Settings(BaseSettings):
     @property
     def BINANCE_TESTNET(self) -> bool:
         return self.exchange.binance_testnet
-
-    @property
-    def OKX_API_KEY(self) -> Optional[str]:
-        return self.exchange.okx_api_key
-
-    @property
-    def OKX_SECRET_KEY(self) -> Optional[str]:
-        return self.exchange.okx_secret_key
-
-    @property
-    def OKX_PASSPHRASE(self) -> Optional[str]:
-        return self.exchange.okx_passphrase
 
     # 行情数据同步开关
     @property

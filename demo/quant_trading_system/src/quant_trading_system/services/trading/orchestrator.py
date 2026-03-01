@@ -46,7 +46,7 @@ class TradingOrchestrator:
         """
         Args:
             mode: 运行模式 "live" | "paper"
-            exchange: 交易所 "binance" | "okx"
+        exchange: 交易所 "binance"
             market_type: 市场类型 "spot" | "futures"
             api_key: 交易所 API Key（live 模式必填）
             api_secret: 交易所 API Secret（live 模式必填）

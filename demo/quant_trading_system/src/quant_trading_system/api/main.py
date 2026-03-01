@@ -88,7 +88,7 @@ async def _startup_orchestrator(app: FastAPI) -> None:
     use_mock = settings.is_development
     exchange_name = "mock" if use_mock else "binance"
     if use_mock:
-        print("🎭 开发环境：使用 MockDataCollector 模拟行情数据")
+        print("🎭 开发环境：使用 MockConnector 模拟行情数据")
 
     orchestrator = TradingOrchestrator(
         mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖

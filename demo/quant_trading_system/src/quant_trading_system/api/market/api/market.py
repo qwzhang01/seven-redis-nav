@@ -38,7 +38,7 @@ TIMEFRAME_MAP = {
 }
 
 # 合法枚举值
-VALID_EXCHANGES = {"binance", "okx", "bybit", "bitget"}
+VALID_EXCHANGES = {"binance", "bybit", "bitget"}
 VALID_MARKET_TYPES = {"spot", "futures", "margin"}
 
 

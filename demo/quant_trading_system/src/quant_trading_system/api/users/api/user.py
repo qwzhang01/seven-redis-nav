@@ -301,7 +301,7 @@ async def create_api_key(
     - **label**: 密钥标签/备注名
     - **api_key**: API Key
     - **secret_key**: Secret Key
-    - **passphrase**: 密码短语（部分交易所需要，如 OKX）
+    - **passphrase**: 密码短语（部分交易所需要）
     - **permissions**: 权限列表（可选）
     """
     user_service = UserService(db)

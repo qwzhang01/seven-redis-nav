@@ -20,9 +20,6 @@ from fastapi import APIRouter
 from quant_trading_system.api.strategies.api.strategy_admin import router as strategy_router
 from quant_trading_system.api.system.api.system import router as system_router
 from quant_trading_system.api.system.api.health import router as health_router
-from quant_trading_system.api.market.api.subscription import router as subscription_router
-from quant_trading_system.api.market.api.sync_task import router as sync_task_router
-from quant_trading_system.api.market.api.historical_sync import router as historical_sync_router
 from quant_trading_system.api.stats.api.stats import router as stats_router
 from quant_trading_system.api.audit_logs.api.logs import router as logs_router
 from quant_trading_system.api.signal.api.signal_admin import router as signal_admin_router
@@ -35,9 +32,6 @@ m_router = APIRouter()
 m_router.include_router(strategy_router, prefix="/strategy", tags=["Admin-策略管理"])
 m_router.include_router(system_router, prefix="/system", tags=["Admin-系统管理"])
 m_router.include_router(health_router, prefix="", tags=["Admin-健康检查"])
-m_router.include_router(subscription_router, prefix="/market/subscriptions", tags=["Admin-订阅管理"])
-m_router.include_router(sync_task_router, prefix="/market/sync-tasks", tags=["Admin-同步任务"])
-m_router.include_router(historical_sync_router, prefix="/market/historical-sync", tags=["Admin-历史数据同步"])
 m_router.include_router(stats_router, prefix="/stats", tags=["Admin-统计分析"])
 m_router.include_router(logs_router, prefix="/logs", tags=["Admin-日志审计"])
 m_router.include_router(signal_admin_router, prefix="/signal", tags=["Admin-信号管理"])
