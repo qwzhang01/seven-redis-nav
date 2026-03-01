@@ -894,8 +894,9 @@ function initMarketWebSocket() {
           // 实时K线更新
           if (msg.channel === currentKlineChannel && msg.data) {
             const kline = msg.data
+            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级，并加上东八区偏移（+8h）
             const klinePoint: KlineDataPoint = {
-              time: Math.floor(kline.timestamp),
+              time: Math.floor(kline.timestamp / 1000) + 8 * 3600,
               open: kline.open,
               high: kline.high,
               low: kline.low,

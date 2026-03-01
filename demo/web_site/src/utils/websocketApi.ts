@@ -235,13 +235,37 @@ export class WebSocketManager {
   }
 }
 
+// ==================== WebSocket基础地址 ====================
+
+/**
+ * 获取WebSocket基础URL
+ * 优先使用 VITE_WS_URL 环境变量；
+ * 其次根据 VITE_API_BASE_URL 推导（将 http(s) 转为 ws(s)）；
+ * 如果两者都为空（生产环境通过 Nginx 反代），则从当前页面 location 动态推导。
+ */
+function getWsBaseUrl(): string {
+  // 优先使用独立的 WS 环境变量
+  const wsUrl = import.meta.env.VITE_WS_URL
+  if (wsUrl) return wsUrl
+
+  // 根据 API 基础地址推导
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+  if (apiBaseUrl) {
+    return apiBaseUrl.replace(/^http/, 'ws')
+  }
+
+  // 生产环境：VITE_API_BASE_URL 为空，使用相对路径，从当前页面 location 推导
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${location.host}`
+}
+
 // ==================== 预定义的WebSocket管理器 ====================
 
 /**
  * 创建行情WebSocket连接
  */
 export function createMarketWebSocket(config: Omit<WebSocketConfig, 'url'>): WebSocketManager {
-  const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+  const baseUrl = getWsBaseUrl()
   return new WebSocketManager({
     ...config,
     url: `${baseUrl}/api/v1/ws/market`,
@@ -252,7 +276,7 @@ export function createMarketWebSocket(config: Omit<WebSocketConfig, 'url'>): Web
  * 创建策略信号WebSocket连接
  */
 export function createStrategyWebSocket(config: Omit<WebSocketConfig, 'url'>): WebSocketManager {
-  const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+  const baseUrl = getWsBaseUrl()
   return new WebSocketManager({
     ...config,
     url: `${baseUrl}/api/v1/ws/strategy`,
@@ -263,7 +287,7 @@ export function createStrategyWebSocket(config: Omit<WebSocketConfig, 'url'>): W
  * 创建交易事件WebSocket连接（需要认证）
  */
 export function createTradingWebSocket(token: string, config?: Omit<WebSocketConfig, 'url' | 'token'>): WebSocketManager {
-  const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+  const baseUrl = getWsBaseUrl()
   return new WebSocketManager({
     ...config,
     url: `${baseUrl}/api/v1/ws/trading`,
