@@ -120,13 +120,12 @@ class DatabaseSubscriber(MarketSubscriber):
 
     async def _store_depth(self, data: dict[str, Any]) -> None:
         """存储深度数据"""
-        from datetime import datetime
+        import time
         from quant_trading_system.models.market import Depth
-        from quant_trading_system.services.market.common_utils import TimeUtils
 
         timestamp = data.get("timestamp", 0)
         depth = Depth(
-            timestamp=TimeUtils.timestamp_to_datetime(timestamp) if timestamp else datetime.now(),
+            timestamp=float(timestamp) if timestamp else time.time() * 1000,
             symbol=data.get("symbol", ""),
             exchange=data.get("exchange", ""),
             bids=Depth.parse_levels(data.get("bids", [])),

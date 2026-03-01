@@ -741,12 +741,14 @@ class KLineEngine:
                         buffer = self._buffers[buffer_key][tf]
 
                         # 将历史 K 线逐条写入缓冲区，并可选保存到数据库
+                        # 预先将 datetime64[ms] 数组转为毫秒级整数时间戳，避免逐条 float() 转换报错
+                        ts_ms = bar_array.timestamp.astype("datetime64[ms]").astype(np.int64)
                         for i in range(len(bar_array)):
                             bar = Bar(
                                 symbol=buffer_key,
                                 exchange=exchange,
                                 timeframe=tf,
-                                timestamp=float(bar_array.timestamp[i]),
+                                timestamp=float(ts_ms[i]),
                                 open=float(bar_array.open[i]),
                                 high=float(bar_array.high[i]),
                                 low=float(bar_array.low[i]),

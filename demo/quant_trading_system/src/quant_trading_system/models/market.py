@@ -1,5 +1,4 @@
 from typing import List, Optional
-from datetime import datetime
 from pydantic import BaseModel
 import numpy as np
 
@@ -351,7 +350,7 @@ class DepthLevel(BaseModel):
 
 class Depth(BaseModel):
     """深度数据"""
-    timestamp: datetime
+    timestamp: float  # 毫秒时间戳，与 Bar/Tick 保持一致
     symbol: str
     exchange: str = "unknown"
     bids: List[DepthLevel]  # 买盘深度列表（价格从高到低）

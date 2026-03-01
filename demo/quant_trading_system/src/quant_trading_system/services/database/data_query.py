@@ -313,8 +313,16 @@ class DataQueryService:
                 if not result:
                     return None
 
+                # result[0] 是数据库返回的 datetime 对象，
+                # Bar.timestamp 期望 float（毫秒时间戳），需要转换
+                ts = result[0]
+                if isinstance(ts, datetime):
+                    ts_ms = ts.timestamp() * 1000
+                else:
+                    ts_ms = float(ts)
+
                 return Bar(
-                    timestamp=result[0],
+                    timestamp=ts_ms,
                     open=float(result[1]),
                     high=float(result[2]),
                     low=float(result[3]),

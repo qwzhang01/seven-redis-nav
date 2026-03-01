@@ -251,6 +251,7 @@ async def get_depth(
     depth = orch.strategy_engine._latest_depths.get(symbol)
     if not depth:
         return {"symbol": symbol, "bids": [], "asks": [], "timestamp": 0}
+    # Depth.timestamp 已经是 float 毫秒时间戳，直接使用
     return {
         "symbol": symbol,
         "bids": [{"price": d.price, "volume": d.volume} for d in depth.bids[:limit]],
