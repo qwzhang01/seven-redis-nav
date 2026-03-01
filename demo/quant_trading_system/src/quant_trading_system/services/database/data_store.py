@@ -30,6 +30,11 @@ class DataStore:
         self._tick_buffer: List[Tick] = []
         self._depth_buffer: List[Depth] = []
 
+        # flush锁，防止同一类型数据的并发flush导致死锁
+        self._kline_flush_lock = asyncio.Lock()
+        self._tick_flush_lock = asyncio.Lock()
+        self._depth_flush_lock = asyncio.Lock()
+
         # 后台任务
         self._flush_task: Optional[asyncio.Task] = None
         self._running = False
@@ -112,153 +117,173 @@ class DataStore:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _flush_kline(self) -> None:
-        """刷新K线数据到数据库 - 异步版本"""
-        if not self._kline_buffer:
-            return
+        """刷新K线数据到数据库 - 异步版本
 
-        try:
-            # 准备批量插入数据
-            values = []
-            for bar in self._kline_buffer:
-                turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
-                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
-                bar_datetime = datetime.fromtimestamp(bar.timestamp / 1000)
-                values.append({
-                    "id": generate_snowflake_id(),
-                    "symbol": bar.symbol,
-                    "exchange": bar.exchange,
-                    "timeframe": bar.timeframe.value,
-                    "timestamp": bar_datetime,
-                    "open": float(bar.open),
-                    "high": float(bar.high),
-                    "low": float(bar.low),
-                    "close": float(bar.close),
-                    "volume": float(bar.volume),
-                    "turnover": float(turnover),
-                    "is_closed": bar.is_closed
-                })
+        使用锁防止并发flush，并对数据按唯一键排序以避免死锁。
+        """
+        async with self._kline_flush_lock:
+            if not self._kline_buffer:
+                return
 
-            # 执行异步批量插入
-            query = """
-                INSERT INTO kline_data
-                (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
-                VALUES (:id, :symbol, :exchange, :timeframe, :timestamp, :open, :high, :low, :close, :volume, :turnover, :is_closed)
-                ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
-                    open = EXCLUDED.open,
-                    high = EXCLUDED.high,
-                    low = EXCLUDED.low,
-                    close = EXCLUDED.close,
-                    volume = EXCLUDED.volume,
-                    turnover = EXCLUDED.turnover,
-                    is_closed = EXCLUDED.is_closed,
-                    created_at = EXCLUDED.created_at
-            """
-
-            rowcount = await self.db.execute_many(query, values)
-
-            if rowcount > 0:
-                logger.debug("Kline data processed (inserted or updated)", count=rowcount)
-            else:
-                logger.debug("No kline data processed (all were duplicates with no changes)")
-
-            # 清空缓存
+            # 先取走buffer并清空，避免异常时无限重试相同数据
+            buffer_snapshot = list(self._kline_buffer)
             self._kline_buffer.clear()
 
-        except Exception as e:
-            logger.error("Failed to flush kline data", error=str(e))
-            # 保留数据以便重试
+            try:
+                # 准备批量插入数据
+                values = []
+                for bar in buffer_snapshot:
+                    turnover = bar.volume * bar.close if bar.volume and bar.close else 0.0
+                    # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                    bar_datetime = datetime.fromtimestamp(bar.timestamp / 1000)
+                    values.append({
+                        "id": generate_snowflake_id(),
+                        "symbol": bar.symbol,
+                        "exchange": bar.exchange,
+                        "timeframe": bar.timeframe.value,
+                        "timestamp": bar_datetime,
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": float(bar.volume),
+                        "turnover": float(turnover),
+                        "is_closed": bar.is_closed
+                    })
+
+                # 按唯一键(symbol, exchange, timeframe, timestamp)排序，
+                # 确保所有事务按相同顺序获取行锁，避免死锁
+                values.sort(key=lambda v: (v["symbol"], v["exchange"], v["timeframe"], v["timestamp"]))
+
+                # 执行异步批量插入
+                query = """
+                    INSERT INTO kline_data
+                    (id, symbol, exchange, timeframe, timestamp, open, high, low, close, volume, turnover, is_closed)
+                    VALUES (:id, :symbol, :exchange, :timeframe, :timestamp, :open, :high, :low, :close, :volume, :turnover, :is_closed)
+                    ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
+                        open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
+                        volume = EXCLUDED.volume,
+                        turnover = EXCLUDED.turnover,
+                        is_closed = EXCLUDED.is_closed,
+                        created_at = EXCLUDED.created_at
+                """
+
+                rowcount = await self.db.execute_many(query, values)
+
+                if rowcount > 0:
+                    logger.debug("Kline data processed (inserted or updated)", count=rowcount)
+                else:
+                    logger.debug("No kline data processed (all were duplicates with no changes)")
+
+            except Exception as e:
+                logger.error("Failed to flush kline data", error=str(e), count=len(buffer_snapshot))
 
     async def _flush_tick(self) -> None:
         """刷新实时行情数据到数据库 - 异步版本"""
-        if not self._tick_buffer:
-            return
+        async with self._tick_flush_lock:
+            if not self._tick_buffer:
+                return
 
-        try:
-            values = []
-            for tick in self._tick_buffer:
-                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
-                tick_datetime = datetime.fromtimestamp(tick.timestamp / 1000)
-                values.append({
-                    "id": generate_snowflake_id(),
-                    "symbol": tick.symbol,
-                    "exchange": tick.exchange,
-                    "timestamp": tick_datetime,
-                    "price": float(tick.price),
-                    "volume": float(tick.volume),
-                    "bid_price": float(tick.bid) if tick.bid else None,
-                    "ask_price": float(tick.ask) if tick.ask else None,
-                    "bid_size": None,
-                    "ask_size": None
-                })
-
-            query = """
-                INSERT INTO tick_data
-                (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
-                VALUES (:id, :symbol, :exchange, :timestamp, :price, :volume, :bid_price, :ask_price, :bid_size, :ask_size)
-                ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
-                    price = EXCLUDED.price,
-                    volume = EXCLUDED.volume,
-                    bid_price = EXCLUDED.bid_price,
-                    ask_price = EXCLUDED.ask_price,
-                    bid_size = EXCLUDED.bid_size,
-                    ask_size = EXCLUDED.ask_size,
-                    created_at = EXCLUDED.created_at
-            """
-
-            rowcount = await self.db.execute_many(query, values)
-
-            if rowcount > 0:
-                logger.debug("Tick data processed (inserted or updated)", count=rowcount)
-            else:
-                logger.debug("No tick data processed (all were duplicates with no changes)")
-
+            # 先取走buffer并清空
+            buffer_snapshot = list(self._tick_buffer)
             self._tick_buffer.clear()
 
-        except Exception as e:
-            logger.error("Failed to flush tick data", error=str(e))
+            try:
+                values = []
+                for tick in buffer_snapshot:
+                    # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                    tick_datetime = datetime.fromtimestamp(tick.timestamp / 1000)
+                    values.append({
+                        "id": generate_snowflake_id(),
+                        "symbol": tick.symbol,
+                        "exchange": tick.exchange,
+                        "timestamp": tick_datetime,
+                        "price": float(tick.price),
+                        "volume": float(tick.volume),
+                        "bid_price": float(tick.bid) if tick.bid else None,
+                        "ask_price": float(tick.ask) if tick.ask else None,
+                        "bid_size": None,
+                        "ask_size": None
+                    })
+
+                # 按唯一键排序，避免死锁
+                values.sort(key=lambda v: (v["symbol"], v["exchange"], v["timestamp"]))
+
+                query = """
+                    INSERT INTO tick_data
+                    (id, symbol, exchange, timestamp, price, volume, bid_price, ask_price, bid_size, ask_size)
+                    VALUES (:id, :symbol, :exchange, :timestamp, :price, :volume, :bid_price, :ask_price, :bid_size, :ask_size)
+                    ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
+                        price = EXCLUDED.price,
+                        volume = EXCLUDED.volume,
+                        bid_price = EXCLUDED.bid_price,
+                        ask_price = EXCLUDED.ask_price,
+                        bid_size = EXCLUDED.bid_size,
+                        ask_size = EXCLUDED.ask_size,
+                        created_at = EXCLUDED.created_at
+                """
+
+                rowcount = await self.db.execute_many(query, values)
+
+                if rowcount > 0:
+                    logger.debug("Tick data processed (inserted or updated)", count=rowcount)
+                else:
+                    logger.debug("No tick data processed (all were duplicates with no changes)")
+
+            except Exception as e:
+                logger.error("Failed to flush tick data", error=str(e), count=len(buffer_snapshot))
 
     async def _flush_depth(self) -> None:
         """刷新深度数据到数据库 - 异步版本"""
-        if not self._depth_buffer:
-            return
+        async with self._depth_flush_lock:
+            if not self._depth_buffer:
+                return
 
-        try:
-            values = []
-            for depth in self._depth_buffer:
-                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
-                depth_datetime = datetime.fromtimestamp(depth.timestamp / 1000)
-                values.append({
-                    "id": generate_snowflake_id(),
-                    "symbol": depth.symbol,
-                    "exchange": depth.exchange,
-                    "timestamp": depth_datetime,
-                    "bids": json.dumps([d.to_list() for d in depth.bids]) if depth.bids else None,
-                    "asks": json.dumps([d.to_list() for d in depth.asks]) if depth.asks else None,
-                    "sequence": depth.sequence
-                })
-
-            query = """
-                INSERT INTO depth_data
-                (id, symbol, exchange, timestamp, bids, asks, sequence)
-                VALUES (:id, :symbol, :exchange, :timestamp, :bids, :asks, :sequence)
-                ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
-                    bids = EXCLUDED.bids,
-                    asks = EXCLUDED.asks,
-                    sequence = EXCLUDED.sequence,
-                    created_at = EXCLUDED.created_at
-            """
-
-            rowcount = await self.db.execute_many(query, values)
-
-            if rowcount > 0:
-                logger.debug("Depth data processed (inserted or updated)", count=rowcount)
-            else:
-                logger.debug("No depth data processed (all were duplicates with no changes)")
-
+            # 先取走buffer并清空
+            buffer_snapshot = list(self._depth_buffer)
             self._depth_buffer.clear()
 
-        except Exception as e:
-            logger.error("Failed to flush depth data", error=str(e))
+            try:
+                values = []
+                for depth in buffer_snapshot:
+                    # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
+                    depth_datetime = datetime.fromtimestamp(depth.timestamp / 1000)
+                    values.append({
+                        "id": generate_snowflake_id(),
+                        "symbol": depth.symbol,
+                        "exchange": depth.exchange,
+                        "timestamp": depth_datetime,
+                        "bids": json.dumps([d.to_list() for d in depth.bids]) if depth.bids else None,
+                        "asks": json.dumps([d.to_list() for d in depth.asks]) if depth.asks else None,
+                        "sequence": depth.sequence
+                    })
+
+                # 按唯一键排序，避免死锁
+                values.sort(key=lambda v: (v["symbol"], v["exchange"], v["timestamp"]))
+
+                query = """
+                    INSERT INTO depth_data
+                    (id, symbol, exchange, timestamp, bids, asks, sequence)
+                    VALUES (:id, :symbol, :exchange, :timestamp, :bids, :asks, :sequence)
+                    ON CONFLICT (symbol, exchange, timestamp) DO UPDATE SET
+                        bids = EXCLUDED.bids,
+                        asks = EXCLUDED.asks,
+                        sequence = EXCLUDED.sequence,
+                        created_at = EXCLUDED.created_at
+                """
+
+                rowcount = await self.db.execute_many(query, values)
+
+                if rowcount > 0:
+                    logger.debug("Depth data processed (inserted or updated)", count=rowcount)
+                else:
+                    logger.debug("No depth data processed (all were duplicates with no changes)")
+
+            except Exception as e:
+                logger.error("Failed to flush depth data", error=str(e), count=len(buffer_snapshot))
 
     async def _flush_loop(self) -> None:
         """定时刷新循环"""
