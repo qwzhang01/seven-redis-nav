@@ -223,8 +223,8 @@ class ExchangeSettings(BaseSettings):
 
     # 行情数据同步开关（控制是否订阅和同步对应类型的行情数据）
     sync_kline: bool = True    # 是否同步K线数据
-    sync_tick: bool = True     # 是否同步Tick数据（逐笔成交/Ticker）
-    sync_depth: bool = True    # 是否同步深度数据
+    sync_tick: bool = False     # 是否同步Tick数据（逐笔成交/Ticker）
+    sync_depth: bool = False    # 是否同步深度数据
 
 
 class SecuritySettings(BaseSettings):

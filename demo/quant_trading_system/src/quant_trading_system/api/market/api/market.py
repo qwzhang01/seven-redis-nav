@@ -16,7 +16,6 @@
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
 
 from quant_trading_system.core.enums import KlineInterval, DefaultTradingPair
 
@@ -40,99 +39,6 @@ TIMEFRAME_MAP = {
 # 合法枚举值
 VALID_EXCHANGES = {"binance", "bybit", "bitget"}
 VALID_MARKET_TYPES = {"spot", "futures", "margin"}
-
-
-class SubscribeRequest(BaseModel):
-    """
-    行情订阅请求数据模型
-
-    参数说明：
-    - symbols: 要订阅的交易对列表
-    - exchange: 交易所名称，默认币安
-    - market_type: 市场类型，默认现货
-    """
-    symbols: list[str]
-    exchange: str = "binance"
-    market_type: str = "spot"
-
-    def validate(self) -> None:
-        """验证请求参数"""
-        if not self.symbols:
-            raise ValueError("交易对列表不能为空")
-        if self.exchange.lower() not in VALID_EXCHANGES:
-            raise ValueError(f"不支持的交易所: {self.exchange}")
-        if self.market_type.lower() not in VALID_MARKET_TYPES:
-            raise ValueError(f"不支持的市场类型: {self.market_type}")
-
-
-@router.post("/subscribe")
-async def subscribe_market(
-    request: SubscribeRequest,
-    orch=Depends(get_orchestrator_dep),
-) -> dict[str, Any]:
-    """
-    订阅行情数据
-
-    向市场服务订阅指定交易对的实时行情数据。
-
-    参数：
-    - request: 订阅请求参数
-
-    返回：
-    - success: 操作是否成功
-    - message: 操作结果描述
-    - symbols: 已订阅的交易对列表
-    """
-    try:
-        request.validate()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    await orch.market_service.subscribe(
-        symbols=request.symbols,
-        exchange=request.exchange,
-        market_type=request.market_type,
-    )
-    return {
-        "success": True,
-        "message": f"已订阅 {len(request.symbols)} 个交易对",
-        "symbols": request.symbols,
-    }
-
-
-@router.post("/unsubscribe")
-async def unsubscribe_market(
-    request: SubscribeRequest,
-    orch=Depends(get_orchestrator_dep),
-) -> dict[str, Any]:
-    """
-    取消行情订阅
-
-    取消对指定交易对的行情数据订阅。
-
-    参数：
-    - request: 取消订阅请求参数
-
-    返回：
-    - success: 操作是否成功
-    - message: 操作结果描述
-    - symbols: 已取消订阅的交易对列表
-    """
-    try:
-        request.validate()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    await orch.market_service.unsubscribe(
-        symbols=request.symbols,
-        exchange=request.exchange,
-        market_type=request.market_type,
-    )
-    return {
-        "success": True,
-        "message": f"已取消订阅 {len(request.symbols)} 个交易对",
-        "symbols": request.symbols,
-    }
 
 
 @router.get("/kline/{symbol}")
