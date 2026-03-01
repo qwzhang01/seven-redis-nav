@@ -358,10 +358,11 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     # 环境配置
-    env: str = "development"  # development, testing, production
+    env: str = Field(default="development", alias="ENVIRONMENT")  # development, testing, production
     debug: bool = True
 
     # 系统名称
