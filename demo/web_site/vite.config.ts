@@ -60,6 +60,7 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+        ws: true, // 同时代理 WebSocket 请求
       },
     },
   },
