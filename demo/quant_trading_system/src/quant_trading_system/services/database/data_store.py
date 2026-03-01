@@ -225,13 +225,12 @@ class DataStore:
         try:
             values = []
             for depth in self._depth_buffer:
-                # 将毫秒时间戳转换为datetime对象，数据库timestamp列需要datetime类型
-                depth_datetime = datetime.fromtimestamp(depth.timestamp / 1000)
+                # Depth.timestamp 已经是 datetime 类型，直接使用
                 values.append({
                     "id": generate_snowflake_id(),
                     "symbol": depth.symbol,
                     "exchange": depth.exchange,
-                    "timestamp": depth_datetime,
+                    "timestamp": depth.timestamp,
                     "bids": json.dumps([d.to_list() for d in depth.bids]) if depth.bids else None,
                     "asks": json.dumps([d.to_list() for d in depth.asks]) if depth.asks else None,
                     "sequence": depth.sequence
