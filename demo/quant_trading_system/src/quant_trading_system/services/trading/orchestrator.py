@@ -144,7 +144,8 @@ class TradingOrchestrator:
         # ---- 状态 ----
         self._running = False
         self._strategy_ids: list[str] = []
-        self._subscribed_symbols: list[str] = []
+        self._subscribed_symbols: list[str] = []  # 实际已通过 WebSocket 订阅的交易对
+        self._strategy_symbols: list[str] = []    # 策略关注但尚未订阅的交易对
 
     # ------------------------------------------------------------------
     # 启动 / 停止
@@ -251,10 +252,10 @@ class TradingOrchestrator:
         strategy_id = self.strategy_engine.add_strategy(instance)
         self._strategy_ids.append(strategy_id)
 
-        # 收集需要订阅的 symbol
+        # 收集策略关注的 symbol（仅记录，不实际订阅）
         for sym in instance.symbols:
-            if sym not in self._subscribed_symbols:
-                self._subscribed_symbols.append(sym)
+            if sym not in self._strategy_symbols:
+                self._strategy_symbols.append(sym)
 
         return strategy_id
 
@@ -291,32 +292,44 @@ class TradingOrchestrator:
 
     async def subscribe_market(self) -> None:
         """订阅所有策略关注的交易对行情"""
-        if self._subscribed_symbols:
+        # 找出尚未实际订阅的策略交易对
+        new_symbols = [
+            sym for sym in self._strategy_symbols
+            if sym not in self._subscribed_symbols
+        ]
+        if new_symbols:
             await self.market_service.subscribe(
-                symbols=self._subscribed_symbols,
+                symbols=new_symbols,
                 exchange=self.exchange,
                 market_type=self.market_type,
             )
+            self._subscribed_symbols.extend(new_symbols)
             logger.info(
                 "Subscribed market data",
-                symbols=self._subscribed_symbols,
+                symbols=new_symbols,
             )
 
     async def subscribe_default_symbols(self) -> None:
         """
         订阅系统默认交易对的实时行情（WS）
 
-        从 DefaultTradingPair 枚举读取配置，自动订阅尚未订阅的交易对。
+        从 DefaultTradingPair 枚举读取配置，合并策略关注的交易对，
+        自动订阅尚未订阅的交易对。
         """
-        default_symbols = DefaultTradingPair.values()
+        # 合并默认交易对和策略关注的交易对
+        all_symbols = list(DefaultTradingPair.values())
+        for sym in self._strategy_symbols:
+            if sym not in all_symbols:
+                all_symbols.append(sym)
+
         new_symbols = [
-            sym for sym in default_symbols
+            sym for sym in all_symbols
             if sym not in self._subscribed_symbols
         ]
 
         if not new_symbols:
             logger.info("All default symbols already subscribed",
-                       symbols=default_symbols)
+                       symbols=all_symbols)
             return
 
         await self.market_service.subscribe(
