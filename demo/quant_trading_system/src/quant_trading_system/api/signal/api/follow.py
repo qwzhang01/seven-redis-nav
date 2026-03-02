@@ -55,7 +55,7 @@ class UpdateFollowConfigRequest(BaseModel):
 
 class CreateFollowRequest(BaseModel):
     """创建跟单请求"""
-    strategyId: str = Field(..., description="要跟单的策略ID")
+    signalId: str = Field(..., description="要跟单的信号ID")
     signalName: str = Field(..., description="信号/策略名称")
     exchange: str = Field("binance", description="交易所")
     followAmount: float = Field(..., gt=0, description="跟单资金(USDT)")
@@ -87,7 +87,7 @@ async def create_follow(
             db,
             user_id=current_user.id,
             username=current_user.username,
-            strategy_id=body.strategyId,
+            signal_id=body.signalId,
             signal_name=body.signalName,
             exchange=body.exchange,
             follow_amount=body.followAmount,

@@ -347,10 +347,10 @@ export interface FollowListItem {
 
 /** 跟单列表响应 */
 export interface FollowListResponse {
-  items: FollowListItem[]
+  records: FollowListItem[]
   total: number
   page: number
-  pages: number
+  pageSize: number
 }
 
 // ==================== 跟单详情相关类型 ====================

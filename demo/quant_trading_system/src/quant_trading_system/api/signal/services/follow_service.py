@@ -36,7 +36,7 @@ class FollowService:
         db: Session,
         user_id: int,
         username: str,
-        strategy_id: str,
+        signal_id: str,
         signal_name: str,
         exchange: str = "binance",
         follow_amount: float = 0,
@@ -50,7 +50,7 @@ class FollowService:
             db: 数据库会话
             user_id: 用户ID
             username: 用户名
-            strategy_id: 要跟单的策略ID
+            signal_id: 要跟单的信号ID
             signal_name: 信号/策略名称
             exchange: 交易所（默认 binance）
             follow_amount: 跟单资金（USDT）
@@ -74,7 +74,7 @@ class FollowService:
         # 检查是否已存在相同策略的活跃跟单
         existing = db.query(SignalFollowOrder).filter(
             SignalFollowOrder.user_id == user_id,
-            SignalFollowOrder.strategy_id == strategy_id,
+            SignalFollowOrder.strategy_id == signal_id,
             SignalFollowOrder.status == "following",
             SignalFollowOrder.enable_flag == True,
         ).first()
@@ -85,7 +85,7 @@ class FollowService:
         order = SignalFollowOrder(
             id=generate_snowflake_id(),
             user_id=user_id,
-            strategy_id=strategy_id,
+            strategy_id=signal_id,
             signal_name=signal_name,
             exchange=exchange,
             follow_amount=follow_amount,

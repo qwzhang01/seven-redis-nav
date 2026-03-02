@@ -280,6 +280,7 @@ class SignalFollowOrder(Base):
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    # 信号id 不是策略ID
     strategy_id = Column(String(128), nullable=False)
     signal_name = Column(String(256), nullable=False)
     exchange = Column(String(32), nullable=False, default="binance")

@@ -88,62 +88,6 @@
               </div>
             </div>
 
-            <!-- K线+指标+买卖点综合图表 -->
-            <div class="rounded-xl bg-dark-800/30 p-4 mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-medium text-dark-100">K线行情</h3>
-                <div class="flex items-center gap-3">
-                  <div class="flex gap-1">
-                    <button 
-                      v-for="tf in timeframeOptions" 
-                      :key="tf"
-                      @click="selectedPeriod = tf"
-                      class="px-2 py-1 text-xs rounded transition-colors"
-                      :class="selectedPeriod === tf ? 'bg-primary-500 text-white' : 'text-dark-100 hover:text-white'"
-                    >
-                      {{ tf }}
-                    </button>
-                  </div>
-                  <div class="flex gap-1">
-                    <button 
-                      v-for="ind in availableIndicators" 
-                      :key="ind.key"
-                      @click="toggleIndicator(ind.key)"
-                      class="px-2 py-1 text-xs rounded transition-colors"
-                      :class="activeIndicators.includes(ind.key) ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-dark-800/50 text-dark-200 hover:text-white'"
-                    >
-                      {{ ind.label }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <TradingChart
-                :kline-data="klineData"
-                :indicators="chartIndicators"
-                :trade-marks="followTradeMarks"
-                :height="480"
-                :show-volume="true"
-              />
-              <div class="flex items-center gap-6 mt-3 text-xs text-dark-200">
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>
-                  买入
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
-                  卖出
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-0.5 bg-amber-400 inline-block"></span>
-                  MA7
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-0.5 bg-blue-400 inline-block"></span>
-                  MA25
-                </span>
-              </div>
-            </div>
-
             <!-- 交易点位标记 -->
             <div class="space-y-3">
               <h3 class="text-sm font-medium text-white flex items-center gap-2">
@@ -180,6 +124,71 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- K线行情 + 指标 + 买卖点综合图表 -->
+          <div class="glass-card p-8">
+            <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <BarChart3 :size="18" class="text-primary-400" />
+              K线行情与交易信号
+            </h2>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="flex gap-1">
+                <button 
+                  v-for="tf in timeframeOptions" 
+                  :key="tf"
+                  @click="selectedPeriod = tf"
+                  class="px-3 py-1.5 text-xs rounded-lg transition-colors"
+                  :class="selectedPeriod === tf ? 'bg-primary-500 text-white' : 'bg-dark-800/50 text-dark-100 hover:text-white'"
+                >
+                  {{ tf }}
+                </button>
+              </div>
+              <div class="flex items-center gap-2 ml-auto">
+                <span class="text-xs text-dark-200">指标:</span>
+                <button 
+                  v-for="ind in availableIndicators" 
+                  :key="ind.key"
+                  @click="toggleIndicator(ind.key)"
+                  class="px-2 py-1 text-xs rounded transition-colors"
+                  :class="activeIndicators.includes(ind.key) ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-dark-800/50 text-dark-200 hover:text-white'"
+                >
+                  {{ ind.label }}
+                </button>
+              </div>
+            </div>
+            <div class="rounded-xl bg-dark-800/30 overflow-hidden">
+              <TradingChart
+                ref="tradingChartRef"
+                :kline-data="klineData"
+                :indicators="chartIndicators"
+                :trade-marks="followTradeMarks"
+                :height="520"
+                :show-volume="true"
+              />
+            </div>
+            <div class="flex items-center gap-6 mt-3 text-xs text-dark-200">
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>
+                买入信号
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+                卖出信号
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-0.5 bg-amber-400 inline-block"></span>
+                MA7
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-0.5 bg-blue-400 inline-block"></span>
+                MA25
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-0.5 bg-purple-400 inline-block"></span>
+                MA99
+              </span>
             </div>
           </div>
 
@@ -495,7 +504,7 @@ v-for="trade in tradeHistory"
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { 
@@ -508,7 +517,13 @@ import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import TradingChart from '@/components/charts/TradingChart.vue'
 import DualReturnChart from '@/components/charts/DualReturnChart.vue'
 import PositionPieChart from '@/components/charts/PositionPieChart.vue'
-import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/types'
+import type { KlineDataPoint, IndicatorData, TradeMarkData, WSMessage } from '@/types'
+import {
+  createMarketWebSocket,
+  klineChannel,
+  tickerChannel,
+  type WebSocketManager,
+} from '@/utils/websocketApi'
 import {
   getFollowDetail,
   getFollowComparison,
@@ -531,6 +546,9 @@ const route = useRoute()
 const router = useRouter()
 const followId = computed(() => route.params.id as string)
 
+// TradingChart 组件引用（用于调用 appendKline 实时更新）
+const tradingChartRef = ref<InstanceType<any> | null>(null)
+
 // ==================== 响应式数据 ====================
 
 const followDetail = ref<FollowDetailResponse | null>(null)
@@ -539,6 +557,12 @@ const tradeHistory = ref<FollowTradeRecord[]>([])
 const eventLog = ref<FollowEvent[]>([])
 const positionsData = ref<FollowPositionsResponse | null>(null)
 const loading = ref(false)
+
+// 组件卸载标志位，防止异步回调在组件销毁后更新状态
+const isUnmounted = ref(false)
+
+// K线数据加载中标志位，防止切换周期时 WebSocket 推送与图表重建产生竞态
+const isKlineLoading = ref(false)
 
 // ==================== 数据加载 ====================
 
@@ -596,17 +620,19 @@ async function fetchPositions() {
 /** 加载K线数据 */
 async function fetchKlineData() {
   if (!followDetail.value) return
+  isKlineLoading.value = true
   try {
-    const intervalMap: Record<string, string> = { '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
-    // 从信号名推测交易对，实际应从API获取
-    const symbol = 'BTC/USDT'
-    const res = await getKlineData({
-      symbol,
-      interval: intervalMap[selectedPeriod.value] || '1d',
+    const intervalMap: Record<string, string> = { '1m': '1m', '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
+    const rawData = await getKlineData({
+      symbol: followDetail.value.tradingPair || 'BTC/USDT',
+      interval: intervalMap[selectedPeriod.value] || '1h',
       limit: 200,
     })
-    klineData.value = (res || []).map((item: any) => ({
-      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
+    if (isUnmounted.value) return
+    // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
+    // 时间戳从 UTC 转换为东八区（UTC+8），加上 8 小时的秒数偏移
+    klineData.value = rawData.map((item: any) => ({
+      time: (item.time ?? Math.floor((item.timestamp || 0) / 1000)) + 8 * 3600,
       open: item.open,
       high: item.high,
       low: item.low,
@@ -615,7 +641,9 @@ async function fetchKlineData() {
     }))
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
-    klineData.value = generateMockKline()
+    if (!isUnmounted.value) klineData.value = generateMockKline()
+  } finally {
+    if (!isUnmounted.value) isKlineLoading.value = false
   }
 }
 
@@ -636,27 +664,186 @@ function handleAdjustSettings() {
   MessagePlugin.info('调整设置功能即将上线')
 }
 
+// ==================== 实时行情 WebSocket ====================
+
+let marketWs: WebSocketManager | null = null
+// 当前订阅的K线频道（切换周期时需要取消旧的、订阅新的）
+let currentKlineChannel = ''
+
+/**
+ * 将交易对格式化为WebSocket频道所需的symbol格式
+ * 规则：去掉 `/` 和 `-`，保留 `_`
+ * 例如：BTC/USDT → BTCUSDT, ETH-USDT → ETHUSDT
+ */
+function formatSymbolForChannel(tradingPair: string): string {
+  return tradingPair.replace(/[\/\-]/g, '')
+}
+
+/**
+ * 将页面时间周期选项映射为WebSocket K线频道的 timeframe 格式
+ */
+function mapTimeframeForWs(tf: string): string {
+  const map: Record<string, string> = {
+    '1m': '1m',
+    '15m': '15m',
+    '1H': '1h',
+    '4H': '4h',
+    '1D': '1d',
+    '1W': '1w',
+  }
+  return map[tf] || '1h'
+}
+
+/**
+ * 初始化行情 WebSocket 连接
+ */
+function initMarketWebSocket() {
+  if (!followDetail.value) return
+
+  const tradingPair = followDetail.value.tradingPair || 'BTC/USDT'
+  const wsSymbol = formatSymbolForChannel(tradingPair)
+  const wsTf = mapTimeframeForWs(selectedPeriod.value)
+  currentKlineChannel = klineChannel(wsSymbol, wsTf)
+
+  marketWs = createMarketWebSocket({
+    onMessage: (msg: WSMessage) => {
+      // 如果组件已卸载，忽略所有 WebSocket 消息
+      if (isUnmounted.value) return
+
+      switch (msg.type) {
+        case 'connected':
+          console.log('[FollowDetail] 行情WebSocket已连接，开始订阅频道')
+          // 连接成功后订阅 ticker 和当前周期 kline
+          marketWs?.subscribe([
+            tickerChannel(wsSymbol),
+            currentKlineChannel,
+          ])
+          break
+
+        case 'subscribed':
+          console.log('[FollowDetail] 频道订阅成功:', msg.channels)
+          break
+
+        case 'kline':
+          // 实时K线更新（K线数据加载中时跳过，防止新旧数据混合导致图表崩溃）
+          if (msg.channel === currentKlineChannel && msg.data && !isKlineLoading.value) {
+            const kline = msg.data
+            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级，并加上东八区偏移（+8h）
+            const klinePoint: KlineDataPoint = {
+              time: Math.floor(kline.timestamp / 1000) + 8 * 3600,
+              open: kline.open,
+              high: kline.high,
+              low: kline.low,
+              close: kline.close,
+              volume: kline.volume || 0,
+            }
+            // 通过 TradingChart 暴露的 appendKline 方法实时更新图表
+            tradingChartRef.value?.appendKline(klinePoint)
+          }
+          break
+
+        case 'ticker':
+          // 实时Ticker更新 — 更新持仓现价和盈亏
+          if (msg.data && followDetail.value?.positions) {
+            const tickerSymbol = msg.data.symbol // 如 "BTC/USDT"
+            followDetail.value.positions.forEach(pos => {
+              if (pos.symbol === tickerSymbol) {
+                pos.currentPrice = msg.data.last_price
+                // 重新计算盈亏百分比
+                if (pos.entryPrice > 0) {
+                  const direction = pos.side === 'long' ? 1 : -1
+                  pos.pnlPercent = direction * ((pos.currentPrice - pos.entryPrice) / pos.entryPrice) * 100
+                  pos.pnl = direction * (pos.currentPrice - pos.entryPrice) * pos.amount
+                }
+              }
+            })
+          }
+          break
+
+        case 'error':
+          console.error('[FollowDetail] 行情WebSocket错误:', msg.message)
+          break
+      }
+    },
+    onClose: (event) => {
+      console.log('[FollowDetail] 行情WebSocket断开:', event.code)
+    },
+  })
+
+  marketWs.connect()
+}
+
+/**
+ * 切换K线周期时，重新订阅对应频道
+ */
+function switchKlineChannel() {
+  if (!marketWs?.isConnected || !followDetail.value) return
+
+  const tradingPair = followDetail.value.tradingPair || 'BTC/USDT'
+  const wsSymbol = formatSymbolForChannel(tradingPair)
+  const wsTf = mapTimeframeForWs(selectedPeriod.value)
+  const newChannel = klineChannel(wsSymbol, wsTf)
+
+  if (newChannel === currentKlineChannel) return
+
+  // 取消旧的K线频道订阅
+  if (currentKlineChannel) {
+    marketWs.unsubscribe([currentKlineChannel])
+  }
+  // 订阅新的K线频道
+  currentKlineChannel = newChannel
+  marketWs.subscribe([currentKlineChannel])
+}
+
+/**
+ * 断开行情 WebSocket 连接
+ */
+function disconnectMarketWebSocket() {
+  if (marketWs) {
+    marketWs.disconnect()
+    marketWs = null
+  }
+  currentKlineChannel = ''
+}
+
 // 初始化加载
 onMounted(async () => {
   await fetchFollowDetail()
-  fetchComparison()
-  fetchTrades()
-  fetchEvents()
-  fetchPositions()
-  fetchKlineData()
+  // 若组件在 fetchFollowDetail 期间已被卸载，则跳过后续操作
+  if (isUnmounted.value) return
+
+  // 使用 Promise.allSettled 管理并行请求，确保所有请求完成后再决定后续操作
+  await Promise.allSettled([
+    fetchComparison(),
+    fetchTrades(),
+    fetchEvents(),
+    fetchPositions(),
+    fetchKlineData(),
+  ])
+
+  // 所有数据加载完成后，如果组件仍然存活，才初始化 WebSocket
+  if (!isUnmounted.value) {
+    initMarketWebSocket()
+  }
+})
+
+// 组件销毁时设置标志位并断开 WebSocket
+onBeforeUnmount(() => {
+  isUnmounted.value = true
+  disconnectMarketWebSocket()
 })
 
 // ==================== K线图表相关 ====================
 
-const selectedPeriod = ref('1D')
-const timeframeOptions = ['15m', '1H', '4H', '1D', '1W']
+const selectedPeriod = ref('1H')
+const timeframeOptions = ['1m', '15m', '1H', '4H', '1D', '1W']
 
 const availableIndicators = [
   { key: 'ma', label: 'MA' },
   { key: 'macd', label: 'MACD' },
   { key: 'rsi', label: 'RSI' },
 ]
-const activeIndicators = ref<string[]>(['ma'])
+const activeIndicators = ref<string[]>(['ma', 'macd'])
 
 function toggleIndicator(key: string) {
   const idx = activeIndicators.value.indexOf(key)
@@ -667,9 +854,17 @@ function toggleIndicator(key: string) {
   }
 }
 
-// 时间周期切换时重新加载K线
-watch(selectedPeriod, () => {
-  fetchKlineData()
+// 时间周期切换时重新加载K线，并切换WebSocket频道订阅（复用连接）
+// 注意：必须先等待 K线数据加载完成后再切换 WebSocket 频道，
+// 否则新频道的实时推送会在图表尚未重建完成时触发 appendKline，导致 lightweight-charts 内部 null 引用错误
+watch(selectedPeriod, async () => {
+  if (isUnmounted.value) return
+  // 1. 先加载新周期的 K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息会被忽略）
+  await fetchKlineData()
+  // 2. 数据加载完成、图表已更新后，再切换 WebSocket 订阅频道
+  if (!isUnmounted.value) {
+    switchKlineChannel()
+  }
 })
 
 // 生成模拟K线数据（作为后备方案）
@@ -771,6 +966,7 @@ const chartIndicators = computed<IndicatorData[]>(() => {
     indicators.push(
       { name: 'MA7', type: 'line', color: '#f59e0b', pane: 'main', data: calcMA(data, 7) },
       { name: 'MA25', type: 'line', color: '#3b82f6', pane: 'main', data: calcMA(data, 25) },
+      { name: 'MA99', type: 'line', color: '#a855f7', pane: 'main', data: calcMA(data, 99) },
     )
   }
   if (activeIndicators.value.includes('macd')) {
