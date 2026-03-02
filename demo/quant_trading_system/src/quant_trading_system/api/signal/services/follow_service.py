@@ -6,7 +6,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -81,7 +81,7 @@ class FollowService:
         if existing:
             raise ValueError("已存在该策略的活跃跟单，请先停止后再创建")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         order = SignalFollowOrder(
             id=generate_snowflake_id(),
             user_id=user_id,
@@ -179,7 +179,7 @@ class FollowService:
         for order in orders:
             follow_days = 0
             if order.start_time:
-                follow_days = (datetime.utcnow() - order.start_time).days
+                follow_days = (datetime.now(timezone.utc) - order.start_time).days
 
             records.append({
                 "id": str(order.id),
@@ -236,7 +236,7 @@ class FollowService:
 
         follow_days = 0
         if order.start_time:
-            follow_days = (datetime.utcnow() - order.start_time).days
+                follow_days = (datetime.now(timezone.utc) - order.start_time).days
 
         # 获取持仓列表
         positions = db.query(SignalFollowPosition).filter(
@@ -598,7 +598,7 @@ class FollowService:
         if order.status == "stopped":
             raise ValueError("跟单已停止，无法修改配置")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         changes = {}
 
         if follow_ratio is not None:
@@ -670,7 +670,7 @@ class FollowService:
         if order.status == "stopped":
             raise ValueError("跟单已停止")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         order.status = "stopped"
         order.stop_time = now
         order.update_time = now
@@ -753,8 +753,8 @@ class FollowService:
             type_label=type_labels.get(event_type, "其他"),
             message=message,
             event_meta=event_meta,
-            event_time=datetime.utcnow(),
-            create_time=datetime.utcnow(),
+            event_time=datetime.now(timezone.utc),
+            create_time=datetime.now(timezone.utc),
         )
         db.add(event)
         db.commit()

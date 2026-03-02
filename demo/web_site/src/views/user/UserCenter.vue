@@ -295,7 +295,7 @@ async function fetchFollowList() {
       pageSize: signalPageSize,
       status: statusParam,
     })
-    userSignals.value = res.items || []
+    userSignals.value = res.records || []
     signalTotal.value = res.total || 0
   } catch (e) {
     console.error('获取跟单列表失败', e)
