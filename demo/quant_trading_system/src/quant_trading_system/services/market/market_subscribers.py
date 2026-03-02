@@ -19,6 +19,7 @@ from typing import Any
 
 import structlog
 
+from quant_trading_system.core import settings
 from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.services.market.market_event_bus import (
     MarketEvent,
@@ -82,6 +83,9 @@ class DatabaseSubscriber(MarketSubscriber):
             await self._store_historical_kline(event.data)
 
     async def _store_tick(self, data: dict[str, Any]) -> None:
+        if not settings.SYNC_TICK:
+            return
+
         """存储 Tick 数据"""
         from quant_trading_system.models.market import Tick
 
@@ -98,6 +102,9 @@ class DatabaseSubscriber(MarketSubscriber):
         await self._data_store.store_tick(tick)
 
     async def _store_kline(self, data: dict[str, Any]) -> None:
+        if not settings.SYNC_KLINE:
+            return
+
         """存储 K线数据（仅已闭合的K线）"""
         if not data.get("is_closed", False):
             return
@@ -119,6 +126,9 @@ class DatabaseSubscriber(MarketSubscriber):
         await self._data_store.store_kline(bar)
 
     async def _store_depth(self, data: dict[str, Any]) -> None:
+        if not settings.SYNC_DEPTH:
+            return
+
         """存储深度数据"""
         import time
         from quant_trading_system.models.market import Depth

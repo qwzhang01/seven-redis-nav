@@ -363,7 +363,7 @@ watch(
 watch(
   () => props.indicators,
   (data) => {
-    if (data.length > 0) updateIndicators(data)
+    updateIndicators(data)
   },
   { deep: true }
 )

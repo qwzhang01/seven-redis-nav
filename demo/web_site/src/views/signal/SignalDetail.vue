@@ -647,6 +647,9 @@ const drawdownStatsData = ref<{ current: number; max: number; avg: number }>({ c
 
 const loading = ref(false)
 
+// 组件卸载标志位，防止异步回调在组件销毁后更新状态
+const isUnmounted = ref(false)
+
 const followConfig = ref({
   exchange: '',
   amount: 1000,
@@ -674,19 +677,23 @@ const exchangeLabel = computed(() => {
 async function fetchSignalDetail() {
   loading.value = true
   try {
-    signal.value = await getSignalDetail(signalId.value)
+    const result = await getSignalDetail(signalId.value)
+    if (isUnmounted.value) return
+    signal.value = result
   } catch (e) {
     console.error('获取信号详情失败', e)
-    signal.value = null
+    if (!isUnmounted.value) signal.value = null
   } finally {
-    loading.value = false
+    if (!isUnmounted.value) loading.value = false
   }
 }
 
 /** 加载信号提供者信息 */
 async function fetchProvider() {
   try {
-    signalProvider.value = await getSignalProvider(signalId.value)
+    const result = await getSignalProvider(signalId.value)
+    if (isUnmounted.value) return
+    signalProvider.value = result
   } catch (e) {
     console.error('获取提供者信息失败', e)
   }
@@ -696,6 +703,7 @@ async function fetchProvider() {
 async function fetchHistory() {
   try {
     const res = await getSignalHistory(signalId.value, { page: 1, pageSize: 10 })
+    if (isUnmounted.value) return
     signalHistory.value = res.records || []
   } catch (e) {
     console.error('获取信号历史失败', e)
@@ -706,6 +714,7 @@ async function fetchHistory() {
 async function fetchMonthlyReturns() {
   try {
     const res = await getSignalMonthlyReturns(signalId.value, { months: 12 })
+    if (isUnmounted.value) return
     monthlyReturnData.value = (res.monthly_returns || []).map(m => m.return_rate * 100)
     monthlyReturnLabels.value = (res.monthly_returns || []).map(m => m.month)
   } catch (e) {
@@ -717,6 +726,7 @@ async function fetchMonthlyReturns() {
 async function fetchDrawdown() {
   try {
     const res = await getSignalDrawdown(signalId.value)
+    if (isUnmounted.value) return
     drawdownData.value = (res.drawdown_curve || []).map(d => d.drawdown * 100)
     drawdownLabels.value = (res.drawdown_curve || []).map(d => d.date)
     drawdownStatsData.value = {
@@ -733,6 +743,7 @@ async function fetchDrawdown() {
 async function fetchReviews() {
   try {
     const res = await getSignalReviews(signalId.value, { page: 1, page_size: 10 })
+    if (isUnmounted.value) return
     userReviews.value = res.items || []
     reviewTotal.value = res.total || 0
     averageRating.value = res.average_rating || 0
@@ -761,6 +772,7 @@ async function fetchKlineData() {
       interval: intervalMap[selectedTimeframe.value] || '1h',
       limit: 200,
     })
+    if (isUnmounted.value) return
     // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
     // 时间戳从 UTC 转换为东八区（UTC+8），加上 8 小时的秒数偏移
     klineData.value = rawData.map((item: any) => ({
@@ -773,7 +785,7 @@ async function fetchKlineData() {
     }))
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
-    klineData.value = generateMockKline()
+    if (!isUnmounted.value) klineData.value = generateMockKline()
   }
 }
 
@@ -876,6 +888,9 @@ function initMarketWebSocket() {
 
   marketWs = createMarketWebSocket({
     onMessage: (msg: WSMessage) => {
+      // 如果组件已卸载，忽略所有 WebSocket 消息
+      if (isUnmounted.value) return
+
       switch (msg.type) {
         case 'connected':
           console.log('[SignalDetail] 行情WebSocket已连接，开始订阅频道')
@@ -974,19 +989,28 @@ function disconnectMarketWebSocket() {
 // 初始化加载
 onMounted(async () => {
   await fetchSignalDetail()
-  // 并行加载其他数据
-  fetchProvider()
-  fetchHistory()
-  fetchMonthlyReturns()
-  fetchDrawdown()
-  fetchReviews()
-  fetchKlineData()
-  // 初始化行情 WebSocket 实时推送
-  initMarketWebSocket()
+  // 若组件在 fetchSignalDetail 期间已被卸载，则跳过后续操作
+  if (isUnmounted.value) return
+
+  // 使用 Promise.allSettled 管理并行请求，确保所有请求完成后再决定后续操作
+  await Promise.allSettled([
+    fetchProvider(),
+    fetchHistory(),
+    fetchMonthlyReturns(),
+    fetchDrawdown(),
+    fetchReviews(),
+    fetchKlineData(),
+  ])
+
+  // 所有数据加载完成后，如果组件仍然存活，才初始化 WebSocket
+  if (!isUnmounted.value) {
+    initMarketWebSocket()
+  }
 })
 
-// 组件销毁时断开 WebSocket
+// 组件销毁时设置标志位并断开 WebSocket
 onBeforeUnmount(() => {
+  isUnmounted.value = true
   disconnectMarketWebSocket()
 })
 
@@ -1009,12 +1033,11 @@ const drawdownStats = computed(() => drawdownStatsData.value)
 const selectedTimeframe = ref('1H')
 const timeframeOptions = ['1m', '15m', '1H', '4H', '1D', '1W']
 
-// 时间周期切换时重新加载K线，并重连WebSocket（确保频道订阅与新周期一致）
+// 时间周期切换时重新加载K线，并切换WebSocket频道订阅（复用连接）
 watch(selectedTimeframe, () => {
+  if (isUnmounted.value) return
   fetchKlineData()
-  // 断开旧连接并重新建立WebSocket连接
-  disconnectMarketWebSocket()
-  initMarketWebSocket()
+  switchKlineChannel()
 })
 
 const availableIndicators = [

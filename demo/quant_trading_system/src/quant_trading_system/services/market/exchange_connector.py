@@ -36,9 +36,7 @@ from quant_trading_system.services.market.market_event_bus import (
 from quant_trading_system.services.market.common_utils import (
     BinanceConfig,
     BinanceDataConverter,
-    TimeUtils,
 )
-from quant_trading_system.core.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -410,32 +408,31 @@ class BinanceConnector(ExchangeConnector):
         streams = []
         for symbol in symbols:
             symbol_lower = symbol.lower().replace("/", "")
-            if settings.SYNC_TICK:
-                streams.extend([
-                    f"{symbol_lower}@trade",
-                    f"{symbol_lower}@ticker",
-                ])
-            if settings.SYNC_DEPTH:
-                streams.append(f"{symbol_lower}@depth20@100ms")
-            if settings.SYNC_KLINE:
-                streams.extend([
-                    f"{symbol_lower}@kline_1s",
-                    f"{symbol_lower}@kline_1m",
-                    f"{symbol_lower}@kline_3m",
-                    f"{symbol_lower}@kline_5m",
-                    f"{symbol_lower}@kline_15m",
-                    f"{symbol_lower}@kline_30m",
-                    f"{symbol_lower}@kline_1h",
-                    f"{symbol_lower}@kline_2h",
-                    f"{symbol_lower}@kline_4h",
-                    f"{symbol_lower}@kline_6h",
-                    f"{symbol_lower}@kline_8h",
-                    f"{symbol_lower}@kline_12h",
-                    f"{symbol_lower}@kline_1d",
-                    f"{symbol_lower}@kline_3d",
-                    f"{symbol_lower}@kline_1w",
-                    f"{symbol_lower}@kline_1M",
-                ])
+            streams.extend([
+                f"{symbol_lower}@trade",
+                f"{symbol_lower}@ticker",
+            ])
+
+            streams.append(f"{symbol_lower}@depth20@100ms")
+
+            streams.extend([
+                f"{symbol_lower}@kline_1s",
+                f"{symbol_lower}@kline_1m",
+                f"{symbol_lower}@kline_3m",
+                f"{symbol_lower}@kline_5m",
+                f"{symbol_lower}@kline_15m",
+                f"{symbol_lower}@kline_30m",
+                f"{symbol_lower}@kline_1h",
+                f"{symbol_lower}@kline_2h",
+                f"{symbol_lower}@kline_4h",
+                f"{symbol_lower}@kline_6h",
+                f"{symbol_lower}@kline_8h",
+                f"{symbol_lower}@kline_12h",
+                f"{symbol_lower}@kline_1d",
+                f"{symbol_lower}@kline_3d",
+                f"{symbol_lower}@kline_1w",
+                f"{symbol_lower}@kline_1M",
+            ])
 
         if not streams:
             logger.warning("所有同步选项均已禁用，无数据流可订阅", symbols=symbols)
@@ -459,21 +456,21 @@ class BinanceConnector(ExchangeConnector):
         streams = []
         for symbol in symbols:
             symbol_lower = symbol.lower().replace("/", "")
-            if settings.SYNC_TICK:
-                streams.extend([f"{symbol_lower}@trade", f"{symbol_lower}@ticker"])
-            if settings.SYNC_DEPTH:
-                streams.append(f"{symbol_lower}@depth20@100ms")
-            if settings.SYNC_KLINE:
-                streams.extend([
-                    f"{symbol_lower}@kline_1s", f"{symbol_lower}@kline_1m",
-                    f"{symbol_lower}@kline_3m", f"{symbol_lower}@kline_5m",
-                    f"{symbol_lower}@kline_15m", f"{symbol_lower}@kline_30m",
-                    f"{symbol_lower}@kline_1h", f"{symbol_lower}@kline_2h",
-                    f"{symbol_lower}@kline_4h", f"{symbol_lower}@kline_6h",
-                    f"{symbol_lower}@kline_8h", f"{symbol_lower}@kline_12h",
-                    f"{symbol_lower}@kline_1d", f"{symbol_lower}@kline_3d",
-                    f"{symbol_lower}@kline_1w", f"{symbol_lower}@kline_1M",
-                ])
+
+            streams.extend([f"{symbol_lower}@trade", f"{symbol_lower}@ticker"])
+
+            streams.append(f"{symbol_lower}@depth20@100ms")
+
+            streams.extend([
+                f"{symbol_lower}@kline_1s", f"{symbol_lower}@kline_1m",
+                f"{symbol_lower}@kline_3m", f"{symbol_lower}@kline_5m",
+                f"{symbol_lower}@kline_15m", f"{symbol_lower}@kline_30m",
+                f"{symbol_lower}@kline_1h", f"{symbol_lower}@kline_2h",
+                f"{symbol_lower}@kline_4h", f"{symbol_lower}@kline_6h",
+                f"{symbol_lower}@kline_8h", f"{symbol_lower}@kline_12h",
+                f"{symbol_lower}@kline_1d", f"{symbol_lower}@kline_3d",
+                f"{symbol_lower}@kline_1w", f"{symbol_lower}@kline_1M",
+            ])
 
         self._sub_id += 1
         await self._ws_client.send({
@@ -618,20 +615,9 @@ class MockConnector(ExchangeConnector):
                      kline_intervals=self.kline_intervals)
 
         # 启动后台推送任务（根据配置开关决定是否启动）
-        if settings.SYNC_TICK:
-            self._tick_task = asyncio.create_task(self._tick_loop(), name="mock-tick")
-        else:
-            logger.info("🎭 MockConnector: Tick 同步已禁用，跳过 tick 推送")
-
-        if settings.SYNC_DEPTH:
-            self._depth_task = asyncio.create_task(self._depth_loop(), name="mock-depth")
-        else:
-            logger.info("🎭 MockConnector: Depth 同步已禁用，跳过 depth 推送")
-
-        if settings.SYNC_KLINE:
-            self._kline_task = asyncio.create_task(self._kline_loop(), name="mock-kline")
-        else:
-            logger.info("🎭 MockConnector: Kline 同步已禁用，跳过 kline 推送")
+        self._tick_task = asyncio.create_task(self._tick_loop(), name="mock-tick")
+        self._depth_task = asyncio.create_task(self._depth_loop(), name="mock-depth")
+        self._kline_task = asyncio.create_task(self._kline_loop(), name="mock-kline")
 
         await self._publish(MarketEventType.CONNECTED, {"mock": True})
         logger.info("🎭 MockConnector 已启动")
