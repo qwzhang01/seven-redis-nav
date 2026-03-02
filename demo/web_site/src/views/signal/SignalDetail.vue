@@ -650,6 +650,9 @@ const loading = ref(false)
 // 组件卸载标志位，防止异步回调在组件销毁后更新状态
 const isUnmounted = ref(false)
 
+// K线数据加载中标志位，防止切换周期时 WebSocket 推送与图表重建产生竞态
+const isKlineLoading = ref(false)
+
 const followConfig = ref({
   exchange: '',
   amount: 1000,
@@ -765,6 +768,7 @@ async function fetchReviews() {
 /** 加载K线数据 */
 async function fetchKlineData() {
   if (!signal.value) return
+  isKlineLoading.value = true
   try {
     const intervalMap: Record<string, string> = { '1m': '1m', '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' }
     const rawData = await getKlineData({
@@ -786,6 +790,8 @@ async function fetchKlineData() {
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     if (!isUnmounted.value) klineData.value = generateMockKline()
+  } finally {
+    if (!isUnmounted.value) isKlineLoading.value = false
   }
 }
 
@@ -906,8 +912,8 @@ function initMarketWebSocket() {
           break
 
         case 'kline':
-          // 实时K线更新
-          if (msg.channel === currentKlineChannel && msg.data) {
+          // 实时K线更新（K线数据加载中时跳过，防止新旧数据混合导致图表崩溃）
+          if (msg.channel === currentKlineChannel && msg.data && !isKlineLoading.value) {
             const kline = msg.data
             // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级，并加上东八区偏移（+8h）
             const klinePoint: KlineDataPoint = {
@@ -1034,10 +1040,16 @@ const selectedTimeframe = ref('1H')
 const timeframeOptions = ['1m', '15m', '1H', '4H', '1D', '1W']
 
 // 时间周期切换时重新加载K线，并切换WebSocket频道订阅（复用连接）
-watch(selectedTimeframe, () => {
+// 注意：必须先等待 K线数据加载完成后再切换 WebSocket 频道，
+// 否则新频道的实时推送会在图表尚未重建完成时触发 appendKline，导致 lightweight-charts 内部 null 引用错误
+watch(selectedTimeframe, async () => {
   if (isUnmounted.value) return
-  fetchKlineData()
-  switchKlineChannel()
+  // 1. 先加载新周期的 K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息会被忽略）
+  await fetchKlineData()
+  // 2. 数据加载完成、图表已更新后，再切换 WebSocket 订阅频道
+  if (!isUnmounted.value) {
+    switchKlineChannel()
+  }
 })
 
 const availableIndicators = [

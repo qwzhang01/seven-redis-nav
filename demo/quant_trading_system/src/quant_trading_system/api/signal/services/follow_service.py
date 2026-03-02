@@ -29,6 +29,117 @@ logger = logging.getLogger(__name__)
 class FollowService:
     """跟单核心业务服务"""
 
+    # ── 创建跟单 ──────────────────────────────────────────────
+
+    @staticmethod
+    def create_follow(
+        db: Session,
+        user_id: int,
+        username: str,
+        strategy_id: str,
+        signal_name: str,
+        exchange: str = "binance",
+        follow_amount: float = 0,
+        follow_ratio: float = 1.0,
+        stop_loss: Optional[float] = None,
+    ) -> dict[str, Any]:
+        """
+        创建跟单
+
+        Args:
+            db: 数据库会话
+            user_id: 用户ID
+            username: 用户名
+            strategy_id: 要跟单的策略ID
+            signal_name: 信号/策略名称
+            exchange: 交易所（默认 binance）
+            follow_amount: 跟单资金（USDT）
+            follow_ratio: 跟单比例（0~1，默认1.0）
+            stop_loss: 止损比例（0~1，可选）
+
+        Returns:
+            创建的跟单信息字典
+
+        Raises:
+            ValueError: 参数校验失败或已存在相同策略的活跃跟单
+        """
+        # 校验参数
+        if follow_amount <= 0:
+            raise ValueError("跟单资金必须大于0")
+        if not (0 < follow_ratio <= 1):
+            raise ValueError("跟单比例必须在 0~1 之间")
+        if stop_loss is not None and not (0 < stop_loss < 1):
+            raise ValueError("止损比例必须在 0~1 之间")
+
+        # 检查是否已存在相同策略的活跃跟单
+        existing = db.query(SignalFollowOrder).filter(
+            SignalFollowOrder.user_id == user_id,
+            SignalFollowOrder.strategy_id == strategy_id,
+            SignalFollowOrder.status == "following",
+            SignalFollowOrder.enable_flag == True,
+        ).first()
+        if existing:
+            raise ValueError("已存在该策略的活跃跟单，请先停止后再创建")
+
+        now = datetime.utcnow()
+        order = SignalFollowOrder(
+            id=generate_snowflake_id(),
+            user_id=user_id,
+            strategy_id=strategy_id,
+            signal_name=signal_name,
+            exchange=exchange,
+            follow_amount=follow_amount,
+            current_value=follow_amount,
+            follow_ratio=follow_ratio,
+            stop_loss=stop_loss,
+            total_return=0,
+            max_drawdown=0,
+            current_drawdown=0,
+            today_return=0,
+            win_rate=0,
+            total_trades=0,
+            win_trades=0,
+            loss_trades=0,
+            avg_win=0,
+            avg_loss=0,
+            profit_factor=0,
+            risk_level="low",
+            status="following",
+            start_time=now,
+            return_curve=[],
+            return_curve_labels=[],
+            create_by=username,
+            create_time=now,
+            update_time=now,
+            enable_flag=True,
+        )
+        db.add(order)
+        db.commit()
+        db.refresh(order)
+
+        follow_days = 0
+        return {
+            "id": str(order.id),
+            "signalId": order.strategy_id,
+            "signalName": order.signal_name,
+            "exchange": order.exchange,
+            "status": order.status,
+            "followAmount": float(order.follow_amount) if order.follow_amount else 0,
+            "currentValue": float(order.current_value) if order.current_value else 0,
+            "totalReturn": 0,
+            "todayReturn": 0,
+            "maxDrawdown": 0,
+            "winRate": 0,
+            "followRatio": float(order.follow_ratio) if order.follow_ratio else 1.0,
+            "stopLoss": float(order.stop_loss) if order.stop_loss else 0,
+            "riskLevel": "low",
+            "totalTrades": 0,
+            "followDays": follow_days,
+            "startTime": order.start_time.isoformat() if order.start_time else None,
+            "stopTime": None,
+            "createTime": order.create_time.isoformat() if order.create_time else None,
+        }
+
     # ── 用户跟单列表 ──────────────────────────────────────────
 
     @staticmethod

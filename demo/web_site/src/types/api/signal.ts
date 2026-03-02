@@ -320,6 +320,39 @@ export interface CreateSignalFollowResponse {
   status: string
 }
 
+// ==================== 跟单列表相关类型 ====================
+
+/** 跟单列表项（对应 GET /api/v1/c/follows/list 响应中的 items） */
+export interface FollowListItem {
+  id: string
+  signalId: string
+  signalName: string
+  exchange: string
+  status: 'following' | 'stopped' | 'paused'
+  followAmount: number
+  currentValue: number
+  totalReturn: number
+  todayReturn: number
+  maxDrawdown: number
+  winRate: number
+  followRatio: number
+  stopLoss: number
+  riskLevel: string
+  totalTrades: number
+  followDays: number
+  startTime: string
+  stopTime: string | null
+  createTime: string
+}
+
+/** 跟单列表响应 */
+export interface FollowListResponse {
+  items: FollowListItem[]
+  total: number
+  page: number
+  pages: number
+}
+
 // ==================== 跟单详情相关类型 ====================
 
 /** 跟单持仓 */

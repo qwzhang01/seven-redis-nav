@@ -33,6 +33,9 @@ import type {
   ToggleLikeResponse,
   CreateSignalFollowRequest,
   CreateSignalFollowResponse,
+  // 跟单列表
+  FollowListItem,
+  FollowListResponse,
   // 跟单详情
   FollowDetailResponse,
   FollowComparisonResponse,
@@ -69,6 +72,8 @@ export type {
   SubmitReviewRequest,
   SubmitReviewResponse,
   ToggleLikeResponse,
+  FollowListItem,
+  FollowListResponse,
   FollowDetailResponse,
   FollowComparisonResponse,
   FollowTradesResponse,
@@ -230,12 +235,12 @@ export function toggleReviewLike(
 
 /**
  * 创建跟单
+ * 对接接口: POST /api/v1/c/follows/
  */
 export function createFollow(
-  signalId: string,
   data: CreateSignalFollowRequest
 ): Promise<CreateSignalFollowResponse> {
-  return post<CreateSignalFollowResponse>(`/api/v1/c/signal/${signalId}/follow`, data)
+  return post<CreateSignalFollowResponse>('/api/v1/c/follows/', data)
 }
 
 /**
@@ -252,7 +257,19 @@ export function unsubscribeSignal(subscriptionId: string): Promise<{ success: bo
   return del<{ success: boolean; message: string }>(`/api/v1/c/signal/subscriptions/${subscriptionId}`)
 }
 
-// ==================== C端API — 跟单详情页 ====================
+// ==================== C端API — 跟单管理 ====================
+
+/**
+ * 获取用户所有跟单记录
+ * 对接接口: GET /api/v1/c/follows/list
+ */
+export function getFollowList(params?: {
+  page?: number
+  pageSize?: number
+  status?: 'following' | 'stopped' | 'paused'
+}): Promise<FollowListResponse> {
+  return get<FollowListResponse>('/api/v1/c/follows/list', params)
+}
 
 /**
  * 获取跟单详情
@@ -374,7 +391,8 @@ export default {
   createFollow,
   subscribeSignal,
   unsubscribeSignal,
-  // C端 — 跟单详情
+  // C端 — 跟单管理
+  getFollowList,
   getFollowDetail,
   getFollowComparison,
   getFollowTrades,

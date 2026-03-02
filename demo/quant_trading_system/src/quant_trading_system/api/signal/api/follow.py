@@ -1,11 +1,12 @@
 """
-信号跟单详情页路由模块
+信号跟单管理路由模块
 =======================
 
-提供跟单详情页的全部 API 接口：
+提供信号跟单的完整管理 API 接口：
 
 C 端接口（需登录）：
 - GET  /list                     : 获取用户所有跟单记录
+- POST /                         : 创建跟单
 - GET  /{follow_id}              : 获取跟单详情
 - GET  /{follow_id}/comparison   : 获取跟单收益对比数据
 - GET  /{follow_id}/trades       : 获取跟单交易记录
@@ -52,13 +53,51 @@ class UpdateFollowConfigRequest(BaseModel):
     followAmount: Optional[float] = Field(None, gt=0, description="跟单资金(USDT)")
 
 
+class CreateFollowRequest(BaseModel):
+    """创建跟单请求"""
+    strategyId: str = Field(..., description="要跟单的策略ID")
+    signalName: str = Field(..., description="信号/策略名称")
+    exchange: str = Field("binance", description="交易所")
+    followAmount: float = Field(..., gt=0, description="跟单资金(USDT)")
+    followRatio: float = Field(1.0, gt=0, le=1, description="跟单比例(0~1)")
+    stopLoss: Optional[float] = Field(None, gt=0, lt=1, description="止损比例(0~1)")
+
+
 class StopFollowRequest(BaseModel):
     """停止跟单请求"""
     closePositions: bool = Field(True, description="是否同时平仓所有持仓")
     reason: Optional[str] = Field(None, max_length=200, description="停止原因")
 
 
-# ── 跟单详情页接口 ────────────────────────────────────────────────────────────
+# ── 跟单管理接口 ──────────────────────────────────────────────────────────────
+
+@router.post("")
+async def create_follow(
+    body: CreateFollowRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    创建跟单
+
+    为当前用户创建一条新的信号跟单记录。
+    """
+    try:
+        result = FollowService.create_follow(
+            db,
+            user_id=current_user.id,
+            username=current_user.username,
+            strategy_id=body.strategyId,
+            signal_name=body.signalName,
+            exchange=body.exchange,
+            follow_amount=body.followAmount,
+            follow_ratio=body.followRatio,
+            stop_loss=body.stopLoss,
+        )
+        return {"code": 0, "message": "跟单创建成功", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/list")
 async def get_user_follows(

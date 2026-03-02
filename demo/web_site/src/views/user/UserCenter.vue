@@ -109,12 +109,13 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
-              <h4 class="text-white font-semibold text-sm">{{ item.name }}</h4>
+              <h4 class="text-white font-semibold text-sm">{{ item.signalName }}</h4>
               <StatusDot :status="item.status" />
             </div>
             <div class="flex items-center gap-4 text-xs text-dark-100">
-              <span>跟单资金: {{ item.followAmount }} USDT</span>
-              <span>比例: {{ item.followRatio * 100 }}%</span>
+              <span>跟单资金: {{ item.followAmount.toLocaleString() }} USDT</span>
+              <span>比例: {{ (item.followRatio * 100).toFixed(0) }}%</span>
+              <span v-if="item.exchange" class="text-xs px-1.5 py-0.5 rounded bg-dark-600 text-dark-200">{{ item.exchange }}</span>
             </div>
           </div>
           <div class="text-right">
@@ -125,7 +126,12 @@
           </div>
           <ChevronRight :size="16" class="text-dark-200 shrink-0" />
         </div>
-        <div v-if="filteredUserSignals.length === 0" class="text-center py-12 text-dark-100">
+        <!-- 加载中状态 -->
+        <div v-if="signalLoading" class="text-center py-12">
+          <Loader2 :size="24" class="text-primary-400 animate-spin mx-auto mb-2" />
+          <span class="text-dark-100 text-sm">加载中...</span>
+        </div>
+        <div v-else-if="filteredUserSignals.length === 0" class="text-center py-12 text-dark-100">
           暂无跟单记录
         </div>
       </div>
@@ -240,10 +246,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound, AlertTriangle } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch } from 'vue'
+import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound, AlertTriangle, Loader2 } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
+import { getFollowList } from '@/utils/signalApi'
+import type { FollowListItem } from '@/utils/signalApi'
 
 const activeTab = ref('strategies')
 const strategyFilter = ref('all')
@@ -270,12 +278,38 @@ const userStrategies = [
   { id: '4', name: '动量突破 BNB #5', status: 'running', startTime: '2025-12-01', endTime: null, totalReturn: 5.67 },
 ]
 
-const userSignals = [
-  { id: '1', name: 'Alpha Pro #1', status: 'following', followAmount: 5000, followRatio: 1, totalReturn: 15.23 },
-  { id: '2', name: 'Sigma Elite #3', status: 'following', followAmount: 2000, followRatio: 0.5, totalReturn: 8.91 },
-  { id: '3', name: 'Quant Master #7', status: 'stopped', followAmount: 3000, followRatio: 1, totalReturn: -2.45 },
-  { id: '4', name: 'Nexus Prime #2', status: 'following', followAmount: 10000, followRatio: 0.25, totalReturn: 22.67 },
-]
+// ==================== 信号跟单列表（对接 GET /api/v1/c/follows/list） ====================
+const userSignals = ref<FollowListItem[]>([])
+const signalLoading = ref(false)
+const signalTotal = ref(0)
+const signalPage = ref(1)
+const signalPageSize = 20
+
+/** 获取跟单列表 */
+async function fetchFollowList() {
+  signalLoading.value = true
+  try {
+    const statusParam = signalFilter.value === 'all' ? undefined : signalFilter.value as 'following' | 'stopped'
+    const res = await getFollowList({
+      page: signalPage.value,
+      pageSize: signalPageSize,
+      status: statusParam,
+    })
+    userSignals.value = res.items || []
+    signalTotal.value = res.total || 0
+  } catch (e) {
+    console.error('获取跟单列表失败', e)
+    userSignals.value = []
+  } finally {
+    signalLoading.value = false
+  }
+}
+
+// 筛选状态变化时重新请求（因为接口支持 status 筛选，直接走接口过滤）
+watch(signalFilter, () => {
+  signalPage.value = 1
+  fetchFollowList()
+})
 
 const apiKeys = [
   { id: '1', label: 'Binance 主账户', exchange: 'Binance', apiKey: 'aBc***...***xYz', status: 'active', reviewStatus: 'pending' },
@@ -298,10 +332,8 @@ const filteredUserStrategies = computed(() => {
   return userStrategies.filter((s) => s.status === strategyFilter.value)
 })
 
-const filteredUserSignals = computed(() => {
-  if (signalFilter.value === 'all') return userSignals
-  return userSignals.filter((s) => s.status === signalFilter.value)
-})
+// 跟单列表已由接口按 status 筛选，直接使用
+const filteredUserSignals = computed(() => userSignals.value)
 
 const getReviewStatusClass = (status: string) => {
   switch (status) {
@@ -325,4 +357,10 @@ const maskApiKey = (key: string) => {
   if (key.length <= 8) return key
   return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
 }
+
+// ==================== 初始化加载 ====================
+onMounted(() => {
+  // 加载跟单列表
+  fetchFollowList()
+})
 </script>

@@ -10,6 +10,7 @@ C 端（普通用户）路由聚合包
 - trading    : 下单、订单管理、持仓、账户
 - backtest   : 策略回测
 - signal     : 信号广场、信号订阅
+- follows    : 信号跟单管理
 - leaderboard: 排行榜
 - strategy   : 策略管理（C端，用户隔离）
 - simulation : 模拟交易专用接口
@@ -19,12 +20,11 @@ C 端（普通用户）路由聚合包
 from fastapi import APIRouter
 
 from quant_trading_system.api.users.api.user import router as user_router
-from quant_trading_system.api.users.api.signal_follow import router as signal_follow_router
 from quant_trading_system.api.market.api.market import router as market_router
 from quant_trading_system.api.trading.api.trading import router as trading_router
 from quant_trading_system.api.backtest.api.backtest import router as backtest_router
 from quant_trading_system.api.signal.api.signal import router as signal_router
-from quant_trading_system.api.signal.api.follow import router as signal_follow_detail_router
+from quant_trading_system.api.signal.api.follow import router as signal_follow_router
 from quant_trading_system.api.leaderboard.api.leaderboard import router as leaderboard_router
 from quant_trading_system.api.strategies.api.strategy import router as strategy_c_router
 from quant_trading_system.api.strategies.api.simulation import router as simulation_router
@@ -34,12 +34,11 @@ from quant_trading_system.api.system.api.enum_api import router as enum_router
 c_router = APIRouter()
 
 c_router.include_router(user_router, prefix="/user", tags=["C端-用户管理"])
-c_router.include_router(signal_follow_router, prefix="/user/signal-follows", tags=["C端-信号跟单"])
 c_router.include_router(market_router, prefix="/market", tags=["C端-行情数据"])
 c_router.include_router(trading_router, prefix="/trading", tags=["C端-交易管理"])
 c_router.include_router(backtest_router, prefix="/backtest", tags=["C端-策略回测"])
 c_router.include_router(signal_router, prefix="/signal", tags=["C端-信号广场"])
-c_router.include_router(signal_follow_detail_router, prefix="/follows", tags=["C端-跟单详情"])
+c_router.include_router(signal_follow_router, prefix="/follows", tags=["C端-信号跟单"])
 c_router.include_router(leaderboard_router, prefix="/leaderboard", tags=["C端-排行榜"])
 c_router.include_router(strategy_c_router, prefix="/strategy", tags=["C端-策略管理"])
 c_router.include_router(simulation_router, prefix="/simulation", tags=["C端-模拟交易"])
