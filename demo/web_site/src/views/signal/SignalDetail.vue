@@ -778,15 +778,24 @@ async function fetchKlineData() {
     })
     if (isUnmounted.value) return
     // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
-    // 时间戳从 UTC 转换为东八区（UTC+8），加上 8 小时的秒数偏移
-    klineData.value = rawData.map((item: any) => ({
-      time: (item.time ?? Math.floor((item.timestamp || 0) / 1000)) + 8 * 3600,
+    // lightweight-charts 内部使用 UTC 时间，不需要手动加时区偏移
+    const mapped = rawData.map((item: any) => ({
+      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
       open: item.open,
       high: item.high,
       low: item.low,
       close: item.close,
       volume: item.volume || 0,
     }))
+    // 按时间升序排序，并去除重复时间戳（lightweight-charts 要求时间严格递增）
+    mapped.sort((a, b) => a.time - b.time)
+    const deduplicated: typeof mapped = []
+    for (const item of mapped) {
+      if (deduplicated.length === 0 || item.time > deduplicated[deduplicated.length - 1].time) {
+        deduplicated.push(item)
+      }
+    }
+    klineData.value = deduplicated
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     if (!isUnmounted.value) klineData.value = generateMockKline()
@@ -915,9 +924,9 @@ function initMarketWebSocket() {
           // 实时K线更新（K线数据加载中时跳过，防止新旧数据混合导致图表崩溃）
           if (msg.channel === currentKlineChannel && msg.data && !isKlineLoading.value) {
             const kline = msg.data
-            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级，并加上东八区偏移（+8h）
+            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级（东八区偏移在 TradingChart 显示层处理）
             const klinePoint: KlineDataPoint = {
-              time: Math.floor(kline.timestamp / 1000) + 8 * 3600,
+              time: Math.floor(kline.timestamp / 1000),
               open: kline.open,
               high: kline.high,
               low: kline.low,

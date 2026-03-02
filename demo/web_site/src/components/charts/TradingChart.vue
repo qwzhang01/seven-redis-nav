@@ -1,9 +1,14 @@
 <template>
-  <div ref="chartContainerRef" class="trading-chart-container" :style="{ height: height + 'px' }"></div>
+  <div class="trading-chart-wrapper" :style="{ height: height + 'px' }">
+    <!-- K线主图 -->
+    <div ref="mainChartRef" class="main-chart-container" :style="{ height: mainChartHeight + 'px' }"></div>
+    <!-- 成交量副图 -->
+    <div ref="volumeChartRef" class="volume-chart-container" :style="{ height: volumeChartHeight + 'px' }" v-if="showVolume"></div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import {
   createChart,
   CandlestickSeries,
@@ -17,6 +22,7 @@ import {
   type HistogramData,
   type SeriesMarker,
   type Time,
+  type LogicalRange,
   ColorType,
   CrosshairMode,
 } from 'lightweight-charts'
@@ -34,7 +40,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   indicators: () => [],
   tradeMarks: () => [],
-  height: 500,
+  height: 520,
   showVolume: true,
 })
 
@@ -43,10 +49,18 @@ const emit = defineEmits<{
   (e: 'timeRangeChange', from: number, to: number): void
 }>()
 
+// ==================== 高度计算 ====================
+
+const mainChartHeight = computed(() => props.showVolume ? Math.floor(props.height * 0.75) : props.height)
+const volumeChartHeight = computed(() => props.showVolume ? props.height - mainChartHeight.value : 0)
+
 // ==================== Refs ====================
 
-const chartContainerRef = ref<HTMLElement>()
-let chart: IChartApi | null = null
+const mainChartRef = ref<HTMLElement>()
+const volumeChartRef = ref<HTMLElement>()
+
+let mainChart: IChartApi | null = null
+let volumeChart: IChartApi | null = null
 let candlestickSeries: ISeriesApi<'Candlestick'> | null = null
 let volumeSeries: ISeriesApi<'Histogram'> | null = null
 const indicatorSeriesMap = new Map<string, ISeriesApi<any>>()
@@ -54,14 +68,39 @@ let markersPlugin: any = null
 let isLoadingMore = false
 let earliestTime = Infinity
 
-// ==================== 初始化图表 ====================
+// 防止同步死循环的标志
+let isSyncingTimeScale = false
 
-function initChart() {
-  if (!chartContainerRef.value) return
+// ==================== 通用配置 ====================
 
-  chart = createChart(chartContainerRef.value, {
+/** 东八区时间格式化 */
+function formatTime(time: number) {
+  const d = new Date((time + 8 * 3600) * 1000)
+  const Y = d.getUTCFullYear()
+  const M = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const D = String(d.getUTCDate()).padStart(2, '0')
+  const h = String(d.getUTCHours()).padStart(2, '0')
+  const m = String(d.getUTCMinutes()).padStart(2, '0')
+  return { Y, M, D, h, m }
+}
+
+function timeFormatter(time: number) {
+  const { Y, M, D, h, m } = formatTime(time)
+  return `${Y}-${M}-${D} ${h}:${m}`
+}
+
+function tickMarkFormatter(time: number, tickMarkType: number) {
+  const { Y, M, D, h, m } = formatTime(time)
+  if (tickMarkType <= 1) return `${Y}-${M}`
+  if (tickMarkType === 2) return `${M}-${D}`
+  return `${M}-${D} ${h}:${m}`
+}
+
+/** 通用图表布局配置 */
+function getCommonOptions() {
+  return {
     layout: {
-      background: { type: ColorType.Solid, color: 'transparent' },
+      background: { type: ColorType.Solid as const, color: 'transparent' },
       textColor: 'rgba(255, 255, 255, 0.6)',
       fontSize: 11,
     },
@@ -80,22 +119,68 @@ function initChart() {
         labelBackgroundColor: '#1a1a2e',
       },
     },
-    timeScale: {
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      timeVisible: true,
-      secondsVisible: false,
-      barSpacing: 8,
-    },
     rightPriceScale: {
       borderColor: 'rgba(255, 255, 255, 0.08)',
     },
     handleScroll: {
       vertTouchDrag: false,
     },
+  }
+}
+
+// ==================== 时间轴同步 ====================
+
+/** 同步两个图表的时间轴（X轴联动） */
+function syncTimeScales(source: IChartApi, target: IChartApi) {
+  source.timeScale().subscribeVisibleLogicalRangeChange((logicalRange: LogicalRange | null) => {
+    if (isSyncingTimeScale || !logicalRange) return
+    isSyncingTimeScale = true
+    target.timeScale().setVisibleLogicalRange(logicalRange)
+    isSyncingTimeScale = false
+  })
+}
+
+/** 同步两个图表的十字线 */
+function syncCrosshair(source: IChartApi, target: IChartApi, targetSeries: ISeriesApi<any> | null) {
+  source.subscribeCrosshairMove((param) => {
+    if (!param || !param.time) {
+      target.clearCrosshairPosition()
+      return
+    }
+    if (targetSeries) {
+      const dataPoint = param.seriesData.get(targetSeries as any)
+      if (dataPoint) {
+        target.setCrosshairPosition((dataPoint as any).value ?? (dataPoint as any).close ?? 0, param.time, targetSeries)
+        return
+      }
+    }
+    // 如果目标系列没数据点，仍然设置十字线的时间位置
+    target.clearCrosshairPosition()
+  })
+}
+
+// ==================== 初始化图表 ====================
+
+function initChart() {
+  if (!mainChartRef.value) return
+
+  // === 主图（K线） ===
+  mainChart = createChart(mainChartRef.value, {
+    ...getCommonOptions(),
+    localization: {
+      timeFormatter,
+    },
+    timeScale: {
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+      timeVisible: true,
+      secondsVisible: false,
+      barSpacing: 8,
+      tickMarkFormatter,
+    },
   })
 
   // 蜡烛图系列
-  candlestickSeries = chart.addSeries(CandlestickSeries, {
+  candlestickSeries = mainChart.addSeries(CandlestickSeries, {
     upColor: '#26a69a',
     downColor: '#ef5350',
     borderUpColor: '#26a69a',
@@ -107,55 +192,71 @@ function initChart() {
   // 创建标记插件
   markersPlugin = createSeriesMarkers(candlestickSeries, [])
 
-  // 成交量系列
-  if (props.showVolume) {
-    volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'volume',
-    })
-
-    chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0 },
-    })
-  }
-
   // 监听可见范围变化，支持拖动加载历史
-  chart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
     if (!logicalRange || isLoadingMore) return
-
-    // 当用户向左拖动，且可见范围的左侧接近数据起始处时，触发加载更多
     if (logicalRange.from < 10 && earliestTime < Infinity) {
       isLoadingMore = true
       emit('loadMore', earliestTime)
-      // 延迟重置，防止频繁触发
-      setTimeout(() => {
-        isLoadingMore = false
-      }, 1000)
+      setTimeout(() => { isLoadingMore = false }, 1000)
     }
   })
 
   // 监听可见时间范围变化
-  chart.timeScale().subscribeVisibleTimeRangeChange((timeRange) => {
+  mainChart.timeScale().subscribeVisibleTimeRangeChange((timeRange) => {
     if (timeRange) {
       emit('timeRangeChange', timeRange.from as number, timeRange.to as number)
     }
   })
 
-  // 自适应大小
+  // === 副图（成交量） ===
+  if (props.showVolume && volumeChartRef.value) {
+    volumeChart = createChart(volumeChartRef.value, {
+      ...getCommonOptions(),
+      localization: {
+        timeFormatter,
+      },
+      timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        timeVisible: true,
+        secondsVisible: false,
+        barSpacing: 8,
+        tickMarkFormatter,
+        // 隐藏副图的X轴标签（由主图展示）
+        visible: false,
+      },
+    })
+
+    volumeSeries = volumeChart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'right',
+    })
+
+    // 同步两个图表的时间轴
+    syncTimeScales(mainChart, volumeChart)
+    syncTimeScales(volumeChart, mainChart)
+
+    // 同步十字线
+    syncCrosshair(mainChart, volumeChart, volumeSeries)
+    syncCrosshair(volumeChart, mainChart, candlestickSeries)
+  }
+
+  // === 自适应大小 ===
   const resizeObserver = new ResizeObserver(() => {
-    if (chart && chartContainerRef.value) {
-      chart.applyOptions({
-        width: chartContainerRef.value.clientWidth,
-      })
+    if (mainChart && mainChartRef.value) {
+      mainChart.applyOptions({ width: mainChartRef.value.clientWidth })
+    }
+    if (volumeChart && volumeChartRef.value) {
+      volumeChart.applyOptions({ width: volumeChartRef.value.clientWidth })
     }
   })
-  resizeObserver.observe(chartContainerRef.value)
+  if (mainChartRef.value) resizeObserver.observe(mainChartRef.value)
 }
 
 // ==================== 数据更新方法 ====================
 
 function updateKlineData(data: KlineDataPoint[]) {
-  if (!candlestickSeries || !chart || data.length === 0) return
+  if (!candlestickSeries || !mainChart || data.length === 0) return
 
   try {
     const candleData: CandlestickData[] = data.map((d) => ({
@@ -165,7 +266,6 @@ function updateKlineData(data: KlineDataPoint[]) {
       low: d.low,
       close: d.close,
     }))
-
     candlestickSeries.setData(candleData)
 
     // 更新最早时间
@@ -178,7 +278,7 @@ function updateKlineData(data: KlineDataPoint[]) {
       const volData: HistogramData[] = data.map((d) => ({
         time: d.time as Time,
         value: d.volume,
-        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
       }))
       volumeSeries.setData(volData)
     }
@@ -188,71 +288,71 @@ function updateKlineData(data: KlineDataPoint[]) {
 }
 
 function updateIndicators(indicators: IndicatorData[]) {
-  if (!chart) return
+  if (!mainChart) return
 
   try {
-  // 清除旧的指标系列
-  indicatorSeriesMap.forEach((series) => {
-    chart?.removeSeries(series)
-  })
-  indicatorSeriesMap.clear()
+    // 清除旧的指标系列
+    indicatorSeriesMap.forEach((series) => {
+      mainChart?.removeSeries(series)
+    })
+    indicatorSeriesMap.clear()
 
-  for (const indicator of indicators) {
-    if (indicator.pane === 'main') {
-      // 主图叠加指标
-      if (indicator.type === 'line') {
-        const series = chart.addSeries(LineSeries, {
-          color: indicator.color,
-          lineWidth: 1,
-          title: indicator.name,
-          priceScaleId: 'right',
-        })
-        const lineData: LineData[] = indicator.data.map((d) => ({
-          time: d.time as Time,
-          value: d.value,
-        }))
-        series.setData(lineData)
-        indicatorSeriesMap.set(indicator.name, series)
-      }
-    } else {
-      // 副图指标
-      const priceScaleId = indicator.pane === 'sub' ? 'indicator_sub' : 'indicator_sub2'
+    for (const indicator of indicators) {
+      if (indicator.pane === 'main') {
+        // 主图叠加指标
+        if (indicator.type === 'line') {
+          const series = mainChart.addSeries(LineSeries, {
+            color: indicator.color,
+            lineWidth: 1,
+            title: indicator.name,
+            priceScaleId: 'right',
+          })
+          const lineData: LineData[] = indicator.data.map((d) => ({
+            time: d.time as Time,
+            value: d.value,
+          }))
+          series.setData(lineData)
+          indicatorSeriesMap.set(indicator.name, series)
+        }
+      } else {
+        // 副图指标（仍然叠加在主图底部区域）
+        const priceScaleId = indicator.pane === 'sub' ? 'indicator_sub' : 'indicator_sub2'
 
-      if (indicator.type === 'line') {
-        const series = chart.addSeries(LineSeries, {
-          color: indicator.color,
-          lineWidth: 1,
-          title: indicator.name,
-          priceScaleId,
-        })
-        chart.priceScale(priceScaleId).applyOptions({
-          scaleMargins: { top: 0.75, bottom: 0.02 },
-        })
-        const lineData: LineData[] = indicator.data.map((d) => ({
-          time: d.time as Time,
-          value: d.value,
-        }))
-        series.setData(lineData)
-        indicatorSeriesMap.set(indicator.name, series)
-      } else if (indicator.type === 'histogram') {
-        const series = chart.addSeries(HistogramSeries, {
-          color: indicator.color,
-          title: indicator.name,
-          priceScaleId,
-        })
-        chart.priceScale(priceScaleId).applyOptions({
-          scaleMargins: { top: 0.75, bottom: 0.02 },
-        })
-        const histData: HistogramData[] = indicator.data.map((d) => ({
-          time: d.time as Time,
-          value: d.value,
-          color: d.value >= 0 ? '#26a69a' : '#ef5350',
-        }))
-        series.setData(histData)
-        indicatorSeriesMap.set(indicator.name, series)
+        if (indicator.type === 'line') {
+          const series = mainChart.addSeries(LineSeries, {
+            color: indicator.color,
+            lineWidth: 1,
+            title: indicator.name,
+            priceScaleId,
+          })
+          mainChart.priceScale(priceScaleId).applyOptions({
+            scaleMargins: { top: 0.75, bottom: 0.02 },
+          })
+          const lineData: LineData[] = indicator.data.map((d) => ({
+            time: d.time as Time,
+            value: d.value,
+          }))
+          series.setData(lineData)
+          indicatorSeriesMap.set(indicator.name, series)
+        } else if (indicator.type === 'histogram') {
+          const series = mainChart.addSeries(HistogramSeries, {
+            color: indicator.color,
+            title: indicator.name,
+            priceScaleId,
+          })
+          mainChart.priceScale(priceScaleId).applyOptions({
+            scaleMargins: { top: 0.75, bottom: 0.02 },
+          })
+          const histData: HistogramData[] = indicator.data.map((d) => ({
+            time: d.time as Time,
+            value: d.value,
+            color: d.value >= 0 ? '#26a69a' : '#ef5350',
+          }))
+          series.setData(histData)
+          indicatorSeriesMap.set(indicator.name, series)
+        }
       }
     }
-  }
   } catch (e) {
     console.warn('[TradingChart] updateIndicators 异常（可能由周期切换竞态引起）:', e)
   }
@@ -276,11 +376,9 @@ function updateTradeMarks(marks: TradeMarkData[]) {
 
 /**
  * 追加实时K线数据（WebSocket推送）
- * 注意：try-catch 防护是必要的安全网，防止在周期切换期间
- * 残留的 WebSocket 消息触发 lightweight-charts 内部 null 引用崩溃
  */
 function appendKline(kline: KlineDataPoint) {
-  if (!candlestickSeries || !chart) return
+  if (!candlestickSeries || !mainChart) return
 
   try {
     candlestickSeries.update({
@@ -295,11 +393,10 @@ function appendKline(kline: KlineDataPoint) {
       volumeSeries.update({
         time: kline.time as Time,
         value: kline.volume,
-        color: kline.close >= kline.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+        color: kline.close >= kline.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
       })
     }
   } catch (e) {
-    // 周期切换期间 chart 内部状态可能暂时无效，安全忽略
     console.warn('[TradingChart] appendKline 异常（WebSocket kline推送触发，周期切换竞态）:', e)
   }
 }
@@ -323,18 +420,15 @@ function appendIndicator(name: string, point: { time: number; value: number }) {
 function prependKlineData(data: KlineDataPoint[]) {
   if (!candlestickSeries || data.length === 0) return
 
-  // 获取当前数据并合并
   const existingData = props.klineData
   const merged = [...data, ...existingData]
 
-  // 去重并排序
   const uniqueMap = new Map<number, KlineDataPoint>()
   merged.forEach((d) => uniqueMap.set(d.time, d))
   const sorted = Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time)
 
   updateKlineData(sorted)
 
-  // 更新最早时间
   if (data.length > 0) {
     earliestTime = Math.min(earliestTime, data[0].time)
   }
@@ -358,9 +452,13 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (chart) {
-    chart.remove()
-    chart = null
+  if (mainChart) {
+    mainChart.remove()
+    mainChart = null
+  }
+  if (volumeChart) {
+    volumeChart.remove()
+    volumeChart = null
   }
   indicatorSeriesMap.clear()
 })
@@ -402,15 +500,29 @@ defineExpose({
 </script>
 
 <style scoped>
-.trading-chart-container {
+.trading-chart-wrapper {
   width: 100%;
   position: relative;
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-chart-container {
+  width: 100%;
+  position: relative;
+  /* 主图与成交量图之间的分隔线 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.volume-chart-container {
+  width: 100%;
+  position: relative;
 }
 
 /* lightweight-charts 容器内部样式覆盖 */
-.trading-chart-container :deep(table) {
+.trading-chart-wrapper :deep(table) {
   border: none !important;
 }
 </style>

@@ -57,7 +57,8 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // target: 'http://localhost:8000',
+        target: 'http://34.96.254.48:80',
         changeOrigin: true,
         secure: false,
         ws: true, // 同时代理 WebSocket 请求
