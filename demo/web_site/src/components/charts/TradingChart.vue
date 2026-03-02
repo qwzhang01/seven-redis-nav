@@ -155,37 +155,42 @@ function initChart() {
 // ==================== 数据更新方法 ====================
 
 function updateKlineData(data: KlineDataPoint[]) {
-  if (!candlestickSeries || data.length === 0) return
+  if (!candlestickSeries || !chart || data.length === 0) return
 
-  const candleData: CandlestickData[] = data.map((d) => ({
-    time: d.time as Time,
-    open: d.open,
-    high: d.high,
-    low: d.low,
-    close: d.close,
-  }))
-
-  candlestickSeries.setData(candleData)
-
-  // 更新最早时间
-  if (data.length > 0) {
-    earliestTime = Math.min(earliestTime, data[0].time)
-  }
-
-  // 更新成交量
-  if (volumeSeries) {
-    const volData: HistogramData[] = data.map((d) => ({
+  try {
+    const candleData: CandlestickData[] = data.map((d) => ({
       time: d.time as Time,
-      value: d.volume,
-      color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
     }))
-    volumeSeries.setData(volData)
+
+    candlestickSeries.setData(candleData)
+
+    // 更新最早时间
+    if (data.length > 0) {
+      earliestTime = Math.min(earliestTime, data[0].time)
+    }
+
+    // 更新成交量
+    if (volumeSeries) {
+      const volData: HistogramData[] = data.map((d) => ({
+        time: d.time as Time,
+        value: d.volume,
+        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+      }))
+      volumeSeries.setData(volData)
+    }
+  } catch (e) {
+    console.warn('[TradingChart] updateKlineData 异常（可能由周期切换竞态引起）:', e)
   }
 }
 
 function updateIndicators(indicators: IndicatorData[]) {
   if (!chart) return
 
+  try {
   // 清除旧的指标系列
   indicatorSeriesMap.forEach((series) => {
     chart?.removeSeries(series)
@@ -248,6 +253,9 @@ function updateIndicators(indicators: IndicatorData[]) {
       }
     }
   }
+  } catch (e) {
+    console.warn('[TradingChart] updateIndicators 异常（可能由周期切换竞态引起）:', e)
+  }
 }
 
 function updateTradeMarks(marks: TradeMarkData[]) {
@@ -292,7 +300,7 @@ function appendKline(kline: KlineDataPoint) {
     }
   } catch (e) {
     // 周期切换期间 chart 内部状态可能暂时无效，安全忽略
-    console.warn('[TradingChart] appendKline 跳过无效更新:', e)
+    console.warn('[TradingChart] appendKline 异常（WebSocket kline推送触发，周期切换竞态）:', e)
   }
 }
 

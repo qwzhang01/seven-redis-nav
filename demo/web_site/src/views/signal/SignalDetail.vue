@@ -926,6 +926,12 @@ function initMarketWebSocket() {
             }
             // 通过 TradingChart 暴露的 appendKline 方法实时更新图表
             tradingChartRef.value?.appendKline(klinePoint)
+          } else if (msg.data) {
+            // 调试日志：被过滤掉的 kline 消息（频道不匹配或正在加载中）
+            console.debug('[SignalDetail] kline消息被过滤 | channel:', msg.channel,
+              '| current:', currentKlineChannel,
+              '| loading:', isKlineLoading.value,
+              '| matched:', msg.channel === currentKlineChannel)
           }
           break
 
