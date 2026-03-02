@@ -268,24 +268,31 @@ function updateTradeMarks(marks: TradeMarkData[]) {
 
 /**
  * 追加实时K线数据（WebSocket推送）
+ * 注意：try-catch 防护是必要的安全网，防止在周期切换期间
+ * 残留的 WebSocket 消息触发 lightweight-charts 内部 null 引用崩溃
  */
 function appendKline(kline: KlineDataPoint) {
-  if (!candlestickSeries) return
+  if (!candlestickSeries || !chart) return
 
-  candlestickSeries.update({
-    time: kline.time as Time,
-    open: kline.open,
-    high: kline.high,
-    low: kline.low,
-    close: kline.close,
-  })
-
-  if (volumeSeries) {
-    volumeSeries.update({
+  try {
+    candlestickSeries.update({
       time: kline.time as Time,
-      value: kline.volume,
-      color: kline.close >= kline.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+      open: kline.open,
+      high: kline.high,
+      low: kline.low,
+      close: kline.close,
     })
+
+    if (volumeSeries) {
+      volumeSeries.update({
+        time: kline.time as Time,
+        value: kline.volume,
+        color: kline.close >= kline.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+      })
+    }
+  } catch (e) {
+    // 周期切换期间 chart 内部状态可能暂时无效，安全忽略
+    console.warn('[TradingChart] appendKline 跳过无效更新:', e)
   }
 }
 

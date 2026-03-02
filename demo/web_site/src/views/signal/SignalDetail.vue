@@ -1040,15 +1040,26 @@ const selectedTimeframe = ref('1H')
 const timeframeOptions = ['1m', '15m', '1H', '4H', '1D', '1W']
 
 // 时间周期切换时重新加载K线，并切换WebSocket频道订阅（复用连接）
-// 注意：必须先等待 K线数据加载完成后再切换 WebSocket 频道，
-// 否则新频道的实时推送会在图表尚未重建完成时触发 appendKline，导致 lightweight-charts 内部 null 引用错误
+// 修复竞态条件：必须先取消旧频道订阅，避免旧频道的 WebSocket 推送在图表重建期间触发 appendKline
+// 导致 lightweight-charts 内部 CandlestickSeries null 引用错误
 watch(selectedTimeframe, async () => {
   if (isUnmounted.value) return
-  // 1. 先加载新周期的 K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息会被忽略）
+
+  // 1. 立即取消旧的K线频道订阅，停止旧频道推送（防止旧数据在图表重建时触发 update 导致崩溃）
+  if (marketWs?.isConnected && currentKlineChannel) {
+    marketWs.unsubscribe([currentKlineChannel])
+    currentKlineChannel = '' // 清空，确保任何残留消息也不会匹配
+  }
+
+  // 2. 加载新周期的K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息也会被忽略）
   await fetchKlineData()
-  // 2. 数据加载完成、图表已更新后，再切换 WebSocket 订阅频道
-  if (!isUnmounted.value) {
-    switchKlineChannel()
+
+  // 3. 数据加载完成、图表已更新后，订阅新的K线频道
+  if (!isUnmounted.value && marketWs?.isConnected && signal.value) {
+    const wsSymbol = formatSymbolForChannel(signal.value.tradingPair)
+    const wsTf = mapTimeframeForWs(selectedTimeframe.value)
+    currentKlineChannel = klineChannel(wsSymbol, wsTf)
+    marketWs.subscribe([currentKlineChannel])
   }
 })
 
