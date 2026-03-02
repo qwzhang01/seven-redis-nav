@@ -1079,6 +1079,7 @@ class SignalService:
             enable_flag=True,
         )
         db.add(order)
+        db.flush()  # 先将 order 刷入数据库，确保外键引用有效
 
         # 更新关注人数
         signal.followers_count = (signal.followers_count or 0) + 1

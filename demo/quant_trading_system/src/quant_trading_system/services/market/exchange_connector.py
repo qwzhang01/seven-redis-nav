@@ -533,9 +533,9 @@ class SymbolConfig:
 
 # 预置主流币种的合理基准价格
 DEFAULT_SYMBOL_CONFIGS: dict[str, SymbolConfig] = {
-    "BTCUSDT":  SymbolConfig(base_price=65000.0, volatility=0.0015, base_volume=0.5),
-    "ETHUSDT":  SymbolConfig(base_price=2600.0,  volatility=0.002,  base_volume=5.0),
-    "SOLUSDT":  SymbolConfig(base_price=180.0,   volatility=0.003,  base_volume=20.0),
+    "BTCUSDT":  SymbolConfig(base_price=66824.75000000, volatility=0.0015, base_volume=0.5),
+    "ETHUSDT":  SymbolConfig(base_price=1975.37000000,  volatility=0.002,  base_volume=5.0),
+    "SOLUSDT":  SymbolConfig(base_price=84.90000000,   volatility=0.003,  base_volume=20.0),
     "BNBUSDT":  SymbolConfig(base_price=620.0,   volatility=0.002,  base_volume=3.0),
     "XRPUSDT":  SymbolConfig(base_price=2.3,     volatility=0.003,  base_volume=500.0),
     "ADAUSDT":  SymbolConfig(base_price=0.75,    volatility=0.003,  base_volume=1000.0),

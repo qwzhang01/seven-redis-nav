@@ -29,6 +29,76 @@ logger = logging.getLogger(__name__)
 class FollowService:
     """跟单核心业务服务"""
 
+    # ── 用户跟单列表 ──────────────────────────────────────────
+
+    @staticmethod
+    def get_user_follows(
+        db: Session,
+        user_id: int,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        获取用户所有的信号跟单记录
+
+        Args:
+            db: 数据库会话
+            user_id: 用户ID
+            page: 页码
+            page_size: 每页数量
+            status: 状态过滤（following/stopped/paused），为空则返回全部
+
+        Returns:
+            包含分页信息和跟单列表的字典
+        """
+        query = db.query(SignalFollowOrder).filter(
+            SignalFollowOrder.user_id == user_id,
+            SignalFollowOrder.enable_flag == True,
+        )
+        if status:
+            query = query.filter(SignalFollowOrder.status == status)
+
+        total = query.count()
+        orders = query.order_by(
+            desc(SignalFollowOrder.create_time)
+        ).offset((page - 1) * page_size).limit(page_size).all()
+
+        records = []
+        for order in orders:
+            follow_days = 0
+            if order.start_time:
+                follow_days = (datetime.utcnow() - order.start_time).days
+
+            records.append({
+                "id": str(order.id),
+                "signalId": order.strategy_id,
+                "signalName": order.signal_name,
+                "exchange": order.exchange,
+                "status": order.status,
+                "followAmount": float(order.follow_amount) if order.follow_amount else 0,
+                "currentValue": float(order.current_value) if order.current_value else 0,
+                "totalReturn": float(order.total_return) if order.total_return else 0,
+                "todayReturn": float(order.today_return) if order.today_return else 0,
+                "maxDrawdown": float(order.max_drawdown) if order.max_drawdown else 0,
+                "winRate": float(order.win_rate) if order.win_rate else 0,
+                "followRatio": float(order.follow_ratio) if order.follow_ratio else 1.0,
+                "stopLoss": float(order.stop_loss) if order.stop_loss else 0,
+                "riskLevel": order.risk_level or "low",
+                "totalTrades": order.total_trades or 0,
+                "followDays": follow_days,
+                "startTime": order.start_time.isoformat() if order.start_time else None,
+                "stopTime": order.stop_time.isoformat() if order.stop_time else None,
+                "createTime": order.create_time.isoformat() if order.create_time else None,
+            })
+
+        return {
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+            "records": records,
+        }
+
     # ── 跟单详情 ──────────────────────────────────────────────
 
     @staticmethod

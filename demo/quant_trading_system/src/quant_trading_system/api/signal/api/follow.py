@@ -5,6 +5,7 @@
 提供跟单详情页的全部 API 接口：
 
 C 端接口（需登录）：
+- GET  /list                     : 获取用户所有跟单记录
 - GET  /{follow_id}              : 获取跟单详情
 - GET  /{follow_id}/comparison   : 获取跟单收益对比数据
 - GET  /{follow_id}/trades       : 获取跟单交易记录
@@ -58,6 +59,26 @@ class StopFollowRequest(BaseModel):
 
 
 # ── 跟单详情页接口 ────────────────────────────────────────────────────────────
+
+@router.get("/list")
+async def get_user_follows(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="每页数量"),
+    status: Optional[str] = Query(None, description="状态过滤: following/stopped/paused"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    获取用户所有的信号跟单记录
+
+    返回当前用户的全部跟单记录列表，支持分页和状态过滤。
+    """
+    result = FollowService.get_user_follows(
+        db, current_user.id,
+        page=page, page_size=page_size, status=status,
+    )
+    return {"code": 0, "message": "success", "data": result}
+
 
 @router.get("/{follow_id}")
 async def get_follow_detail(
