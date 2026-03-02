@@ -382,6 +382,7 @@ export interface FollowDetailResponse {
   id: string
   signalId: string
   signalName: string
+  tradingPair: string
   exchange: string
   status: 'following' | 'paused' | 'stopped'
   totalReturn: number
