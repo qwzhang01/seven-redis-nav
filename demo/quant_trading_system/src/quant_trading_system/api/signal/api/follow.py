@@ -23,9 +23,10 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import User
+from quant_trading_system.models.database import User, SignalFollowOrder
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.api.signal.services.follow_service import FollowService
+from quant_trading_system.api.deps import get_follow_engine_dep
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -269,13 +270,19 @@ async def stop_follow(
     body: StopFollowRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    follow_engine=Depends(get_follow_engine_dep),
 ) -> dict[str, Any]:
     """
     停止跟单
 
     将跟单设为停止状态，可选择是否同时平仓。
+    同时自动从跟单引擎内存中移除该跟单。
     """
     try:
+        # 从跟单引擎内存中移除
+        await follow_engine.remove_follow(follow_id)
+        logger.info(f"已从跟单引擎移除: follow_id={follow_id}")
+
         result = FollowService.stop_follow(
             db, follow_id, current_user.id,
             close_positions=body.closePositions,

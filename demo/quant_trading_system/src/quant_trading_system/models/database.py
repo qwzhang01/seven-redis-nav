@@ -432,21 +432,43 @@ class SignalFollowEvent(Base):
 
 
 class Signal(Base):
-    """信号广场主表模型 — 信号源的核心元数据"""
+    """
+    信号广场主表模型 — 信号源的核心元数据
+
+    信号来源分为两类：
+    - strategy: 交易所跟单信号（由系统策略产生）
+    - subscribe: 订阅大佬账户（通过 API 授权监听目标账户仓位变化）
+    """
     __tablename__ = "signal"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     name = Column(String(128), nullable=False)
     platform = Column(String(64), nullable=False, default="Binance")
     type = Column(String(16), nullable=False, default="live")       # live / simulated
+    signal_source = Column(String(16), nullable=False, default="strategy")  # strategy / subscribe
     status = Column(String(16), nullable=False, default="running")  # running / paused / stopped
     exchange = Column(String(64))
+    account_type = Column(String(16), default="spot")               # spot / futures
     trading_pair = Column(String(32))
     timeframe = Column(String(16))
     signal_frequency = Column(String(16))                           # high / medium / low
     description = Column(Text)
     provider_id = Column(BigInteger, ForeignKey("signal_providers.id"))
     strategy_id = Column(String(128))
+
+    # ── 订阅大佬账户时的 API 授权信息（signal_source='subscribe' 时必填）──
+    target_api_key = Column(String(512))                            # 目标账户 API Key
+    target_api_secret = Column(String(512))                         # 目标账户 API Secret
+    target_passphrase = Column(String(512))                         # 目标账户 Passphrase（部分交易所需要）
+    target_account_name = Column(String(256))                       # 目标账户别名（便于识别）
+    testnet = Column(Boolean, default=False)                        # 是否使用测试网
+
+    # ── WebSocket 监听配置 ──
+    auto_start_stream = Column(Boolean, default=True)               # 系统启动时是否自动开始监听
+    watch_symbols = Column(JSON)                                    # 限定监听的交易对列表（为空则全部）
+    sync_history = Column(Boolean, default=False)                   # 是否同步历史订单
+
+    # ── 统计字段 ──
     followers_count = Column(Integer, nullable=False, default=0)
     run_days = Column(Integer, nullable=False, default=0)
     cumulative_return = Column(Numeric(12, 4), nullable=False, default=0)

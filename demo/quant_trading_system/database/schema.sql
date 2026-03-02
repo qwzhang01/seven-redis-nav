@@ -1169,14 +1169,30 @@ CREATE TABLE IF NOT EXISTS signal (
     name                VARCHAR(128) NOT NULL,                          -- 信号名称，如 "Alpha Pro #1"
     platform            VARCHAR(64) NOT NULL DEFAULT 'Binance',         -- 来源平台，如 Binance、OKX
     type                VARCHAR(16) NOT NULL DEFAULT 'live',            -- 信号类型：live(实盘) / simulated(模拟盘)
+    signal_source       VARCHAR(16) NOT NULL DEFAULT 'strategy',        -- 信号来源：strategy(策略信号) / subscribe(订阅大佬账户)
     status              VARCHAR(16) NOT NULL DEFAULT 'running',         -- 信号状态：running / paused / stopped
     exchange            VARCHAR(64),                                    -- 交易所
+    account_type        VARCHAR(16) DEFAULT 'spot',                     -- 账户类型：spot / futures
     trading_pair        VARCHAR(32),                                    -- 交易对，如 BTC/USDT
     timeframe           VARCHAR(16),                                    -- 时间周期，如 15m、1H、4H、1D
     signal_frequency    VARCHAR(16),                                    -- 信号频率：high / medium / low
     description         TEXT,                                           -- 信号描述
     provider_id         BIGINT REFERENCES signal_providers(id),         -- 信号提供者ID
     strategy_id         VARCHAR(128),                                   -- 关联的策略ID（可选，如果信号由策略生成）
+
+    -- 订阅大佬账户时的 API 授权信息（signal_source='subscribe' 时必填）
+    target_api_key      VARCHAR(512),                                   -- 目标账户 API Key
+    target_api_secret   VARCHAR(512),                                   -- 目标账户 API Secret
+    target_passphrase   VARCHAR(512),                                   -- 目标账户 Passphrase（部分交易所需要）
+    target_account_name VARCHAR(256),                                   -- 目标账户别名（便于识别）
+    testnet             BOOLEAN DEFAULT FALSE,                          -- 是否使用测试网
+
+    -- WebSocket 监听配置
+    auto_start_stream   BOOLEAN DEFAULT TRUE,                           -- 系统启动时是否自动开始监听
+    watch_symbols       JSONB,                                          -- 限定监听的交易对列表（为空则全部）
+    sync_history        BOOLEAN DEFAULT FALSE,                          -- 是否同步历史订单
+
+    -- 统计字段
     followers_count     INTEGER NOT NULL DEFAULT 0,                     -- 跟随人数（冗余计数，定期同步）
     run_days            INTEGER NOT NULL DEFAULT 0,                     -- 运行天数
     cumulative_return   DECIMAL(12, 4) NOT NULL DEFAULT 0,              -- 累计收益率(%)
@@ -1186,25 +1202,37 @@ CREATE TABLE IF NOT EXISTS signal (
     enable_flag         BOOLEAN DEFAULT TRUE
 );
 
-COMMENT ON TABLE signal IS '信号广场主表 — 存储信号源的核心元数据信息';
+COMMENT ON TABLE signal IS '信号广场主表 — 存储信号源的核心元数据信息，分为 strategy(策略信号) 和 subscribe(订阅大佬账户) 两类';
 COMMENT ON COLUMN signal.name IS '信号名称，如 "Alpha Pro #1"';
 COMMENT ON COLUMN signal.platform IS '来源平台，如 Binance、OKX';
 COMMENT ON COLUMN signal.type IS '信号类型：live(实盘) / simulated(模拟盘)';
+COMMENT ON COLUMN signal.signal_source IS '信号来源：strategy(交易所跟单信号) / subscribe(订阅大佬账户)';
 COMMENT ON COLUMN signal.status IS '信号状态：running / paused / stopped';
+COMMENT ON COLUMN signal.account_type IS '账户类型：spot(现货) / futures(合约)';
 COMMENT ON COLUMN signal.provider_id IS '关联的信号提供者ID';
 COMMENT ON COLUMN signal.strategy_id IS '关联的策略ID（策略生成的信号可通过此关联）';
+COMMENT ON COLUMN signal.target_api_key IS '目标账户 API Key（subscribe 类型必填）';
+COMMENT ON COLUMN signal.target_api_secret IS '目标账户 API Secret（subscribe 类型必填）';
+COMMENT ON COLUMN signal.target_passphrase IS '目标账户 Passphrase（部分交易所需要）';
+COMMENT ON COLUMN signal.target_account_name IS '目标账户别名，便于用户识别';
+COMMENT ON COLUMN signal.testnet IS '是否使用测试网';
+COMMENT ON COLUMN signal.auto_start_stream IS '系统启动时是否自动开始 WebSocket 监听';
+COMMENT ON COLUMN signal.watch_symbols IS '限定监听的交易对列表，为空则监听全部';
+COMMENT ON COLUMN signal.sync_history IS '是否同步历史订单到 signal_records';
 COMMENT ON COLUMN signal.followers_count IS '跟随人数（冗余计数）';
 COMMENT ON COLUMN signal.cumulative_return IS '累计收益率(%)';
 COMMENT ON COLUMN signal.max_drawdown IS '最大回撤(%)';
 
 CREATE INDEX IF NOT EXISTS idx_signal_platform ON signal (platform);
 CREATE INDEX IF NOT EXISTS idx_signal_type ON signal (type);
+CREATE INDEX IF NOT EXISTS idx_signal_source ON signal (signal_source);
 CREATE INDEX IF NOT EXISTS idx_signal_status ON signal (status);
 CREATE INDEX IF NOT EXISTS idx_signal_provider ON signal (provider_id);
 CREATE INDEX IF NOT EXISTS idx_signal_strategy ON signal (strategy_id);
 CREATE INDEX IF NOT EXISTS idx_signal_cumulative_return ON signal (cumulative_return DESC);
 CREATE INDEX IF NOT EXISTS idx_signal_followers ON signal (followers_count DESC);
 CREATE INDEX IF NOT EXISTS idx_signal_enable ON signal (enable_flag);
+CREATE INDEX IF NOT EXISTS idx_signal_auto_start ON signal (auto_start_stream) WHERE status = 'running' AND enable_flag = TRUE;
 
 -- 信号风险参数表（一对一关联signal表）
 CREATE TABLE IF NOT EXISTS signal_risk_parameters (

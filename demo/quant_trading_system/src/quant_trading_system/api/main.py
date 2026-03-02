@@ -45,8 +45,6 @@ from ..services.database.database import init_database
 
 # 从 deps 模块导入公共依赖，避免循环导入
 from quant_trading_system.api.deps import (
-    get_orchestrator,
-    get_orchestrator_dep,
     set_app_ref,
     clear_app_ref,
 )
@@ -57,8 +55,6 @@ logger = logging.getLogger(__name__)
 
 
 # ── Lifespan 启动步骤 ────────────────────────────────────────────
-
-
 async def _startup_database() -> None:
     """初始化数据库表"""
     try:
@@ -195,7 +191,44 @@ async def _startup_websocket_heartbeat() -> None:
         print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
 
 
+async def _startup_signal_engines(app: FastAPI) -> None:
+    """
+    初始化并启动信号监听引擎 + 跟单引擎 + 订单引擎
 
+    启动顺序：
+    1. CopyOrderEngine（订单引擎）— 无依赖，最先就绪
+    2. FollowEngine（跟单引擎）— 依赖订单引擎
+    3. SignalStreamEngine（信号监听引擎）— 依赖事件总线
+
+    三个引擎通过 SignalEventBus 事件总线串联：
+        SignalStreamEngine → [事件总线] → FollowEngine → CopyOrderEngine
+    """
+    try:
+        from quant_trading_system.services.exchange.copy_order_engine import CopyOrderEngine
+        from quant_trading_system.services.exchange.follow_engine import FollowEngine
+        from quant_trading_system.services.exchange.copy_trade_stream import SignalStreamEngine
+
+        # 1. 创建订单引擎
+        copy_order_engine = CopyOrderEngine()
+        app.state.copy_order_engine = copy_order_engine
+        print("  ✅ 跟单订单引擎已就绪")
+
+        # 2. 创建并启动跟单引擎（扫描 signal_follow_orders 表 + 订阅事件总线）
+        follow_engine = FollowEngine(copy_order_engine=copy_order_engine)
+        await follow_engine.start()
+        app.state.follow_engine = follow_engine
+        print(f"  ✅ 跟单引擎已启动（活跃跟单: {follow_engine.total_follows}）")
+
+        # 3. 创建并启动信号监听引擎（扫描 signal 表 + 建立 WebSocket 监听）
+        signal_stream_engine = SignalStreamEngine()
+        await signal_stream_engine.start()
+        app.state.signal_stream_engine = signal_stream_engine
+        print(f"  ✅ 信号监听引擎已启动（活跃信号流: {signal_stream_engine.active_count}）")
+
+    except Exception as e:
+        print(f"⚠️ 信号引擎初始化失败（不影响系统启动）: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ── Lifespan 关闭步骤 ────────────────────────────────────────────
@@ -210,7 +243,45 @@ async def _shutdown_websocket_heartbeat() -> None:
         print(f"❌ WebSocket 心跳检测停止失败: {e}")
 
 
+async def _shutdown_signal_engines(app: FastAPI) -> None:
+    """
+    停止信号监听引擎 + 跟单引擎 + 订单引擎
 
+    关闭顺序（与启动相反）：
+    1. SignalStreamEngine — 先停止信号源，不再产生新事件
+    2. FollowEngine — 再停止跟单引擎，不再发送新指令
+    3. CopyOrderEngine — 最后关闭订单引擎，确保进行中的订单完成
+    """
+    # 1. 停止信号监听引擎
+    signal_stream_engine = getattr(app.state, "signal_stream_engine", None)
+    if signal_stream_engine is not None:
+        try:
+            count = signal_stream_engine.active_count
+            await signal_stream_engine.stop()
+            app.state.signal_stream_engine = None
+            print(f"  ✅ 信号监听引擎已停止（已关闭 {count} 个信号流）")
+        except Exception as e:
+            print(f"  ❌ 信号监听引擎停止失败: {e}")
+
+    # 2. 停止跟单引擎
+    follow_engine = getattr(app.state, "follow_engine", None)
+    if follow_engine is not None:
+        try:
+            await follow_engine.stop()
+            app.state.follow_engine = None
+            print("  ✅ 跟单引擎已停止")
+        except Exception as e:
+            print(f"  ❌ 跟单引擎停止失败: {e}")
+
+    # 3. 关闭订单引擎
+    copy_order_engine = getattr(app.state, "copy_order_engine", None)
+    if copy_order_engine is not None:
+        try:
+            await copy_order_engine.shutdown()
+            app.state.copy_order_engine = None
+            print("  ✅ 跟单订单引擎已关闭")
+        except Exception as e:
+            print(f"  ❌ 跟单订单引擎关闭失败: {e}")
 
 
 async def _shutdown_orchestrator(app: FastAPI) -> None:
@@ -240,11 +311,13 @@ async def lifespan(app: FastAPI):
     await _startup_database()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
+    await _startup_signal_engines(app)
 
     yield
 
     # ── 关闭 ──
     print("🛑 停止量化交易系统...")
+    await _shutdown_signal_engines(app)
     await _shutdown_websocket_heartbeat()
     await _shutdown_orchestrator(app)
     clear_app_ref()
