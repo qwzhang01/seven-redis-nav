@@ -242,10 +242,9 @@ export function toggleReviewLike(
  * 对接接口: POST /api/v1/c/follows/
  */
 export function createFollow(
-    signalId: string,
     data: CreateSignalFollowRequest
 ): Promise<CreateSignalFollowResponse> {
-    return post<CreateSignalFollowResponse>('/api/v1/c/follows/', data)
+    return post<CreateSignalFollowResponse>('/api/v1/c/follows', data)
 }
 
 /**

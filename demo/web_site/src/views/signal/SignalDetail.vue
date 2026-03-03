@@ -845,16 +845,22 @@ async function handleStartFollow() {
     MessagePlugin.warning('止损比例需在1-50之间')
     return
   }
+  if (!signal.value) {
+    MessagePlugin.warning('信号数据未加载')
+    return
+  }
   try {
-    const res = await createFollow(signalId.value, {
+    const res = await createFollow( {
+      signalId: signal.value.id.toString(),
+      signalName:signal.value.name,
       exchange: followConfig.value.exchange,
-      amount: Number(followConfig.value.amount),
-      ratio: Number(followConfig.value.ratio),
-      stopLoss: Number(followConfig.value.stopLoss),
+      followAmount: Number(followConfig.value.amount),
+      followRatio: Number(followConfig.value.ratio),
+      stopLoss: Number(followConfig.value.stopLoss) / 100,
     })
     MessagePlugin.success('跟单创建成功')
     // 跳转到跟单详情页
-    router.push(`/system/user/follow/${res.follow_id}`)
+    router.push(`/system/user/signal-follow/${res.id}`)
   } catch (e) {
     console.error('创建跟单失败', e)
     MessagePlugin.error('创建跟单失败')

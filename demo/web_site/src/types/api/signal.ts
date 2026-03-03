@@ -304,19 +304,21 @@ export interface ToggleLikeResponse {
 
 /** 创建跟单请求（信号详情页） */
 export interface CreateSignalFollowRequest {
+  signalId: string
+  signalName: string
   exchange: string
-  amount: number
-  ratio?: number
+  followAmount: number
+  followRatio?: number
   stopLoss: number
 }
 
 /** 创建跟单响应（信号详情页） */
 export interface CreateSignalFollowResponse {
-  follow_id: string
-  signal_id: string
-  amount: number
-  ratio: number
-  stop_loss: number
+  id: string
+  signalId: string
+  followAmount: number
+  followRatio: number
+  stopLoss: number
   status: string
 }
 
