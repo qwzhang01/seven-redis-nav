@@ -5,7 +5,7 @@
 > 对应页面：SignalDetail.vue、SignalFollowDetail.vue
 >
 > **v1.1 更新说明：**  
-> - 信号详情接口优先从 `signal` 主表查询，无数据时降级到 `signal_records` 表  
+> - 信号详情接口从 `signal` 主表及 `signal_trade_record` 表查询
 > - 新增 `GET /signals/{id}/return-curve` 独立收益曲线接口  
 > - 统一 K线接口路径为 `/market/kline`  
 > - 跟单配置更新接口统一为 `/follows/{id}/config`  

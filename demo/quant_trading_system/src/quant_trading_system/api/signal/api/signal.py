@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import (
     Signal,
-    SignalRecord,
+    SignalTradeRecord,
     SignalSubscription,
     User,
 )
@@ -89,29 +89,20 @@ class SubscribeSignalRequest(BaseModel):
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
-def _signal_to_dict(s: SignalRecord) -> dict:
-    """将 SignalRecord ORM 对象转换为字典"""
+def _trade_record_to_dict(s: SignalTradeRecord) -> dict:
+    """将 SignalTradeRecord ORM 对象转换为字典"""
     return {
         "id": s.id,
-        "strategy_id": s.strategy_id,
-        "strategy_name": s.strategy_name,
+        "signal_id": s.signal_id,
+        "action": s.action,
         "symbol": s.symbol,
-        "exchange": s.exchange,
-        "signal_type": s.signal_type,
         "price": float(s.price) if s.price is not None else None,
-        "quantity": float(s.quantity) if s.quantity is not None else None,
-        "confidence": float(s.confidence) if s.confidence is not None else None,
-        "timeframe": s.timeframe,
-        "reason": s.reason,
-        "indicators": s.indicators,
-        "status": s.status,
-        "executed_order_id": s.executed_order_id,
-        "executed_price": float(s.executed_price) if s.executed_price is not None else None,
-        "executed_at": s.executed_at.isoformat() if s.executed_at else None,
-        "is_public": s.is_public,
-        "subscriber_count": s.subscriber_count,
+        "amount": float(s.amount) if s.amount is not None else None,
+        "total": float(s.total) if s.total is not None else None,
+        "strength": s.strength,
+        "pnl": float(s.pnl) if s.pnl is not None else None,
+        "traded_at": s.traded_at.isoformat() if s.traded_at else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
-        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
 
 
@@ -132,7 +123,6 @@ async def list_signals(
     获取信号列表（信号广场）
 
     支持按平台、类型、运行天数筛选，支持关键词搜索和多种排序方式。
-    优先从signal主表查询，无数据时降级到signal_records查询。
     """
     result = SignalService.list_signals(
         db, platform=platform, signal_type=type,
@@ -190,9 +180,18 @@ async def get_strategy_signal_history(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """获取策略历史信号"""
-    query = db.query(SignalRecord).filter(SignalRecord.strategy_id == strategy_id)
+    # 通过 signal 表找到该策略关联的 signal_id
+    signal = db.query(Signal).filter(Signal.strategy_id == strategy_id, Signal.enable_flag == True).first()
+    if not signal:
+        return {
+            "code": 0,
+            "message": "success",
+            "data": {"strategy_id": strategy_id, "items": [], "total": 0, "page": page, "pages": 0},
+        }
+
+    query = db.query(SignalTradeRecord).filter(SignalTradeRecord.signal_id == signal.id)
     total = query.count()
-    items = query.order_by(SignalRecord.created_at.desc()).offset(
+    items = query.order_by(SignalTradeRecord.traded_at.desc()).offset(
         (page - 1) * page_size
     ).limit(page_size).all()
 
@@ -201,7 +200,7 @@ async def get_strategy_signal_history(
         "message": "success",
         "data": {
             "strategy_id": strategy_id,
-            "items": [_signal_to_dict(s) for s in items],
+            "items": [_trade_record_to_dict(s) for s in items],
             "total": total,
             "page": page,
             "pages": (total + page_size - 1) // page_size,
@@ -219,7 +218,6 @@ async def get_signal_detail(
     获取信号详情
 
     获取信号的完整详情信息，包括基本信息、风险参数、绩效指标、持仓等。
-    优先从signal主表查询，无数据时降级到signal_records查询。
     """
     user_id = current_user.id if current_user else None
     result = SignalService.get_signal_detail_v2(db, signal_id, user_id)

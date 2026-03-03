@@ -15,7 +15,7 @@
     SignalStreamEngine 解析事件
         ↓
     SignalEventBus.publish()
-        ├── SignalRecordSubscriber  → 存储到 signal_records + signal_trade_record
+        ├── SignalRecordSubscriber  → 存储到 signal_trade_record
         └── FollowEngine           → 触发跟单引擎处理
 
 使用方式：

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from quant_trading_system.models.database import LeaderboardSnapshot, SignalRecord
+from quant_trading_system.models.database import LeaderboardSnapshot, SignalTradeRecord, Signal
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
@@ -53,54 +53,56 @@ def _compute_and_save_snapshots(db: Session, snapshot_time: datetime) -> None:
     """
     计算并保存排行榜快照
 
-    基于 signal_records 表中的信号数据，按策略统计胜率、信号数量等指标，
+    基于 signal_trade_record 表中的交易数据，按信号源聚合统计胜率、交易数量等指标，
     生成各周期的排行榜快照。
     """
     for period in PERIODS:
         days = PERIOD_DAYS[period]
         start_time = snapshot_time - timedelta(days=days)
 
-        # 按策略聚合信号统计
+        # 按信号源聚合交易统计
         rows = db.query(
-            SignalRecord.strategy_id,
-            SignalRecord.strategy_name,
-            func.count(SignalRecord.id).label("total_signals"),
+            SignalTradeRecord.signal_id,
+            Signal.name.label("signal_name"),
+            func.count(SignalTradeRecord.id).label("total_trades"),
             func.sum(
-                (SignalRecord.status == "executed").cast(db.bind.dialect.name == "postgresql" and "integer" or "integer")
-            ).label("executed_count"),
-            func.avg(SignalRecord.confidence).label("avg_confidence"),
+                (SignalTradeRecord.pnl > 0).cast("integer")
+            ).label("win_count"),
+            func.sum(SignalTradeRecord.pnl).label("total_pnl"),
+        ).join(
+            Signal, Signal.id == SignalTradeRecord.signal_id
         ).filter(
-            SignalRecord.created_at >= start_time,
-            SignalRecord.created_at <= snapshot_time,
+            SignalTradeRecord.traded_at >= start_time,
+            SignalTradeRecord.traded_at <= snapshot_time,
         ).group_by(
-            SignalRecord.strategy_id,
-            SignalRecord.strategy_name,
+            SignalTradeRecord.signal_id,
+            Signal.name,
         ).order_by(
-            func.count(SignalRecord.id).desc()
+            func.count(SignalTradeRecord.id).desc()
         ).limit(100).all()
 
         for rank, row in enumerate(rows, start=1):
-            total = row.total_signals or 0
-            executed = 0
+            total = row.total_trades or 0
+            win_count = 0
             try:
-                executed = int(row.executed_count or 0)
+                win_count = int(row.win_count or 0)
             except Exception:
                 pass
-            win_rate = executed / total if total > 0 else 0.0
-            avg_conf = float(row.avg_confidence or 0)
+            win_rate = win_count / total if total > 0 else 0.0
+            total_pnl = float(row.total_pnl or 0)
 
             snapshot = LeaderboardSnapshot(
                 id=generate_snowflake_id(),
                 rank_type="signal",
                 period=period,
                 rank_position=rank,
-                entity_id=row.strategy_id,
-                entity_name=row.strategy_name or row.strategy_id,
+                entity_id=str(row.signal_id),
+                entity_name=row.signal_name or str(row.signal_id),
                 entity_type="strategy_signal",
-                total_return=None,
+                total_return=total_pnl,
                 annual_return=None,
                 max_drawdown=None,
-                sharpe_ratio=avg_conf,
+                sharpe_ratio=None,
                 win_rate=win_rate,
                 total_trades=total,
                 profit_factor=None,

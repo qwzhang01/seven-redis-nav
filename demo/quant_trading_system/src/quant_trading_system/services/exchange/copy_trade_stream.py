@@ -12,7 +12,7 @@
     SignalStreamEngine
         ├── BinanceUserStreamManager × N  （每个 subscribe 类型信号一个 WebSocket 连接）
         ├── SignalEventBus                （发布事件到事件总线）
-        └── DB Session                    （扫描 signal 表 + 存储 signal_records）
+        └── DB Session                    （扫描 signal 表 + 存储 signal_trade_record）
 
 事件流：
     WebSocket (executionReport)

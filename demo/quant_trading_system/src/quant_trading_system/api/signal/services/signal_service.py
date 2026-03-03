@@ -14,7 +14,6 @@ from sqlalchemy import func, case, extract, desc, and_
 from sqlalchemy.orm import Session
 
 from quant_trading_system.models.database import (
-    SignalRecord,
     SignalProvider,
     SignalReview,
     SignalReviewLike,
@@ -54,20 +53,11 @@ class SignalService:
         """
         获取信号广场信号列表（基于signal主表），支持筛选、排序、分页。
 
-        优先查询signal主表，若无数据则降级查询signal_records。
+        优先查询signal主表。
         """
-        signal_count = db.query(func.count(Signal.id)).filter(Signal.enable_flag == True).scalar() or 0
-
-        if signal_count > 0:
-            return SignalService._list_signals_from_signal_table(
-                db, platform, signal_type, min_days, search, sort_by, page, page_size,
-            )
-        else:
-            # 降级：从signal_records获取（向后兼容）
-            return SignalService.list_public_signals(
-                db, symbol=None, signal_type=signal_type,
-                strategy_id=None, page=page, page_size=page_size,
-            )
+        return SignalService._list_signals_from_signal_table(
+            db, platform, signal_type, min_days, search, sort_by, page, page_size,
+        )
 
     @staticmethod
     def _list_signals_from_signal_table(
@@ -149,8 +139,7 @@ class SignalService:
         """
         获取信号详情（优先从signal主表查询）
 
-        如果signal主表中存在该记录，则从主表及关联表获取完整数据；
-        否则降级到原有的signal_records查询逻辑。
+        从signal主表及关联表获取完整数据。
         """
         signal = db.query(Signal).filter(
             Signal.id == signal_id, Signal.enable_flag == True,
@@ -159,8 +148,7 @@ class SignalService:
         if signal:
             return SignalService._build_signal_detail_from_signal(db, signal, user_id)
 
-        # 降级：尝试从signal_records查询
-        return SignalService.get_signal_detail(db, signal_id, user_id)
+        return None
 
     @staticmethod
     def _build_signal_detail_from_signal(
@@ -310,16 +298,6 @@ class SignalService:
                 "labels": [c.time.strftime("%Y-%m-%d") for c in curve_data],
             }
 
-        # 降级：从signal_records计算（向后兼容）
-        signal = db.query(Signal).filter(Signal.id == signal_id).first()
-        if signal and signal.strategy_id:
-            gen = SignalService._generate_return_curve(db, signal.strategy_id, signal.created_at)
-            return {
-                "returnCurve": gen["values"],
-                "drawdownCurve": [],
-                "labels": gen["labels"],
-            }
-
         return {"returnCurve": [], "drawdownCurve": [], "labels": []}
 
     # ── 信号月度收益（基于signal_monthly_return表） ────────────
@@ -356,8 +334,7 @@ class SignalService:
                 },
             }
 
-        # 降级：从signal_records计算
-        return SignalService.get_monthly_returns(db, signal_id, months)
+        return {"months": [], "statistics": {}}
 
     # ── 信号回撤分析（基于signal_return_curve时序表） ──────────
 
@@ -425,8 +402,7 @@ class SignalService:
                 },
             }
 
-        # 降级：从signal_records计算
-        return SignalService.get_drawdown_analysis(db, signal_id)
+        return {"drawdownCurve": [], "labels": [], "statistics": {}}
 
     # ── 信号交易记录（基于signal_trade_record表） ─────────────
 
@@ -467,124 +443,9 @@ class SignalService:
                 "records": items,
             }
 
-        # 降级：从signal_records查询
-        return SignalService.get_signal_history(db, signal_id, page, page_size)
+        return {"total": 0, "page": page, "pageSize": page_size, "records": []}
 
-    # ── 信号详情 (原始实现，兼容signal_records) ───────────────
 
-    @staticmethod
-    def get_signal_detail(db: Session, signal_id: int, user_id: Optional[int] = None) -> Optional[dict[str, Any]]:
-        """
-        获取信号完整详情，包括基本信息、风险参数、绩效指标、持仓等。
-
-        Args:
-            db: 数据库会话
-            signal_id: 信号ID
-            user_id: 当前用户ID（可选，用于判断是否已跟单）
-
-        Returns:
-            信号详情字典，不存在返回 None
-        """
-        signal = db.query(SignalRecord).filter(SignalRecord.id == signal_id).first()
-        if not signal:
-            return None
-
-        # 基本信息
-        result = {
-            "id": signal.id,
-            "name": signal.strategy_name or f"Signal #{signal.id}",
-            "description": signal.reason or "",
-            "platform": signal.exchange or "Binance",
-            "type": "live",
-            "status": signal.status,
-            "exchange": signal.exchange or "Binance",
-            "tradingPair": signal.symbol,
-            "timeframe": signal.timeframe or "4H",
-            "signalFrequency": "medium",
-            "followers": signal.subscriber_count or 0,
-            "cumulativeReturn": 0.0,
-            "maxDrawdown": 0.0,
-            "runDays": 0,
-            "returnCurve": [],
-            "returnCurveLabels": [],
-            "riskParameters": {
-                "maxPositionSize": 30,
-                "stopLossPercentage": 5,
-                "takeProfitPercentage": 15,
-                "riskRewardRatio": 3,
-                "volatilityFilter": True,
-            },
-            "performanceMetrics": {
-                "sharpeRatio": 0.0,
-                "winRate": 0.0,
-                "profitFactor": 0.0,
-                "averageHoldingPeriod": 0.0,
-                "maxConsecutiveLosses": 0,
-            },
-            "notificationSettings": {
-                "emailAlerts": True,
-                "pushNotifications": True,
-                "telegramBot": False,
-                "discordWebhook": False,
-                "alertThreshold": 5,
-            },
-            "positions": [],
-            "createdAt": signal.created_at.isoformat() if signal.created_at else None,
-            "updatedAt": signal.updated_at.isoformat() if signal.updated_at else None,
-        }
-
-        # 计算运行天数
-        if signal.created_at:
-            result["runDays"] = (datetime.utcnow() - signal.created_at).days
-
-        # 计算该信号源的历史统计（基于同策略的信号记录）
-        stats = SignalService._compute_signal_stats(db, signal.strategy_id)
-        result.update(stats)
-
-        # 获取当前持仓（从跟单的position中聚合）
-        result["positions"] = SignalService._get_signal_positions(db, signal.strategy_id)
-
-        # 收益曲线数据
-        curve_data = SignalService._generate_return_curve(db, signal.strategy_id, signal.created_at)
-        result["returnCurve"] = curve_data["values"]
-        result["returnCurveLabels"] = curve_data["labels"]
-
-        return result
-
-    @staticmethod
-    def _compute_signal_stats(db: Session, strategy_id: str) -> dict[str, Any]:
-        """计算信号源的统计数据"""
-        signals = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == strategy_id,
-            SignalRecord.status == "executed",
-        ).all()
-
-        if not signals:
-            return {}
-
-        total = len(signals)
-        executed_with_profit = [s for s in signals if s.executed_price and s.price and float(s.executed_price) > float(s.price)]
-        win_count = len(executed_with_profit)
-
-        win_rate = (win_count / total * 100) if total > 0 else 0.0
-
-        # 计算累计收益
-        cum_return = 0.0
-        for s in signals:
-            if s.executed_price and s.price and float(s.price) > 0:
-                ret = (float(s.executed_price) - float(s.price)) / float(s.price) * 100
-                cum_return += ret
-
-        return {
-            "cumulativeReturn": round(cum_return, 2),
-            "performanceMetrics": {
-                "sharpeRatio": round(cum_return / max(abs(cum_return) * 0.3, 1), 2),
-                "winRate": round(win_rate, 1),
-                "profitFactor": round(win_count / max(total - win_count, 1), 2),
-                "averageHoldingPeriod": 3.5,
-                "maxConsecutiveLosses": 0,
-            },
-        }
 
     @staticmethod
     def _get_signal_positions(db: Session, strategy_id: str) -> list[dict]:
@@ -611,76 +472,7 @@ class SignalService:
             })
         return result
 
-    @staticmethod
-    def _generate_return_curve(db: Session, strategy_id: str, start_date: Optional[datetime] = None) -> dict:
-        """生成收益曲线数据"""
-        if not start_date:
-            start_date = datetime.utcnow() - timedelta(days=180)
 
-        signals = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == strategy_id,
-            SignalRecord.status == "executed",
-            SignalRecord.executed_at is not None,
-        ).order_by(SignalRecord.executed_at.asc()).all()
-
-        values = []
-        labels = []
-        cum_return = 0.0
-
-        for s in signals:
-            if s.executed_price and s.price and float(s.price) > 0:
-                ret = (float(s.executed_price) - float(s.price)) / float(s.price) * 100
-                cum_return += ret
-                values.append(round(cum_return, 2))
-                labels.append(s.executed_at.strftime("%Y-%m-%d") if s.executed_at else "")
-
-        return {"values": values, "labels": labels}
-
-    # ── 信号历史记录 ──────────────────────────────────────────
-
-    @staticmethod
-    def get_signal_history(
-        db: Session, signal_id: int, page: int = 1, page_size: int = 20
-    ) -> dict[str, Any]:
-        """获取信号历史交易记录"""
-        signal = db.query(Signal).filter(Signal.id == signal_id).first()
-        if not signal:
-            return {"total": 0, "page": page, "pageSize": page_size, "records": []}
-
-        # 查询同策略的全部信号记录
-        query = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == signal.strategy_id,
-        ).order_by(SignalRecord.created_at.desc())
-
-        total = query.count()
-        records = query.offset((page - 1) * page_size).limit(page_size).all()
-
-        items = []
-        for r in records:
-            pnl = None
-            status = "open"
-            if r.executed_price and r.price:
-                pnl = round(float(r.executed_price) - float(r.price), 2)
-                status = "closed"
-
-            items.append({
-                "id": str(r.id),
-                "action": r.signal_type,
-                "symbol": r.symbol,
-                "price": float(r.price) if r.price else 0,
-                "amount": float(r.quantity) if r.quantity else 0,
-                "time": r.created_at.isoformat() if r.created_at else None,
-                "strength": getattr(r, 'signal_strength', None) or "medium",
-                "pnl": pnl,
-                "status": status,
-            })
-
-        return {
-            "total": total,
-            "page": page,
-            "pageSize": page_size,
-            "records": items,
-        }
 
     # ── 信号提供者 ────────────────────────────────────────────
 
@@ -732,107 +524,7 @@ class SignalService:
             "badges": [],
         }
 
-    # ── 月度收益分布 ──────────────────────────────────────────
 
-    @staticmethod
-    def get_monthly_returns(
-        db: Session, signal_id: int, months: int = 12
-    ) -> dict[str, Any]:
-        """获取月度收益分布"""
-        signal = db.query(Signal).filter(Signal.id == signal_id).first()
-        if not signal:
-            return {"months": [], "statistics": {}}
-
-        # 按月汇总已执行的信号记录收益
-        cutoff = datetime.utcnow() - timedelta(days=months * 31)
-        signals = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == signal.strategy_id,
-            SignalRecord.status == "executed",
-            SignalRecord.executed_at >= cutoff,
-        ).order_by(SignalRecord.executed_at.asc()).all()
-
-        monthly_data: dict[str, float] = {}
-        for s in signals:
-            if s.executed_at and s.executed_price and s.price and float(s.price) > 0:
-                month_key = s.executed_at.strftime("%Y-%m")
-                ret = (float(s.executed_price) - float(s.price)) / float(s.price) * 100
-                monthly_data[month_key] = monthly_data.get(month_key, 0) + ret
-
-        month_list = [{"month": k, "return": round(v, 2)} for k, v in sorted(monthly_data.items())]
-        returns = [m["return"] for m in month_list]
-
-        profit_months = sum(1 for r in returns if r > 0)
-        loss_months = sum(1 for r in returns if r < 0)
-
-        return {
-            "months": month_list,
-            "statistics": {
-                "profitMonths": profit_months,
-                "lossMonths": loss_months,
-                "bestMonth": max(returns) if returns else 0,
-                "worstMonth": min(returns) if returns else 0,
-                "avgMonthlyReturn": round(sum(returns) / len(returns), 2) if returns else 0,
-            },
-        }
-
-    # ── 回撤分析 ──────────────────────────────────────────────
-
-    @staticmethod
-    def get_drawdown_analysis(db: Session, signal_id: int) -> dict[str, Any]:
-        """获取回撤分析数据"""
-        signal = db.query(Signal).filter(Signal.id == signal_id).first()
-        if not signal:
-            return {"drawdownCurve": [], "labels": [], "statistics": {}}
-
-        # 获取收益曲线，计算回撤
-        curve_data = SignalService._generate_return_curve(db, signal.strategy_id, signal.created_at)
-        values = curve_data["values"]
-        labels = curve_data["labels"]
-
-        if not values:
-            return {
-                "drawdownCurve": [],
-                "labels": [],
-                "statistics": {
-                    "currentDrawdown": 0,
-                    "maxDrawdown": 0,
-                    "avgDrawdown": 0,
-                    "maxDrawdownDate": "",
-                    "maxDrawdownDuration": 0,
-                },
-            }
-
-        # 计算回撤曲线
-        drawdown_curve = []
-        peak = values[0]
-        max_dd = 0.0
-        max_dd_idx = 0
-        dd_sum = 0.0
-
-        for i, v in enumerate(values):
-            if v > peak:
-                peak = v
-            dd = v - peak  # 回撤为负值
-            drawdown_curve.append(round(dd, 2))
-            dd_sum += dd
-            if dd < max_dd:
-                max_dd = dd
-                max_dd_idx = i
-
-        current_dd = drawdown_curve[-1] if drawdown_curve else 0
-        avg_dd = dd_sum / len(drawdown_curve) if drawdown_curve else 0
-
-        return {
-            "drawdownCurve": drawdown_curve,
-            "labels": labels,
-            "statistics": {
-                "currentDrawdown": round(current_dd, 2),
-                "maxDrawdown": round(max_dd, 2),
-                "avgDrawdown": round(avg_dd, 2),
-                "maxDrawdownDate": labels[max_dd_idx] if max_dd_idx < len(labels) else "",
-                "maxDrawdownDuration": 0,
-            },
-        }
 
     # ── 用户评价 ──────────────────────────────────────────────
 
@@ -1113,56 +805,4 @@ class SignalService:
             "startTime": now.isoformat(),
         }
 
-    # ── 公开信号列表 ──────────────────────────────────────────
 
-    @staticmethod
-    def list_public_signals(
-        db: Session,
-        symbol: Optional[str] = None,
-        signal_type: Optional[str] = None,
-        strategy_id: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 20,
-    ) -> dict[str, Any]:
-        """获取公开信号列表（信号广场）"""
-        query = db.query(SignalRecord).filter(SignalRecord.is_public == True)
-        if symbol:
-            query = query.filter(SignalRecord.symbol == symbol.upper())
-        if signal_type:
-            query = query.filter(SignalRecord.signal_type == signal_type.lower())
-        if strategy_id:
-            query = query.filter(SignalRecord.strategy_id == strategy_id)
-
-        total = query.count()
-        items = query.order_by(SignalRecord.created_at.desc()).offset(
-            (page - 1) * page_size
-        ).limit(page_size).all()
-
-        signal_list = []
-        for s in items:
-            signal_list.append({
-                "id": s.id,
-                "strategy_id": s.strategy_id,
-                "strategy_name": s.strategy_name,
-                "symbol": s.symbol,
-                "exchange": s.exchange,
-                "signal_type": s.signal_type,
-                "price": float(s.price) if s.price is not None else None,
-                "quantity": float(s.quantity) if s.quantity is not None else None,
-                "confidence": float(s.confidence) if s.confidence is not None else None,
-                "timeframe": s.timeframe,
-                "reason": s.reason,
-                "indicators": s.indicators,
-                "status": s.status,
-                "is_public": s.is_public,
-                "subscriber_count": s.subscriber_count,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
-            })
-
-        return {
-            "items": signal_list,
-            "total": total,
-            "page": page,
-            "pages": (total + page_size - 1) // page_size,
-        }

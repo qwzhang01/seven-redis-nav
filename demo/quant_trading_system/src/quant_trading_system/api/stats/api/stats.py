@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from quant_trading_system.models.database import (
-    User, SignalRecord, Subscription,
+    User, SignalTradeRecord, Signal, Subscription,
 )
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.api.deps import get_orchestrator_dep
@@ -90,9 +90,9 @@ async def get_system_overview(
         pass
 
     # 信号统计
-    total_signals = db.query(func.count(SignalRecord.id)).scalar() or 0
-    signals_today = db.query(func.count(SignalRecord.id)).filter(
-        SignalRecord.created_at >= today_start,
+    total_signals = db.query(func.count(SignalTradeRecord.id)).scalar() or 0
+    signals_today = db.query(func.count(SignalTradeRecord.id)).filter(
+        SignalTradeRecord.created_at >= today_start,
     ).scalar() or 0
 
     # 订阅配置统计
@@ -203,30 +203,32 @@ async def get_strategy_stats(
     except Exception:
         pass
 
-    # 各策略信号数量（从数据库）
+    # 各信号源交易数量（从数据库）
     signal_rows = db.query(
-        SignalRecord.strategy_id,
-        SignalRecord.strategy_name,
-        func.count(SignalRecord.id).label("signal_count"),
+        SignalTradeRecord.signal_id,
+        Signal.name.label("signal_name"),
+        func.count(SignalTradeRecord.id).label("signal_count"),
+    ).join(
+        Signal, SignalTradeRecord.signal_id == Signal.id,
     ).group_by(
-        SignalRecord.strategy_id,
-        SignalRecord.strategy_name,
-    ).order_by(func.count(SignalRecord.id).desc()).limit(20).all()
+        SignalTradeRecord.signal_id,
+        Signal.name,
+    ).order_by(func.count(SignalTradeRecord.id).desc()).limit(20).all()
 
     signal_by_strategy = [
         {
-            "strategy_id": row.strategy_id,
-            "strategy_name": row.strategy_name or row.strategy_id,
+            "signal_id": row.signal_id,
+            "signal_name": row.signal_name or str(row.signal_id),
             "signal_count": row.signal_count,
         }
         for row in signal_rows
     ]
 
-    # 信号类型分布
+    # 交易类型分布（buy/sell）
     type_rows = db.query(
-        SignalRecord.signal_type,
-        func.count(SignalRecord.id),
-    ).group_by(SignalRecord.signal_type).all()
+        SignalTradeRecord.action,
+        func.count(SignalTradeRecord.id),
+    ).group_by(SignalTradeRecord.action).all()
     signal_type_dist = {row[0]: row[1] for row in type_rows}
 
     return {
@@ -283,11 +285,10 @@ async def get_trading_stats(
     except Exception:
         pass
 
-    # 信号执行统计
+    # 今日交易统计
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    signals_executed_today = db.query(func.count(SignalRecord.id)).filter(
-        SignalRecord.status == "executed",
-        SignalRecord.executed_at >= today_start,
+    signals_executed_today = db.query(func.count(SignalTradeRecord.id)).filter(
+        SignalTradeRecord.traded_at >= today_start,
     ).scalar() or 0
 
     return {

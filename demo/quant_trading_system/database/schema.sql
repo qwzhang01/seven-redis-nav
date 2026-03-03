@@ -423,43 +423,7 @@ CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_exchange ON historical_sync
 CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_data_type ON historical_sync_tasks (data_type);
 CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_created_at ON historical_sync_tasks (created_at DESC);
 
--- 创建信号记录表（策略产生的交易信号）
-CREATE TABLE IF NOT EXISTS signal_records (
-    id BIGINT PRIMARY KEY,
-    strategy_id VARCHAR(128) NOT NULL,
-    strategy_name VARCHAR(128),
-    symbol VARCHAR(32) NOT NULL,
-    exchange VARCHAR(32) DEFAULT 'binance',
-    signal_type VARCHAR(16) NOT NULL,          -- buy/sell/close
-    price DECIMAL(20, 8) NOT NULL,
-    quantity DECIMAL(20, 8),
-    confidence DECIMAL(5, 4),                  -- 置信度 0~1
-    timeframe VARCHAR(8),
-    reason TEXT,
-    indicators JSONB,                          -- 触发时的指标值快照
-    status VARCHAR(16) DEFAULT 'pending',      -- pending/executed/ignored/expired
-    executed_order_id VARCHAR(128),
-    executed_price DECIMAL(20, 8),
-    executed_at TIMESTAMPTZ,
-    is_public BOOLEAN DEFAULT FALSE,
-    subscriber_count INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
 
-COMMENT ON TABLE signal_records IS '策略信号记录表';
-COMMENT ON COLUMN signal_records.signal_type IS '信号类型: buy/sell/close';
-COMMENT ON COLUMN signal_records.confidence IS '信号置信度 0.0~1.0';
-COMMENT ON COLUMN signal_records.indicators IS '触发时的技术指标快照（JSON）';
-COMMENT ON COLUMN signal_records.status IS '信号状态: pending/executed/ignored/expired';
-COMMENT ON COLUMN signal_records.is_public IS '是否在信号广场公开展示';
-
-CREATE INDEX IF NOT EXISTS idx_signal_strategy_id ON signal_records (strategy_id);
-CREATE INDEX IF NOT EXISTS idx_signal_symbol ON signal_records (symbol);
-CREATE INDEX IF NOT EXISTS idx_signal_type ON signal_records (signal_type);
-CREATE INDEX IF NOT EXISTS idx_signal_status ON signal_records (status);
-CREATE INDEX IF NOT EXISTS idx_signal_is_public ON signal_records (is_public);
-CREATE INDEX IF NOT EXISTS idx_signal_created_at ON signal_records (created_at DESC);
 
 -- 创建信号订阅表
 CREATE TABLE IF NOT EXISTS signal_subscriptions (
@@ -686,7 +650,7 @@ CREATE TABLE IF NOT EXISTS signal_follow_trades (
     total DECIMAL(20, 8) NOT NULL,                  -- 成交额（USDT）
     pnl DECIMAL(20, 8),                             -- 盈亏金额（已平仓时有值）
     fee DECIMAL(20, 8) DEFAULT 0,                   -- 手续费
-    signal_record_id BIGINT REFERENCES signal_records(id), -- 关联的信号记录
+    signal_record_id BIGINT REFERENCES signal_trade_record(id), -- 关联的信号交易记录
     trade_time TIMESTAMPTZ DEFAULT NOW(),           -- 成交时间
     create_time TIMESTAMPTZ DEFAULT NOW()
 );
@@ -695,7 +659,7 @@ COMMENT ON TABLE signal_follow_trades IS '信号跟单交易记录表';
 COMMENT ON COLUMN signal_follow_trades.side IS '交易方向: buy/sell';
 COMMENT ON COLUMN signal_follow_trades.pnl IS '盈亏金额（已平仓时有值，USDT）';
 COMMENT ON COLUMN signal_follow_trades.fee IS '手续费（USDT）';
-COMMENT ON COLUMN signal_follow_trades.signal_record_id IS '触发此交易的信号记录ID';
+COMMENT ON COLUMN signal_follow_trades.signal_record_id IS '触发此交易的信号交易记录ID';
 
 CREATE INDEX IF NOT EXISTS idx_follow_trades_order_id ON signal_follow_trades (follow_order_id);
 CREATE INDEX IF NOT EXISTS idx_follow_trades_user_id ON signal_follow_trades (user_id);
@@ -1032,7 +996,7 @@ CREATE INDEX IF NOT EXISTS idx_signal_providers_rating ON signal_providers (rati
 -- 用户评价表（信号评论与评分）
 CREATE TABLE IF NOT EXISTS signal_reviews (
     id BIGINT PRIMARY KEY,
-    signal_id BIGINT NOT NULL REFERENCES signal_records(id) ON DELETE CASCADE,
+    signal_id BIGINT NOT NULL REFERENCES signal_trade_record(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),   -- 评分 1~5
     content TEXT NOT NULL,                                          -- 评价内容
@@ -1123,27 +1087,7 @@ CREATE INDEX IF NOT EXISTS idx_copy_accounts_target ON exchange_copy_accounts (t
 CREATE INDEX IF NOT EXISTS idx_copy_accounts_status ON exchange_copy_accounts (status);
 CREATE INDEX IF NOT EXISTS idx_copy_accounts_follow_order ON exchange_copy_accounts (follow_order_id);
 
--- 为signal_records表新增provider_id字段（如果不存在则添加）
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'provider_id') THEN
-        ALTER TABLE signal_records ADD COLUMN provider_id BIGINT REFERENCES signal_providers(id);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'signal_source') THEN
-        ALTER TABLE signal_records ADD COLUMN signal_source VARCHAR(32) DEFAULT 'internal';
-        COMMENT ON COLUMN signal_records.signal_source IS '信号来源: internal(内部研究)/exchange_copy(交易所跟单)';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'trading_pair') THEN
-        ALTER TABLE signal_records ADD COLUMN trading_pair VARCHAR(32);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_records' AND column_name = 'signal_strength') THEN
-        ALTER TABLE signal_records ADD COLUMN signal_strength VARCHAR(16) DEFAULT 'medium';
-        COMMENT ON COLUMN signal_records.signal_strength IS '信号强度: strong/medium/weak';
-    END IF;
-END $$;
 
-CREATE INDEX IF NOT EXISTS idx_signal_provider_id ON signal_records (provider_id);
-CREATE INDEX IF NOT EXISTS idx_signal_source ON signal_records (signal_source);
 
 -- 为signal_follow_orders表新增signal_time字段（交叉跟单需记录信号原始时间）
 DO $$
@@ -1218,7 +1162,7 @@ COMMENT ON COLUMN signal.target_account_name IS '目标账户别名，便于用�
 COMMENT ON COLUMN signal.testnet IS '是否使用测试网';
 COMMENT ON COLUMN signal.auto_start_stream IS '系统启动时是否自动开始 WebSocket 监听';
 COMMENT ON COLUMN signal.watch_symbols IS '限定监听的交易对列表，为空则监听全部';
-COMMENT ON COLUMN signal.sync_history IS '是否同步历史订单到 signal_records';
+COMMENT ON COLUMN signal.sync_history IS '是否同步历史订单到 signal_trade_record';
 COMMENT ON COLUMN signal.followers_count IS '跟随人数（冗余计数）';
 COMMENT ON COLUMN signal.cumulative_return IS '累计收益率(%)';
 COMMENT ON COLUMN signal.max_drawdown IS '最大回撤(%)';

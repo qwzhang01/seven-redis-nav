@@ -18,7 +18,7 @@ from quant_trading_system.models.database import (
     SignalFollowPosition,
     SignalFollowTrade,
     SignalFollowEvent,
-    SignalRecord,
+    SignalTradeRecord,
     User,
 )
 from quant_trading_system.core.snowflake import generate_snowflake_id
@@ -372,20 +372,18 @@ class FollowService:
     @staticmethod
     def _compute_signal_curve(db: Session, strategy_id: str, start_time: Optional[datetime]) -> list[float]:
         """计算信号源收益曲线"""
-        query = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == strategy_id,
-            SignalRecord.status == "executed",
+        query = db.query(SignalTradeRecord).filter(
+            SignalTradeRecord.signal_id == int(strategy_id),
         )
         if start_time:
-            query = query.filter(SignalRecord.executed_at >= start_time)
+            query = query.filter(SignalTradeRecord.traded_at >= start_time)
 
-        signals = query.order_by(SignalRecord.executed_at.asc()).all()
+        signals = query.order_by(SignalTradeRecord.traded_at.asc()).all()
         curve = []
         cum_return = 0.0
         for s in signals:
-            if s.executed_price and s.price and float(s.price) > 0:
-                ret = (float(s.executed_price) - float(s.price)) / float(s.price) * 100
-                cum_return += ret
+            if s.pnl:
+                cum_return += float(s.pnl)
             curve.append(round(cum_return, 2))
         return curve
 
@@ -402,9 +400,8 @@ class FollowService:
     @staticmethod
     def _compute_copy_rate(db: Session, follow_id: int, strategy_id: str) -> float:
         """计算跟单复制率"""
-        total_signals = db.query(func.count(SignalRecord.id)).filter(
-            SignalRecord.strategy_id == strategy_id,
-            SignalRecord.status == "executed",
+        total_signals = db.query(func.count(SignalTradeRecord.id)).filter(
+            SignalTradeRecord.signal_id == int(strategy_id),
         ).scalar() or 0
 
         if total_signals == 0:
@@ -705,14 +702,6 @@ class FollowService:
             create_time=now,
         )
         db.add(event)
-
-        # 更新信号源订阅数
-        signals = db.query(SignalRecord).filter(
-            SignalRecord.strategy_id == order.strategy_id,
-        ).all()
-        for s in signals:
-            if s.subscriber_count and s.subscriber_count > 0:
-                s.subscriber_count -= 1
 
         db.commit()
         db.refresh(order)

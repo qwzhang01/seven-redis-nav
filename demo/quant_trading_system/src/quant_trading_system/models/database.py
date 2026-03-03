@@ -164,32 +164,6 @@ class SyncTask(Base):
     subscription = relationship("Subscription", back_populates="sync_tasks")
 
 
-class SignalRecord(Base):
-    """策略信号记录模型"""
-    __tablename__ = "signal_records"
-
-    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    strategy_id = Column(String(128), nullable=False)
-    strategy_name = Column(String(128))
-    symbol = Column(String(32), nullable=False)
-    exchange = Column(String(32), default="binance")
-    signal_type = Column(String(16), nullable=False)   # buy/sell/close
-    price = Column(Numeric(20, 8), nullable=False)
-    quantity = Column(Numeric(20, 8))
-    confidence = Column(Numeric(5, 4))
-    timeframe = Column(String(8))
-    reason = Column(Text)
-    indicators = Column(JSONB)
-    status = Column(String(16), default="pending")     # pending/executed/ignored/expired
-    executed_order_id = Column(String(128))
-    executed_price = Column(Numeric(20, 8))
-    executed_at = Column(DateTime)
-    is_public = Column(Boolean, default=False)
-    subscriber_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-
-
 class SignalSubscription(Base):
     """用户订阅信号模型"""
     __tablename__ = "signal_subscriptions"
@@ -354,7 +328,7 @@ class SignalFollowTrade(Base):
     total = Column(Numeric(20, 8), nullable=False)               # 成交额（USDT）
     pnl = Column(Numeric(20, 8))                                 # 盈亏金额（已平仓时有值）
     fee = Column(Numeric(20, 8), default=0)                      # 手续费
-    signal_record_id = Column(BigInteger, ForeignKey("signal_records.id"))
+    signal_record_id = Column(BigInteger, ForeignKey("signal_trade_record.id"))
     signal_time = Column(DateTime)                               # 信号源发出时间
     slippage = Column(Numeric(10, 6), default=0)                 # 滑点百分比
     trade_time = Column(DateTime, default=datetime.utcnow)
@@ -393,7 +367,7 @@ class SignalReview(Base):
     __tablename__ = "signal_reviews"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal_records.id", ondelete="CASCADE"), nullable=False)
+    signal_id = Column(BigInteger, ForeignKey("signal_trade_record.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
     rating = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)

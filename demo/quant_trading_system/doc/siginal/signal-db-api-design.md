@@ -1209,6 +1209,6 @@ SELECT add_retention_policy('signal_follow_trade', INTERVAL '3 years');
 3. 信号列表和详情为公开接口，创建跟单、发表评价等写操作需要登录
 4. K线数据建议通过 WebSocket 实现实时推送，REST 接口作为历史数据补全
 5. `followers_count` 等冗余字段通过定时任务或触发器同步更新
-6. **数据查询降级策略**：信号详情、列表、收益曲线等接口优先从 `signal` 主表及关联时序表查询，无数据时自动降级到 `signal_records` 表计算，确保向后兼容
+6. **数据查询策略**：信号详情、列表、收益曲线等接口从 `signal` 主表及关联的 `signal_trade_record` 表查询
 7. 表名统一使用复数形式（如 `signal_providers`、`signal_follow_orders`、`signal_follow_positions` 等），与 ORM 模型保持一致
 8. `signal` 主表通过 `strategy_id` 字段关联策略系统，支持策略自动生成信号源
