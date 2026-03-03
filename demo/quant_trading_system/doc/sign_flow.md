@@ -1,6 +1,6 @@
 ### 信号逻辑
 - signal 是信号定义的表
-- signal_records signal与signal_records 是一对一，signal 
+- signal_records signal与signal_records 是一对多，signal 
   产生信号，即操作仓位的时候，把实时的订单记录到signal_records
 - 通过交易所拉取账号的历史订单，将历史订单存到 signal_records
 

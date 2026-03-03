@@ -2,12 +2,12 @@
 
 ## 概述
 
-排行榜模块提供策略和信号的排行榜查询功能，支持按不同统计周期和排序字段获取排名数据。管理员可手动刷新排行榜快照。
+排行榜模块提供策略和信号的排行榜查询功能，支持按不同统计周期和排序字段查看排名。管理员可手动刷新排行榜快照。
 
 ## 基础信息
 
-- **C端基础URL**: `/api/v1/c/leaderboard`
-- **Admin端基础URL**: `/api/v1/m/leaderboard`
+- **C 端基础URL**: `/api/v1/c/leaderboard`
+- **Admin 端基础URL**: `/api/v1/m/leaderboard`
 - **认证方式**: JWT Bearer Token
 - **数据格式**: JSON
 
@@ -15,15 +15,15 @@
 
 ## 接口列表
 
-### C端接口（普通用户）
+### C 端（普通用户）
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | GET | `/api/v1/c/leaderboard` | 获取综合排行榜 |
-| GET | `/api/v1/c/leaderboard/strategy` | 策略收益排行 |
-| GET | `/api/v1/c/leaderboard/signal` | 信号准确率排行 |
+| GET | `/api/v1/c/leaderboard/strategy` | 策略收益排行榜 |
+| GET | `/api/v1/c/leaderboard/signal` | 信号准确率排行榜 |
 
-### Admin端接口（管理员）
+### Admin 端（管理员）
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
@@ -31,7 +31,7 @@
 
 ---
 
-## 接口详情
+## C 端接口详情
 
 ### 1. 获取综合排行榜
 
@@ -54,14 +54,14 @@
   "snapshot_time": "2025-02-01T12:00:00",
   "strategy_ranking": [
     {
-      "id": 123456789,
+      "id": 1,
       "rank_type": "strategy",
       "period": "weekly",
       "rank_position": 1,
       "entity_id": "strategy_001",
-      "entity_name": "MA Cross Strategy",
+      "entity_name": "MA Cross",
       "entity_type": "strategy",
-      "owner_id": "user_001",
+      "owner_id": "12345",
       "owner_name": "trader1",
       "total_return": 15.5,
       "annual_return": 120.0,
@@ -77,7 +77,7 @@
   ],
   "signal_ranking": [
     {
-      "id": 123456790,
+      "id": 2,
       "rank_type": "signal",
       "period": "weekly",
       "rank_position": 1,
@@ -101,6 +101,39 @@
 }
 ```
 
+#### 响应字段说明
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| period | string | 统计周期 |
+| snapshot_time | string | 快照时间（ISO格式） |
+| strategy_ranking | array | 策略排行榜列表 |
+| signal_ranking | array | 信号排行榜列表 |
+
+#### 排行榜条目字段
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| id | integer | 快照记录ID |
+| rank_type | string | 排名类型：`strategy` / `signal` |
+| period | string | 统计周期 |
+| rank_position | integer | 排名位置 |
+| entity_id | string | 实体ID（策略ID） |
+| entity_name | string | 实体名称（策略名称） |
+| entity_type | string | 实体类型 |
+| owner_id | string | 所有者用户ID |
+| owner_name | string | 所有者用户名 |
+| total_return | float | 总收益率（可为null） |
+| annual_return | float | 年化收益率（可为null） |
+| max_drawdown | float | 最大回撤（可为null） |
+| sharpe_ratio | float | 夏普比率（信号类型中为平均置信度） |
+| win_rate | float | 胜率 |
+| total_trades | integer | 总交易/信号数 |
+| profit_factor | float | 盈亏比（可为null） |
+| stat_start_time | string | 统计开始时间 |
+| stat_end_time | string | 统计结束时间 |
+| snapshot_time | string | 快照时间 |
+
 ---
 
 ### 2. 策略收益排行榜
@@ -123,14 +156,14 @@
 {
   "items": [
     {
-      "id": 123456789,
+      "id": 1,
       "rank_type": "strategy",
       "period": "weekly",
       "rank_position": 1,
       "entity_id": "strategy_001",
-      "entity_name": "MA Cross Strategy",
+      "entity_name": "MA Cross",
       "entity_type": "strategy",
-      "owner_id": "user_001",
+      "owner_id": "12345",
       "owner_name": "trader1",
       "total_return": 15.5,
       "annual_return": 120.0,
@@ -150,6 +183,16 @@
   "snapshot_time": "2025-02-01T12:00:00"
 }
 ```
+
+#### 响应字段说明
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| items | array | 排行榜条目列表（字段同上） |
+| total | integer | 返回条目数量 |
+| period | string | 统计周期 |
+| sort_by | string | 排序字段 |
+| snapshot_time | string | 快照时间 |
 
 ---
 
@@ -172,7 +215,7 @@
 {
   "items": [
     {
-      "id": 123456790,
+      "id": 2,
       "rank_type": "signal",
       "period": "weekly",
       "rank_position": 1,
@@ -199,15 +242,26 @@
 }
 ```
 
+#### 响应字段说明
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| items | array | 排行榜条目列表（字段同上） |
+| total | integer | 返回条目数量 |
+| period | string | 统计周期 |
+| snapshot_time | string | 快照时间 |
+
 ---
 
-### 4. 手动刷新排行榜快照（管理员）
+## Admin 端接口详情
+
+### 4. 手动刷新排行榜快照
 
 **POST** `/api/v1/m/leaderboard/refresh`
 
 重新计算并写入最新的排行榜快照数据。通常由定时任务自动触发，也可由管理员手动调用。
 
-刷新逻辑：基于 `signal_records` 表中的信号数据，按策略聚合统计胜率、信号数量等指标，分别生成 `daily`、`weekly`、`monthly`、`all_time` 四个周期的排行榜快照。
+刷新逻辑：基于 `signal_records` 表中的信号数据，按策略聚合统计胜率、信号数量等指标，生成 `daily` / `weekly` / `monthly` / `all_time` 四个周期的排行榜快照。
 
 #### 请求体
 
@@ -219,44 +273,17 @@
 {
   "success": true,
   "message": "排行榜快照已刷新",
-  "snapshot_time": "2025-02-01T12:00:00.123456"
+  "snapshot_time": "2025-02-01T12:00:00.000000"
 }
 ```
 
----
-
-## 排行榜数据字段说明
+#### 响应字段说明
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| id | integer | 快照记录ID |
-| rank_type | string | 排行类型：`strategy` / `signal` |
-| period | string | 统计周期：`daily` / `weekly` / `monthly` / `all_time` |
-| rank_position | integer | 排名位置 |
-| entity_id | string | 实体ID（策略ID） |
-| entity_name | string | 实体名称（策略名称） |
-| entity_type | string | 实体类型：`strategy` / `strategy_signal` |
-| owner_id | string | 所有者用户ID（可能为null） |
-| owner_name | string | 所有者用户名（可能为null） |
-| total_return | float | 总收益率（可能为null） |
-| annual_return | float | 年化收益率（可能为null） |
-| max_drawdown | float | 最大回撤（可能为null） |
-| sharpe_ratio | float | 夏普比率 / 信号平均置信度 |
-| win_rate | float | 胜率（0-1） |
-| total_trades | integer | 总交易/信号数 |
-| profit_factor | float | 盈利因子（可能为null） |
-| stat_start_time | string | 统计开始时间（ISO格式） |
-| stat_end_time | string | 统计结束时间（ISO格式） |
-| snapshot_time | string | 快照生成时间（ISO格式） |
-
-## 统计周期说明
-
-| 周期 | 值 | 统计天数 |
-|------|------|------|
-| 日榜 | `daily` | 最近1天 |
-| 周榜 | `weekly` | 最近7天 |
-| 月榜 | `monthly` | 最近30天 |
-| 总榜 | `all_time` | 最近3650天 |
+| success | boolean | 操作是否成功 |
+| message | string | 操作结果描述 |
+| snapshot_time | string | 快照时间（ISO格式） |
 
 ---
 
@@ -265,5 +292,5 @@
 | HTTP 状态码 | 描述 |
 |-------------|------|
 | 401 | 未认证或Token无效 |
-| 403 | 无权限（非管理员调用Admin接口） |
+| 403 | 无权限（Admin接口需管理员权限） |
 | 500 | 服务器内部错误 |
