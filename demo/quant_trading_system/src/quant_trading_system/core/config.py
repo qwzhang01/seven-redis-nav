@@ -210,7 +210,7 @@ class ExchangeSettings(BaseSettings):
     # Binance
     binance_api_key: Optional[str] = None
     binance_secret_key: Optional[str] = None
-    binance_testnet: bool = True
+    binance_testnet: bool = False  # 默认使用正式网，测试网需显式设置环境变量 BINANCE_TESTNET=true
 
     # 通用交易所 API 配置
     exchange_api_timeout: int = 30
