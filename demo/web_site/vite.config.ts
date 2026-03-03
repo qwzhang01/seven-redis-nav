@@ -32,18 +32,32 @@ export default defineConfig({
       output: {
         // 优化代码分割策略 - 使用函数形式更灵活
         manualChunks(id) {
-          // node_modules 中的包
           if (id.includes('node_modules')) {
-            // Vue 核心
-            if (id.includes('vue') || id.includes('vue-router')) {
+            // 从路径中提取包名，精确匹配避免循环依赖
+            const getPackageName = (id: string) => {
+              const parts = id.split('node_modules/');
+              const name = parts[parts.length - 1];
+              // 处理 @scope/package 格式
+              if (name.startsWith('@')) {
+                return name.split('/').slice(0, 2).join('/');
+              }
+              return name.split('/')[0];
+            };
+
+            const pkg = getPackageName(id);
+
+            // Vue 核心 - 精确匹配包名
+            if (['vue', '@vue', 'vue-router', 'pinia', '@vuepic'].some(
+              name => pkg === name || pkg.startsWith(name + '/')
+            )) {
               return 'vue-vendor';
             }
             // UI 组件库
-            if (id.includes('tdesign')) {
+            if (pkg.startsWith('tdesign')) {
               return 'ui-vendor';
             }
-            // 其他第三方库统一打包
-            return 'vendor';
+            // 其他第三方库不再统一打包到一个大 chunk，
+            // 让 Rollup 自动分割，避免生成过大的 chunk 导致内存不足
           }
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
