@@ -10,9 +10,8 @@ import numpy as np
 
 from quant_trading_system.models.market import Bar
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.services.strategy.base import Strategy, register_strategy
-from quant_trading_system.services.strategy.signal import Signal
-from quant_trading_system.services.indicators.technical import RSI
+from quant_trading_system.strategy.base import Strategy, register_strategy
+from quant_trading_system.strategy.strategy_signal import StrategySignal
 
 
 @register_strategy
@@ -22,7 +21,7 @@ class RSIStrategy(Strategy):
 
     RSI低于超卖线买入，高于超买线卖出
     """
-    id:int = 152410378779754500
+    id: ClassVar[int] = 152410378779754500
     name: ClassVar[str] = "rsi_ob_os"
     description: ClassVar[str] = "RSI超买超卖策略"
     version: ClassVar[str] = "1.0.0"
@@ -39,24 +38,20 @@ class RSIStrategy(Strategy):
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
-        self._close_prices: list[float] = []
         self._prev_rsi: float | None = None
 
-    def on_bar(self, bar: Bar) -> Signal | list[Signal] | None:
-        # 收集收盘价数据
-        self._close_prices.append(bar.close)
-
-        # 确保有足够的数据计算RSI
-        if len(self._close_prices) < self.params["period"] + 1:
+    def on_bar(self, bar: Bar) -> StrategySignal | list[StrategySignal] | None:
+        # 通过指标引擎计算RSI
+        try:
+            rsi_result = self.calculate_indicator(
+                "RSI",
+                period=self.params["period"],
+            )
+        except (RuntimeError, ValueError):
+            # 上下文未就绪或数据不足
             return None
 
-        # 使用RSI类的计算方法
-        close_array = np.array(self._close_prices)
-
-        # 创建RSI实例并计算
-        rsi_indicator = RSI(period=self.params["period"])
-        rsi_result = rsi_indicator.calculate(close_array)
-        rsi_current = rsi_result.values["rsi"][-1]
+        rsi_current = rsi_result["rsi"][-1]
 
         # 检查是否为NaN（数据不足时）
         if np.isnan(rsi_current):
@@ -86,42 +81,3 @@ class RSIStrategy(Strategy):
         self._prev_rsi = rsi_current
 
         return signal
-
-    @staticmethod
-    def _calculate_rsi(prices: np.ndarray, period: int) -> np.ndarray:
-        """计算RSI指标"""
-        n = len(prices)
-        rsi = np.full(n, np.nan, dtype=float)
-
-        if n < period + 1:
-            return rsi
-
-        # 计算价格变化
-        delta = np.diff(prices, prepend=prices[0])
-
-        # 分离涨跌
-        gain = np.where(delta > 0, delta, 0)
-        loss = np.where(delta < 0, -delta, 0)
-
-        # 计算平均涨跌（Wilder平滑）
-        avg_gain = np.full(n, np.nan)
-        avg_loss = np.full(n, np.nan)
-
-        # 初始值使用SMA
-        avg_gain[period] = np.mean(gain[1:period + 1])
-        avg_loss[period] = np.mean(loss[1:period + 1])
-
-        # Wilder平滑
-        for i in range(period + 1, n):
-            avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i]) / period
-            avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i]) / period
-
-        # 计算RSI
-        for i in range(period, n):
-            if avg_loss[i] == 0:
-                rsi[i] = 100
-            else:
-                rs = avg_gain[i] / avg_loss[i]
-                rsi[i] = 100 - 100 / (1 + rs)
-
-        return rsi

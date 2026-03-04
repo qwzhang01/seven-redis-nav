@@ -22,10 +22,10 @@ from typing import TYPE_CHECKING, Optional
 import structlog
 
 if TYPE_CHECKING:
-    from quant_trading_system.core.events import EventEngine
-    from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
+    from quant_trading_system.engines.event_engine import EventEngine
+    from quant_trading_system.indicators.indicator_engine import IndicatorEngine
     from quant_trading_system.services.market.market_service import MarketService
-    from quant_trading_system.services.strategy.strategy_engine import StrategyEngine
+    from quant_trading_system.strategy import StrategyEngine
     from quant_trading_system.services.trading.trading_engine import TradingEngine
     from quant_trading_system.services.risk.risk_manager import RiskManager
 
@@ -56,7 +56,7 @@ class ServiceContainer:
     def event_engine(self) -> "EventEngine":
         """获取事件引擎（懒加载）"""
         if self._event_engine is None:
-            from quant_trading_system.core.events import EventEngine
+            from quant_trading_system.engines.event_engine import EventEngine
             self._event_engine = EventEngine(
                 queue_size=100000,
                 num_workers=4,
@@ -75,7 +75,7 @@ class ServiceContainer:
     def indicator_engine(self) -> "IndicatorEngine":
         """获取指标引擎（懒加载）"""
         if self._indicator_engine is None:
-            from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
+            from quant_trading_system.indicators.indicator_engine import IndicatorEngine
             self._indicator_engine = IndicatorEngine()
             logger.debug("IndicatorEngine created by container")
         return self._indicator_engine
@@ -105,7 +105,7 @@ class ServiceContainer:
     def strategy_engine(self) -> "StrategyEngine":
         """获取策略引擎（懒加载）"""
         if self._strategy_engine is None:
-            from quant_trading_system.services.strategy.strategy_engine import StrategyEngine
+            from quant_trading_system.strategy import StrategyEngine
             self._strategy_engine = StrategyEngine(
                 event_engine=self.event_engine,
                 indicator_engine=self.indicator_engine,
@@ -158,6 +158,19 @@ class ServiceContainer:
 
         主要用于测试场景。
         """
+        # 先优雅关闭持有线程池/后台资源的引擎
+        if self._indicator_engine is not None:
+            try:
+                self._indicator_engine.shutdown()
+            except Exception:
+                logger.warning("IndicatorEngine shutdown failed during reset", exc_info=True)
+
+        if self._event_engine is not None:
+            try:
+                self._event_engine.stop()
+            except Exception:
+                logger.warning("EventEngine stop failed during reset", exc_info=True)
+
         self._event_engine = None
         self._indicator_engine = None
         self._market_service = None

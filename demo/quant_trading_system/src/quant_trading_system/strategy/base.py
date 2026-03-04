@@ -12,14 +12,15 @@ from typing import Any, ClassVar, Type
 import structlog
 from pydantic import BaseModel, Field
 
-from quant_trading_system.models.market import Bar, BarArray, BarArrayView, Depth, Tick
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.models.trading import Order, Position, Trade
-from quant_trading_system.models.account import Account
-from quant_trading_system.services.strategy.signal import Signal
-from quant_trading_system.core.enums import SignalType, StrategyStatus, StrategyState
-from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
+from quant_trading_system.core.enums import SignalType, StrategyState
 from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
+from quant_trading_system.indicators.indicator_engine import IndicatorEngine
+from quant_trading_system.models.account import Account
+from quant_trading_system.models.market import Bar, BarArray, Depth, Tick
+from quant_trading_system.models.trading import Order, Position, Trade
+from quant_trading_system.strategy.strategy_signal import \
+    StrategySignal
 
 logger = structlog.get_logger(__name__)
 
@@ -168,6 +169,16 @@ class Strategy(ABC):
 
     def _validate_params(self, params: dict[str, Any]) -> dict[str, Any]:
         """验证并填充默认参数"""
+        # 检查是否有未定义的参数（可能是拼写错误）
+        unknown = set(params.keys()) - set(self.params_def.keys())
+        if unknown:
+            logger.warning(
+                "Unknown strategy parameters (ignored)",
+                strategy=self.name,
+                unknown_params=list(unknown),
+                valid_params=list(self.params_def.keys()),
+            )
+
         validated = {}
 
         for name, definition in self.params_def.items():
@@ -232,7 +243,7 @@ class Strategy(ABC):
     # ========== 数据事件方法 ==========
 
     @abstractmethod
-    def on_bar(self, bar: Bar) -> Signal | list[Signal] | None:
+    def on_bar(self, bar: Bar) -> StrategySignal | list[StrategySignal] | None:
         """
         K线数据回调
 
@@ -246,7 +257,7 @@ class Strategy(ABC):
         """
         pass
 
-    def on_tick(self, tick: Tick) -> Signal | list[Signal] | None:
+    def on_tick(self, tick: Tick) -> StrategySignal | list[StrategySignal] | None:
         """
         Tick数据回调
 
@@ -260,7 +271,7 @@ class Strategy(ABC):
         """
         return None
 
-    def on_depth(self, depth: Depth) -> Signal | list[Signal] | None:
+    def on_depth(self, depth: Depth) -> StrategySignal | list[StrategySignal] | None:
         """
         深度数据回调
 
@@ -311,10 +322,10 @@ class Strategy(ABC):
         stop_loss: float = 0,
         take_profit: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建买入信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.BUY,
             strategy_id=self.strategy_id,
@@ -332,10 +343,10 @@ class Strategy(ABC):
         quantity: float = 0,
         price: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建卖出信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.SELL,
             strategy_id=self.strategy_id,
@@ -353,10 +364,10 @@ class Strategy(ABC):
         stop_loss: float = 0,
         take_profit: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建开多信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.OPEN_LONG,
             strategy_id=self.strategy_id,
@@ -376,10 +387,10 @@ class Strategy(ABC):
         stop_loss: float = 0,
         take_profit: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建开空信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.OPEN_SHORT,
             strategy_id=self.strategy_id,
@@ -397,10 +408,10 @@ class Strategy(ABC):
         quantity: float = 0,
         price: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建平多信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.CLOSE_LONG,
             strategy_id=self.strategy_id,
@@ -416,10 +427,10 @@ class Strategy(ABC):
         quantity: float = 0,
         price: float = 0,
         reason: str = "",
-    ) -> Signal:
+    ) -> StrategySignal:
         """创建平空信号"""
         self._signal_count += 1
-        return Signal(
+        return StrategySignal(
             symbol=symbol,
             signal_type=SignalType.CLOSE_SHORT,
             strategy_id=self.strategy_id,

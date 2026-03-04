@@ -15,7 +15,7 @@ from typing import Any
 import structlog
 
 from quant_trading_system.core.enums import RiskLevel, OrderSide
-from quant_trading_system.core.events import Event, EventEngine, EventType
+from quant_trading_system.engines.event_engine import Event, EventEngine, EventType
 from quant_trading_system.models.trading import Order, Position, Trade
 from quant_trading_system.models.market import Bar
 from quant_trading_system.models.account import Account

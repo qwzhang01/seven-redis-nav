@@ -28,13 +28,13 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import (
+from quant_trading_system.models.follow import (
     ExchangeCopyAccount,
     SignalFollowOrder,
-    UserExchangeAPI,
 )
+from quant_trading_system.models.user import UserExchangeAPI
 from quant_trading_system.services.database.database import get_db
-from quant_trading_system.services.exchange.signal_event_bus import (
+from quant_trading_system.engines.signal_event_bus import (
     SignalEvent,
     SignalEventBus,
     SignalEventType,

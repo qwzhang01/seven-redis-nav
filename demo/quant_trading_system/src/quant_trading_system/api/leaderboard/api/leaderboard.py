@@ -20,7 +20,7 @@ from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from quant_trading_system.models.database import LeaderboardSnapshot
+from quant_trading_system.models.leaderboard import LeaderboardSnapshot
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()

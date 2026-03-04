@@ -15,13 +15,12 @@
 数据流：Signal → OrderProcessor → OrderExecutor → PositionManager + AccountManager → 事件
 """
 
-import asyncio
 from typing import Any, TYPE_CHECKING
 
 import structlog
 
 from quant_trading_system.core.enums import OrderSide, OrderType, SignalType
-from quant_trading_system.core.events import Event, EventEngine, EventType
+from quant_trading_system.engines.event_engine import Event, EventEngine, EventType
 from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 from quant_trading_system.models.trading import Order, Trade
 from quant_trading_system.services.order.order_executor import (
@@ -30,7 +29,7 @@ from quant_trading_system.services.order.order_executor import (
 )
 from quant_trading_system.services.order.position_manager import PositionManager
 from quant_trading_system.services.order.account_manager import AccountManager
-from quant_trading_system.services.strategy.signal import Signal
+from quant_trading_system.strategy import StrategySignal
 
 if TYPE_CHECKING:
     from quant_trading_system.services.risk.risk_manager import RiskManager
@@ -93,7 +92,7 @@ class OrderProcessor:
         self._signal_count: int = 0
         self._order_count: int = 0
 
-    async def process_signal(self, signal: Signal, market_price: float) -> ExecutionResult | None:
+    async def process_signal(self, signal: StrategySignal, market_price: float) -> ExecutionResult | None:
         """
         处理交易信号（完整管道）
 
@@ -113,7 +112,7 @@ class OrderProcessor:
         # 2. 计算交易数量
         quantity = self._calculate_quantity(signal, market_price)
         if quantity <= 0:
-            logger.debug("信号被过滤：计算数量为0", signal_id=signal.signal_id)
+            logger.debug("信号被过滤：计算数量为0", timestamp=signal.timestamp)
             return None
 
         # 3. 创建订单
@@ -162,7 +161,7 @@ class OrderProcessor:
 
         return result
 
-    def process_signal_sync(self, signal: Signal, market_price: float) -> ExecutionResult | None:
+    def process_signal_sync(self, signal: StrategySignal, market_price: float) -> ExecutionResult | None:
         """
         同步处理交易信号（用于回测模式，无需 async）
 
@@ -201,13 +200,17 @@ class OrderProcessor:
                 return None
             self._risk_manager.on_order_submitted(order)
 
-        # 5. 同步执行（回测模式下 BacktestExecutor 不需要真正的异步）
-        import asyncio
-        loop = asyncio.new_event_loop()
-        try:
-            result = loop.run_until_complete(self._executor.execute(order, market_price))
-        finally:
-            loop.close()
+        # 5. 同步执行（回测模式下直接调用同步方法，避免每次创建事件循环）
+        if hasattr(self._executor, 'execute_sync'):
+            result = self._executor.execute_sync(order, market_price)
+        else:
+            # 兜底：非 BacktestExecutor 时仍走事件循环
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(self._executor.execute(order, market_price))
+            finally:
+                loop.close()
 
         if not result.success:
             return result
@@ -226,14 +229,14 @@ class OrderProcessor:
 
         return result
 
-    def _validate_signal(self, signal: Signal, market_price: float) -> bool:
+    def _validate_signal(self, signal: StrategySignal, market_price: float) -> bool:
         """验证信号有效性"""
         if market_price <= 0:
-            logger.warning("无效的市场价格", signal_id=signal.signal_id)
+            logger.warning("无效的市场价格", timestamp=signal.timestamp)
             return False
 
         if signal.is_expired:
-            logger.warning("信号已过期", signal_id=signal.signal_id)
+            logger.warning("信号已过期", timestamp=signal.timestamp)
             return False
 
         # 卖出时检查是否有持仓
@@ -245,7 +248,7 @@ class OrderProcessor:
 
         return True
 
-    def _calculate_quantity(self, signal: Signal, price: float) -> float:
+    def _calculate_quantity(self, signal: StrategySignal, price: float) -> float:
         """
         计算交易数量（Position Sizing）
 
@@ -286,7 +289,7 @@ class OrderProcessor:
 
         return quantity
 
-    def _create_order(self, signal: Signal, quantity: float, market_price: float) -> Order:
+    def _create_order(self, signal: StrategySignal, quantity: float, market_price: float) -> Order:
         """
         从信号创建订单
 
@@ -320,7 +323,6 @@ class OrderProcessor:
             quantity=quantity,
             price=price,
             strategy_id=signal.strategy_id,
-            signal_id=signal.signal_id,
         )
 
     async def _publish_events(self, result: ExecutionResult, position: Any) -> None:

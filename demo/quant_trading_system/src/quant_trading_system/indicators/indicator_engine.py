@@ -10,57 +10,61 @@
 """
 
 import asyncio
+import hashlib
+import threading
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import structlog
 
-from quant_trading_system.models.market import Bar, BarArray
-from quant_trading_system.services.indicators.base import (
+from quant_trading_system.models.market import Bar, BarArray, BarArrayView
+from quant_trading_system.indicators.base import (
     Indicator,
     IndicatorRegistry,
     IndicatorResult,
 )
+
+# 统一的 bars 输入类型
+BarsInput = Union[BarArray, BarArrayView, list[Bar]]
 
 logger = structlog.get_logger(__name__)
 
 
 class IndicatorCache:
     """
-    指标结果缓存
+    指标结果缓存（基于 OrderedDict 实现 O(1) LRU）
     """
 
     def __init__(self, max_size: int = 1000) -> None:
         self.max_size = max_size
-        self._cache: dict[str, IndicatorResult] = {}
-        self._access_order: list[str] = []
+        self._cache: OrderedDict[str, IndicatorResult] = OrderedDict()
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> IndicatorResult | None:
-        """获取缓存"""
-        if key in self._cache:
-            # 更新访问顺序
-            self._access_order.remove(key)
-            self._access_order.append(key)
-            return self._cache[key]
-        return None
+        """获取缓存，命中时自动移到末尾（O(1)）"""
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            return None
 
     def set(self, key: str, result: IndicatorResult) -> None:
-        """设置缓存"""
-        if key in self._cache:
-            self._access_order.remove(key)
-        elif len(self._cache) >= self.max_size:
-            # 移除最旧的缓存
-            oldest_key = self._access_order.pop(0)
-            del self._cache[oldest_key]
-
-        self._cache[key] = result
-        self._access_order.append(key)
+        """设置缓存，超出容量时淘汰最久未访问的条目（O(1)）"""
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self._cache[key] = result
+            else:
+                if len(self._cache) >= self.max_size:
+                    self._cache.popitem(last=False)  # 淘汰最旧
+                self._cache[key] = result
 
     def clear(self) -> None:
         """清除缓存"""
-        self._cache.clear()
-        self._access_order.clear()
+        with self._lock:
+            self._cache.clear()
 
     @staticmethod
     def make_key(
@@ -89,17 +93,19 @@ class IndicatorEngine:
         self._cache = IndicatorCache(max_size=cache_size)
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
-        # 指标实例缓存
+        # 指标实例缓存（线程安全）
         self._indicator_instances: dict[str, Indicator] = {}
+        self._instances_lock = threading.Lock()
 
-        # 统计
+        # 统计（使用原子操作无需锁，但用 lock 保证准确）
+        self._stats_lock = threading.Lock()
         self._calc_count = 0
         self._cache_hits = 0
 
     def calculate(
         self,
         indicator_name: str,
-        bars: BarArray | list[Bar],
+        bars: BarsInput,
         use_cache: bool = True,
         **params: Any,
     ) -> IndicatorResult:
@@ -108,20 +114,21 @@ class IndicatorEngine:
 
         Args:
             indicator_name: 指标名称
-            bars: K线数据
+            bars: K线数据（支持 BarArray / BarArrayView / list[Bar]）
             use_cache: 是否使用缓存
             **params: 指标参数
 
         Returns:
             指标计算结果
         """
-        # 转换为BarArray
+        # 转换 list[Bar] 为 BarArray
         if isinstance(bars, list):
             if not bars:
                 raise ValueError("bars cannot be empty")
             bars = BarArray.from_bars(bars)
 
         # 检查缓存
+        cache_key = ""
         if use_cache:
             data_hash = self._compute_data_hash(bars)
             cache_key = IndicatorCache.make_key(
@@ -129,19 +136,20 @@ class IndicatorEngine:
             )
             cached = self._cache.get(cache_key)
             if cached:
-                self._cache_hits += 1
+                with self._stats_lock:
+                    self._cache_hits += 1
                 return cached
 
-        # 获取或创建指标实例
+        # 获取或创建指标实例（线程安全）
         instance_key = f"{indicator_name}_{hash(frozenset(params.items()))}"
 
-        if instance_key not in self._indicator_instances:
-            indicator = IndicatorRegistry.create(indicator_name, **params)
-            if indicator is None:
-                raise ValueError(f"Unknown indicator: {indicator_name}")
-            self._indicator_instances[instance_key] = indicator
-
-        indicator = self._indicator_instances[instance_key]
+        with self._instances_lock:
+            if instance_key not in self._indicator_instances:
+                indicator = IndicatorRegistry.create(indicator_name, **params)
+                if indicator is None:
+                    raise ValueError(f"Unknown indicator: {indicator_name}")
+                self._indicator_instances[instance_key] = indicator
+            indicator = self._indicator_instances[instance_key]
 
         # 计算指标
         result = indicator.calculate(
@@ -152,7 +160,8 @@ class IndicatorEngine:
             volume=bars.volume,
         )
 
-        self._calc_count += 1
+        with self._stats_lock:
+            self._calc_count += 1
 
         # 缓存结果
         if use_cache:
@@ -163,7 +172,7 @@ class IndicatorEngine:
     async def calculate_async(
         self,
         indicator_name: str,
-        bars: BarArray | list[Bar],
+        bars: BarsInput,
         use_cache: bool = True,
         **params: Any,
     ) -> IndicatorResult:
@@ -177,7 +186,7 @@ class IndicatorEngine:
     def calculate_multiple(
         self,
         indicators: list[tuple[str, dict[str, Any]]],
-        bars: BarArray | list[Bar],
+        bars: BarsInput,
         use_cache: bool = True,
     ) -> dict[str, IndicatorResult]:
         """
@@ -207,7 +216,7 @@ class IndicatorEngine:
     async def calculate_multiple_async(
         self,
         indicators: list[tuple[str, dict[str, Any]]],
-        bars: BarArray | list[Bar],
+        bars: BarsInput,
         use_cache: bool = True,
     ) -> dict[str, IndicatorResult]:
         """异步批量计算多个指标"""
@@ -235,7 +244,7 @@ class IndicatorEngine:
     def get_latest_values(
         self,
         indicator_name: str,
-        bars: BarArray | list[Bar],
+        bars: BarsInput,
         **params: Any,
     ) -> dict[str, float]:
         """
@@ -261,24 +270,35 @@ class IndicatorEngine:
         return latest
 
     @staticmethod
-    def _compute_data_hash(bars: BarArray) -> str:
-        """计算数据哈希"""
-        # 使用最后几个数据点的哈希
-        n = min(5, len(bars))
+    def _compute_data_hash(bars: Union[BarArray, BarArrayView]) -> str:
+        """
+        计算数据哈希
+
+        使用数据长度 + 全量 OHLCV 最后 N 条的 MD5 摘要，
+        避免仅用尾部少量字段导致的缓存碰撞。
+        """
+        n = len(bars)
         if n == 0:
             return "empty"
 
+        # 取最后 min(20, n) 条数据，覆盖 OHLCV 五个字段
+        tail = min(20, n)
         data = np.concatenate([
-            bars.close[-n:],
-            bars.high[-n:],
-            bars.low[-n:],
+            bars.open[-tail:],
+            bars.high[-tail:],
+            bars.low[-tail:],
+            bars.close[-tail:],
+            bars.volume[-tail:],
         ])
-        return str(hash(data.tobytes()))
+        # 将数据长度编码进哈希，防止不同长度但尾部相同的情况碰撞
+        raw = f"{n}:".encode() + data.tobytes()
+        return hashlib.md5(raw).hexdigest()
 
     def clear_cache(self) -> None:
         """清除缓存"""
         self._cache.clear()
-        self._indicator_instances.clear()
+        with self._instances_lock:
+            self._indicator_instances.clear()
 
     def list_indicators(self) -> list[str]:
         """列出可用指标"""

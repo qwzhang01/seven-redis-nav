@@ -8,11 +8,10 @@
 import time
 from typing import Any
 from pydantic import BaseModel, Field
-from quant_trading_system.core.snowflake import generate_backtest_snowflake_id
 from quant_trading_system.core.enums import SignalType
 
 
-class Signal(BaseModel):
+class StrategySignal(BaseModel):
     """
     交易信号
 
@@ -23,30 +22,27 @@ class Signal(BaseModel):
     symbol: str
     signal_type: SignalType
 
-    # 信号ID
-    signal_id: str = Field(default_factory=lambda: str(generate_backtest_snowflake_id()))
-
     # 策略信息
     strategy_id: str = ""
     strategy_name: str = ""
 
     # 价格和数量
-    price: float = 0.0          # 建议价格（0表示市价）
-    quantity: float = 0.0       # 建议数量（0表示由资金管理决定）
+    price: float = 0.0  # 建议价格（0表示市价）
+    quantity: float = 0.0  # 建议数量（0表示由资金管理决定）
 
     # 止损止盈
-    stop_loss: float = 0.0      # 止损价
-    take_profit: float = 0.0    # 止盈价
+    stop_loss: float = 0.0  # 止损价
+    take_profit: float = 0.0  # 止盈价
 
     # 信号强度 (0-1)
     strength: float = 1.0
 
     # 时间
     timestamp: float = Field(default_factory=lambda: time.time() * 1000)
-    expire_time: float = 0.0    # 信号过期时间
+    expire_time: float = 0.0  # 信号过期时间
 
     # 额外信息
-    reason: str = ""            # 信号原因
+    reason: str = ""  # 信号原因
     data: dict[str, Any] = Field(default_factory=dict)  # 附加数据
 
     @property
@@ -63,8 +59,8 @@ class Signal(BaseModel):
         """是否为卖出方向操作（卖出开空 / 卖出平多）"""
         return self.signal_type in (
             SignalType.SELL,
-            SignalType.OPEN_SHORT,   # 开空 = 卖出开仓
-            SignalType.CLOSE_LONG,   # 平多 = 卖出平仓
+            SignalType.OPEN_SHORT,  # 开空 = 卖出开仓
+            SignalType.CLOSE_LONG,  # 平多 = 卖出平仓
         )
 
     @property
@@ -91,7 +87,6 @@ class Signal(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "signal_id": self.signal_id,
             "symbol": self.symbol,
             "signal_type": self.signal_type.value,
             "strategy_id": self.strategy_id,
@@ -108,6 +103,8 @@ class Signal(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Signal":
-        data["signal_type"] = SignalType(data["signal_type"])
-        return cls(**data)
+    def from_dict(cls, data: dict[str, Any]) -> "StrategySignal":
+        # 浅拷贝避免修改原始字典
+        d = dict(data)
+        d["signal_type"] = SignalType(d["signal_type"])
+        return cls(**d)

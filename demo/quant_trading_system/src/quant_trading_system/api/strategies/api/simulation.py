@@ -93,11 +93,12 @@ async def get_simulation_indicators(
     user_id = _get_current_user_id(request)
     _check_strategy_access(db, strategy_id, user_id)
 
-    # TODO: 查询策略指标数据
-    return {
-        "strategy_id": str(strategy_id),
-        "indicators": [],  # TODO: 接入实际指标数据
-    }
+    return SimulationService.get_indicators(
+        db, strategy_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+    )
 
 
 @router.get("/{strategy_id}/trade-marks")

@@ -22,7 +22,7 @@ class DataQueryService:
     def __init__(self):
         self.db = get_database()
 
-    async def get_kline_data(
+    def get_kline_data_sync(
         self,
         symbol: str,
         timeframe: Union[str, KlineInterval],
@@ -31,7 +31,9 @@ class DataQueryService:
         limit: int = 10000
     ) -> BarArray:
         """
-        获取K线数据
+        获取K线数据（同步版本）
+
+        内部使用同步的 psycopg2 连接，可在同步/异步上下文中安全调用。
 
         Args:
             symbol: 交易对符号 (如: BTC/USDT)
@@ -129,6 +131,29 @@ class DataQueryService:
             )
             # 返回空的BarArray
             return BarArray(symbol=symbol, exchange="unknown", timeframe=timeframe)
+
+    async def get_kline_data(
+        self,
+        symbol: str,
+        timeframe: Union[str, KlineInterval],
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 10000
+    ) -> BarArray:
+        """
+        获取K线数据（异步版本，委托给同步实现）
+
+        Args:
+            symbol: 交易对符号 (如: BTC/USDT)
+            timeframe: 时间框架
+            start_time: 开始时间
+            end_time: 结束时间
+            limit: 最大数据条数
+
+        Returns:
+            BarArray: K线数据数组
+        """
+        return self.get_kline_data_sync(symbol, timeframe, start_time, end_time, limit)
 
     async def get_multiple_kline_data(
         self,

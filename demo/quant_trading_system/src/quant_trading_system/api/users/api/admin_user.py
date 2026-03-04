@@ -17,8 +17,8 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import User
-from quant_trading_system.models.user import UserType, UserStatus
+from quant_trading_system.models.user import User
+from quant_trading_system.models.user_schema import UserType, UserStatus
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()

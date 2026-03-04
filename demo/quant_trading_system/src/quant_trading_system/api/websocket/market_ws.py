@@ -8,6 +8,7 @@
 - ticker/{symbol}            : 实时 Ticker（最新价、涨跌幅、成交量）
 - kline/{symbol}/{timeframe} : K 线数据（实时更新）
 - depth/{symbol}             : 市场深度（买卖盘）
+- indicator/{symbol}/{timeframe}/{indicator_name} : 技术指标实时数据
 
 消息协议（客户端 → 服务端）：
     {"action": "subscribe",   "channels": ["ticker/BTCUSDT", "kline/BTCUSDT/1m"]}
@@ -15,11 +16,12 @@
     {"action": "ping"}
 
 消息协议（服务端 → 客户端）：
-    {"type": "ticker",  "channel": "ticker/BTCUSDT",       "data": {...}, "timestamp": "..."}
-    {"type": "kline",   "channel": "kline/BTCUSDT/1m",     "data": {...}, "timestamp": "..."}
-    {"type": "depth",   "channel": "depth/BTCUSDT",        "data": {...}, "timestamp": "..."}
+    {"type": "ticker",    "channel": "ticker/BTCUSDT",       "data": {...}, "timestamp": "..."}
+    {"type": "kline",     "channel": "kline/BTCUSDT/1m",     "data": {...}, "timestamp": "..."}
+    {"type": "depth",     "channel": "depth/BTCUSDT",        "data": {...}, "timestamp": "..."}
+    {"type": "indicator", "channel": "indicator/BTCUSDT/1m/MACD", "data": {...}, "timestamp": "..."}
     {"type": "pong"}
-    {"type": "error",   "message": "..."}
+    {"type": "error",     "message": "..."}
 """
 
 import logging
@@ -40,6 +42,7 @@ VALID_CHANNEL_PATTERNS = [
     re.compile(r"^ticker/[A-Za-z0-9_]+$"),
     re.compile(r"^kline/[A-Za-z0-9_]+/(1m|5m|15m|30m|1h|4h|1d|1w)$"),
     re.compile(r"^depth/[A-Za-z0-9_]+$"),
+    re.compile(r"^indicator/[A-Za-z0-9_]+/(1m|5m|15m|30m|1h|4h|1d|1w)/[A-Za-z0-9_]+$"),
 ]
 
 
@@ -62,6 +65,7 @@ async def market_websocket(
     - ticker/{symbol}            : 实时 Ticker
     - kline/{symbol}/{timeframe} : K 线数据
     - depth/{symbol}             : 市场深度
+    - indicator/{symbol}/{timeframe}/{indicator_name} : 技术指标
 
     示例订阅：
         {"action": "subscribe", "channels": ["ticker/BTCUSDT", "kline/BTCUSDT/1m"]}
@@ -156,3 +160,42 @@ async def push_depth(symbol: str, data: dict) -> None:
         "data": data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
+
+
+async def push_indicator(
+    symbol: str,
+    timeframe: str,
+    indicator_name: str,
+    data: dict,
+) -> None:
+    """
+    推送技术指标数据到订阅该频道的所有客户端
+
+    当K线闭合后，由行情订阅器计算指标最新值并推送。
+
+    参数：
+    - symbol        : 交易对符号（如 BTCUSDT）
+    - timeframe     : 时间周期（1m/5m/15m/1h/4h/1d）
+    - indicator_name : 指标名称（MACD/RSI/BOLL/EMA/SMA 等）
+    - data          : 指标数据字典，包含各输出字段的最新值
+    """
+    channel = f"indicator/{symbol}/{timeframe}/{indicator_name}"
+    await ws_manager.broadcast_to_channel(channel, {
+        "type": "indicator",
+        "channel": channel,
+        "data": data,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def get_indicator_channels() -> list[str]:
+    """
+    获取当前被订阅的所有 indicator 频道
+
+    返回：
+        频道名称列表，格式为 indicator/{symbol}/{timeframe}/{indicator_name}
+    """
+    return [
+        ch for ch in ws_manager.channel_stats.keys()
+        if ch.startswith("indicator/")
+    ]

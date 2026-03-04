@@ -20,9 +20,9 @@ import structlog
 
 from quant_trading_system.models.market import Bar, BarArray, BarArrayView
 from quant_trading_system.core.enums import KlineInterval, StrategyState
-from quant_trading_system.services.strategy.base import Strategy, StrategyContext
-from quant_trading_system.services.strategy.signal import Signal
-from quant_trading_system.services.indicators.indicator_engine import (
+from quant_trading_system.strategy import Strategy, StrategyContext
+from quant_trading_system.strategy import StrategySignal
+from quant_trading_system.indicators.indicator_engine import (
     get_indicator_engine,
 )
 from quant_trading_system.services.order.order_executor import (
@@ -552,7 +552,7 @@ class BacktestEngine:
 
                 # 通过 OrderProcessor 处理信号
                 if signals:
-                    if isinstance(signals, Signal):
+                    if isinstance(signals, StrategySignal):
                         signals = [signals]
 
                     for signal in signals:

@@ -1,7 +1,7 @@
 """量化指标模块"""
 
-from quant_trading_system.services.indicators.base import Indicator, IndicatorRegistry
-from quant_trading_system.services.indicators.technical import (
+from quant_trading_system.indicators.base import Indicator, IndicatorRegistry
+from quant_trading_system.indicators.technical import (
     ATR,
     BOLL,
     CCI,
@@ -14,7 +14,7 @@ from quant_trading_system.services.indicators.technical import (
     SMA,
     WR,
 )
-from quant_trading_system.services.indicators.indicator_engine import IndicatorEngine
+from quant_trading_system.indicators.indicator_engine import IndicatorEngine
 
 __all__ = [
     "Indicator",

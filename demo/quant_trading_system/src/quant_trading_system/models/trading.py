@@ -1,6 +1,6 @@
 import time
 from typing import Optional, Any
-from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from quant_trading_system.core.enums import (

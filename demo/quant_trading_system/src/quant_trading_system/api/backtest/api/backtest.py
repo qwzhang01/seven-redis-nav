@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from quant_trading_system.services.backtest.backtest_engine import BacktestEngine, BacktestConfig
-from quant_trading_system.services.strategy.base import get_strategy_class
+from quant_trading_system.strategy import get_strategy_class
 from quant_trading_system.core.enums import KlineInterval
 
 # 创建回测路由实例

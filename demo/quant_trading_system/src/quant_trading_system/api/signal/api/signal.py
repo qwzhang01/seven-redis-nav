@@ -30,12 +30,12 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import (
+from quant_trading_system.models.signal import (
     Signal,
     SignalTradeRecord,
     SignalSubscription,
-    User,
 )
+from quant_trading_system.models.user import User
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.api.signal.services.signal_service import SignalService

@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
-from quant_trading_system.models.database import (
+from quant_trading_system.models.follow import (
     SignalFollowEvent,
     SignalFollowOrder,
     SignalFollowPosition,
@@ -94,7 +94,7 @@ class CopyOrderEngine:
         cache_key = (api_key, account_type)
         if cache_key not in self._clients:
             if settings.is_development:
-                from quant_trading_system.services.exchange.mock_binance_copy_trade import (
+                from quant_trading_system.mock.mock_binance_copy_trade import (
                     MockBinanceCopyTradeClient,
                 )
                 self._clients[cache_key] = MockBinanceCopyTradeClient(

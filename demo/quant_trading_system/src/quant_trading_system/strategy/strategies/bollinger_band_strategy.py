@@ -10,9 +10,8 @@ import numpy as np
 
 from quant_trading_system.models.market import Bar
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.services.strategy.base import Strategy, register_strategy
-from quant_trading_system.services.strategy.signal import Signal
-from quant_trading_system.services.indicators.technical import BOLL
+from quant_trading_system.strategy.base import Strategy, register_strategy
+from quant_trading_system.strategy.strategy_signal import StrategySignal
 
 
 @register_strategy
@@ -22,7 +21,7 @@ class BollingerBandStrategy(Strategy):
 
     价格触及下轨买入，触及上轨卖出
     """
-    id:int = 152410378779754497
+    id: ClassVar[int] = 152410378779754497
     name: ClassVar[str] = "bollinger_band"
     description: ClassVar[str] = "布林带策略"
     version: ClassVar[str] = "1.0.0"
@@ -38,30 +37,23 @@ class BollingerBandStrategy(Strategy):
 
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
-        self._close_prices: list[float] = []
         self._prev_position: str | None = None
 
-    def on_bar(self, bar: Bar) -> Signal | list[Signal] | None:
-        # 收集收盘价数据
-        self._close_prices.append(bar.close)
-
-        # 确保有足够的数据计算布林带
-        if len(self._close_prices) < self.params["period"]:
+    def on_bar(self, bar: Bar) -> StrategySignal | list[StrategySignal] | None:
+        # 通过指标引擎计算布林带
+        try:
+            boll_result = self.calculate_indicator(
+                "BOLL",
+                period=self.params["period"],
+                std_dev=self.params["std_dev"],
+            )
+        except (RuntimeError, ValueError):
+            # 上下文未就绪或数据不足
             return None
 
-        # 计算布林带指标
-        close_array = np.array(self._close_prices)
-
-        # 使用BOLL类的计算方法
-        boll_indicator = BOLL(
-            period=self.params["period"],
-            std_dev=self.params["std_dev"]
-        )
-        boll_result = boll_indicator.calculate(close_array)
-
-        upper_current = boll_result.values["upper"][-1]
-        lower_current = boll_result.values["lower"][-1]
-        middle_current = boll_result.values["middle"][-1]
+        upper_current = boll_result["upper"][-1]
+        lower_current = boll_result["lower"][-1]
+        middle_current = boll_result["middle"][-1]
 
         # 检查是否为NaN（数据不足时）
         if np.isnan(upper_current) or np.isnan(lower_current) or np.isnan(middle_current):
@@ -71,7 +63,6 @@ class BollingerBandStrategy(Strategy):
 
         # 触及下轨买入信号
         if bar.close <= lower_current:
-            # 避免连续触发，检查是否从下轨反弹
             if self._prev_position != "lower_touch":
                 signal = self.buy(
                     bar.symbol,
@@ -81,7 +72,6 @@ class BollingerBandStrategy(Strategy):
 
         # 触及上轨卖出信号
         elif bar.close >= upper_current:
-            # 避免连续触发，检查是否从上轨回落
             if self._prev_position != "upper_touch":
                 signal = self.sell(
                     bar.symbol,
@@ -94,26 +84,3 @@ class BollingerBandStrategy(Strategy):
             self._prev_position = None
 
         return signal
-
-    @staticmethod
-    def _calculate_bollinger_bands(prices: np.ndarray, period: int, std_dev: float) -> dict:
-        """计算布林带指标"""
-        n = len(prices)
-        middle = np.full(n, np.nan, dtype=float)
-        upper = np.full(n, np.nan, dtype=float)
-        lower = np.full(n, np.nan, dtype=float)
-
-        for i in range(period - 1, n):
-            window = prices[i - period + 1:i + 1]
-            mean = np.mean(window)
-            std = np.std(window, ddof=1)
-
-            middle[i] = mean
-            upper[i] = mean + std_dev * std
-            lower[i] = mean - std_dev * std
-
-        return {
-            "middle": middle,
-            "upper": upper,
-            "lower": lower
-        }

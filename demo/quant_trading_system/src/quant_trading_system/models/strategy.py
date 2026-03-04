@@ -13,12 +13,11 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Text, Integer, BigInteger, Numeric, Float,
-)
+    Column, String, Boolean, DateTime, Text, Integer, BigInteger, Numeric, )
 from sqlalchemy.dialects.postgresql import JSONB
 
-from quant_trading_system.models.database import Base
 from quant_trading_system.core.snowflake import generate_snowflake_id
+from quant_trading_system.models.base import Base
 
 
 class PresetStrategy(Base):
@@ -33,9 +32,12 @@ class PresetStrategy(Base):
     name = Column(String(128), nullable=False, comment="策略名称")
     description = Column(Text, comment="策略简要说明")
     detail = Column(Text, comment="策略详细介绍")
-    strategy_type = Column(String(32), nullable=False, comment="策略类型: grid/trend/mean_reversion等")
-    market_type = Column(String(16), nullable=False, default="spot", comment="市场类型: spot/futures/margin")
-    risk_level = Column(String(16), nullable=False, default="medium", comment="风险等级: low/medium/high")
+    strategy_type = Column(String(32), nullable=False,
+                           comment="策略类型: grid/trend/mean_reversion等")
+    market_type = Column(String(16), nullable=False, default="spot",
+                         comment="市场类型: spot/futures/margin")
+    risk_level = Column(String(16), nullable=False, default="medium",
+                        comment="风险等级: low/medium/high")
     exchange = Column(String(32), default="binance", comment="交易所")
     symbols = Column(JSONB, comment="适用交易对列表")
     timeframe = Column(String(8), default="1h", comment="默认K线周期")
@@ -56,7 +58,8 @@ class PresetStrategy(Base):
     running_days = Column(Integer, default=0, comment="运行天数")
 
     # 状态管理
-    status = Column(String(16), default="draft", comment="策略状态: draft/testing/running/paused/stopped/error")
+    status = Column(String(16), default="draft",
+                    comment="策略状态: draft/testing/running/paused/stopped/error")
     is_published = Column(Boolean, default=False, comment="是否已上架（对C端可见）")
     is_featured = Column(Boolean, default=False, comment="是否推荐（首页展示）")
     sort_order = Column(Integer, default=0, comment="排序权重")
@@ -81,7 +84,8 @@ class UserStrategy(Base):
     user_id = Column(BigInteger, nullable=False, comment="用户ID")
     preset_strategy_id = Column(BigInteger, nullable=False, comment="关联的预设策略ID")
     name = Column(String(128), nullable=False, comment="用户自定义策略名称")
-    mode = Column(String(16), nullable=False, default="live", comment="运行模式: live/simulate")
+    mode = Column(String(16), nullable=False, default="live",
+                  comment="运行模式: live/simulate")
 
     # 策略配置
     exchange = Column(String(32), default="binance", comment="交易所")
@@ -92,10 +96,12 @@ class UserStrategy(Base):
     params = Column(JSONB, comment="用户自定义策略参数")
 
     # 仓位控制
-    trade_mode = Column(String(16), default="both", comment="开仓模式: both/long_only/short_only")
+    trade_mode = Column(String(16), default="both",
+                        comment="开仓模式: both/long_only/short_only")
     take_profit = Column(Numeric(10, 6), comment="止盈百分比")
     stop_loss = Column(Numeric(10, 6), comment="止损百分比")
-    stop_mode = Column(String(16), default="both", comment="止盈止损模式: both/tp_only/sl_only")
+    stop_mode = Column(String(16), default="both",
+                       comment="止盈止损模式: both/tp_only/sl_only")
     max_positions = Column(Integer, default=10, comment="最大持仓数")
     max_orders = Column(Integer, default=50, comment="最大订单数")
 
@@ -114,7 +120,8 @@ class UserStrategy(Base):
     filters = Column(JSONB, comment="筛选器列表")
 
     # 运行状态
-    status = Column(String(16), default="stopped", comment="策略状态: draft/running/paused/stopped/error")
+    status = Column(String(16), default="stopped",
+                    comment="策略状态: draft/running/paused/stopped/error")
 
     # 表现统计
     current_value = Column(Numeric(20, 2), comment="当前净值(USDT)")
@@ -191,7 +198,8 @@ class SimulationLog(Base):
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     user_strategy_id = Column(BigInteger, nullable=False, comment="关联的用户策略ID")
-    level = Column(String(16), default="info", comment="日志级别: info/warn/error/trade")
+    level = Column(String(16), default="info",
+                   comment="日志级别: info/warn/error/trade")
     message = Column(Text, nullable=False, comment="日志内容")
     log_time = Column(DateTime, default=datetime.utcnow, comment="日志时间")
     create_time = Column(DateTime, default=datetime.utcnow)

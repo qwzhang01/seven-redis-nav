@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from quant_trading_system.models.database import AuditLog, RiskAlert
+from quant_trading_system.models.audit import AuditLog, RiskAlert
 from quant_trading_system.services.database.database import get_db
 
 router = APIRouter()

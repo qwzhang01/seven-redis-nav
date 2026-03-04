@@ -10,7 +10,7 @@
 - KLineEngine：K线内存缓冲与合成
 """
 
-from quant_trading_system.services.market.market_event_bus import (
+from quant_trading_system.engines.market_event_bus import (
     MarketEvent,
     MarketEventBus,
     MarketEventType,
@@ -19,7 +19,6 @@ from quant_trading_system.services.market.market_event_bus import (
 from quant_trading_system.services.market.exchange_connector import (
     BinanceConnector,
     ExchangeConnector,
-    MockConnector,
     WebSocketClient,
 )
 from quant_trading_system.services.market.market_subscribers import (
@@ -34,6 +33,15 @@ from quant_trading_system.services.market.historical_kline_syncer import (
 
 from quant_trading_system.services.market.kline_engine import KLineEngine
 from quant_trading_system.services.market.market_service import MarketService
+
+
+def __getattr__(name: str):
+    """延迟导入 MockConnector，避免与 mock 包的循环依赖"""
+    if name == "MockConnector":
+        from quant_trading_system.mock.mock_connector import MockConnector
+        return MockConnector
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # 事件总线

@@ -58,14 +58,13 @@ def backtest(
 ) -> None:
     """运行回测"""
     # 导入策略模块以触发注册
-    import quant_trading_system.strategies
 
     from quant_trading_system.core.enums import KlineInterval
     from quant_trading_system.services.backtest.backtest_engine import (
         BacktestConfig,
         BacktestEngine,
     )
-    from quant_trading_system.services.strategy.base import get_strategy_class
+    from quant_trading_system.strategy import get_strategy_class
 
     click.echo(f"Running backtest for {strategy} on {symbol}")
     click.echo(f"Period: {start} to {end}")
@@ -79,7 +78,7 @@ def backtest(
         if not strategy_class:
             click.echo(f"Error: Strategy '{strategy}' not found", err=True)
             click.echo("Available strategies:")
-            from quant_trading_system.services.strategy.base import list_strategies
+            from quant_trading_system.strategy import list_strategies
             for name in list_strategies():
                 click.echo(f"  - {name}")
             return
@@ -104,7 +103,7 @@ def backtest(
         # 3. 获取历史数据
         if mock:
             click.echo(f"Generating mock data...")
-            from quant_trading_system.services.market.mock_data import (
+            from quant_trading_system.mock.mock_data import (
                 generate_mock_klines,
                 generate_multi_timeframe_klines,
             )
@@ -290,9 +289,9 @@ def trade(
     import asyncio
 
     # 导入策略模块以触发注册
-    import quant_trading_system.strategies  # noqa: F401
+    import quant_trading_system.strategy.strategies  # noqa: F401
 
-    from quant_trading_system.services.strategy.base import get_strategy_class
+    from quant_trading_system.strategy import get_strategy_class
     from quant_trading_system.services.trading.orchestrator import TradingOrchestrator
 
     click.echo(f"{'=' * 60}")
@@ -306,7 +305,7 @@ def trade(
     strategy_class = get_strategy_class(strategy)
     if not strategy_class:
         click.echo(f"Error: Strategy '{strategy}' not found", err=True)
-        from quant_trading_system.services.strategy.base import list_strategies
+        from quant_trading_system.strategy import list_strategies
         click.echo("Available strategies:")
         for name in list_strategies():
             click.echo(f"  - {name}")
@@ -394,9 +393,9 @@ def check_config(config: str) -> None:
 def list_strategies() -> None:
     """列出可用策略"""
     # 导入策略模块以触发注册
-    import quant_trading_system.strategies  # noqa: F401
+    import quant_trading_system.strategy.strategies  # noqa: F401
 
-    from quant_trading_system.services.strategy.base import list_strategies
+    from quant_trading_system.strategy import list_strategies
 
     strategies = list_strategies()
 
@@ -411,7 +410,7 @@ def list_strategies() -> None:
 @main.command()
 def list_indicators() -> None:
     """列出可用指标"""
-    from quant_trading_system.services.indicators.base import IndicatorRegistry
+    from quant_trading_system.indicators.base import IndicatorRegistry
 
     indicators = IndicatorRegistry.list_indicators()
 

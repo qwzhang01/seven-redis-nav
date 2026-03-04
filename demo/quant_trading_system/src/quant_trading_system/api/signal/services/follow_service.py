@@ -13,14 +13,14 @@ from typing import Any, Optional
 from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import (
+from quant_trading_system.models.follow import (
     SignalFollowOrder,
     SignalFollowPosition,
     SignalFollowTrade,
     SignalFollowEvent,
-    SignalTradeRecord,
-    User,
 )
+from quant_trading_system.models.signal import SignalTradeRecord
+from quant_trading_system.models.user import User
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 logger = logging.getLogger(__name__)

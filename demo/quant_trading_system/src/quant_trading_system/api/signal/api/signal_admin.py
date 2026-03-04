@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import SignalTradeRecord
+from quant_trading_system.models.signal import SignalTradeRecord
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 

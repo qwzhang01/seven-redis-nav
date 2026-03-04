@@ -9,15 +9,13 @@ OrderProcessor, StrategyEvaluator, RiskManager
 
 import asyncio
 import signal
-from datetime import datetime
 from typing import Any, Type
 
 import structlog
 
 from quant_trading_system.core.enums import DefaultTradingPair
-from quant_trading_system.core.events import EventEngine
-from quant_trading_system.models.account import Account, AccountType, Balance
-from quant_trading_system.services.strategy.base import Strategy
+from quant_trading_system.core.enums import MarketType
+from quant_trading_system.strategy import Strategy
 from quant_trading_system.services.risk.risk_manager import RiskConfig
 from quant_trading_system.services.order.order_executor import (
     SimulationExecutor,
@@ -170,7 +168,7 @@ class TradingOrchestrator:
         account = self.account_manager.create_account(
             initial_capital=self.initial_capital,
             account_id=f"{self.mode}_{self.exchange}",
-            account_type=AccountType.SPOT if self.market_type == "spot" else AccountType.FUTURES,
+            account_type=MarketType.SPOT if self.market_type == "spot" else MarketType.FUTURES,
         )
         self.strategy_engine.set_account(account)
 
@@ -245,9 +243,9 @@ class TradingOrchestrator:
         else:
             instance = strategy
 
-        # 设置交易对
+        # 如果调用方指定了 symbols，覆盖实例的交易对（遮蔽 ClassVar）
         if symbols:
-            instance._symbols = symbols
+            instance.symbols = tuple(symbols)
 
         strategy_id = self.strategy_engine.add_strategy(instance)
         self._strategy_ids.append(strategy_id)

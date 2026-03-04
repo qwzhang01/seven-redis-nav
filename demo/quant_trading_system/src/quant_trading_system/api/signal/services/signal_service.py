@@ -13,12 +13,11 @@ from typing import Any, Optional
 from sqlalchemy import func, case, extract, desc, and_
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import (
+from quant_trading_system.models.signal import (
     SignalProvider,
     SignalReview,
     SignalReviewLike,
     SignalSubscription,
-    SignalFollowOrder,
     Signal,
     SignalRiskParameters,
     SignalPerformanceMetrics,
@@ -27,8 +26,9 @@ from quant_trading_system.models.database import (
     SignalTradeRecord,
     SignalReturnCurve,
     SignalMonthlyReturn,
-    User,
 )
+from quant_trading_system.models.follow import SignalFollowOrder
+from quant_trading_system.models.user import User
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 logger = logging.getLogger(__name__)
@@ -489,7 +489,7 @@ class SignalService:
     @staticmethod
     def _get_signal_positions(db: Session, strategy_id: str) -> list[dict]:
         """获取信号源当前持仓（来自关联跟单的持仓）"""
-        from quant_trading_system.models.database import SignalFollowPosition
+        from quant_trading_system.models.follow import SignalFollowPosition
 
         positions = db.query(SignalFollowPosition).join(
             SignalFollowOrder,
@@ -817,7 +817,7 @@ class SignalService:
         signal.updated_at = now
 
         # 记录系统事件
-        from quant_trading_system.models.database import SignalFollowEvent
+        from quant_trading_system.models.follow import SignalFollowEvent
         event = SignalFollowEvent(
             id=generate_snowflake_id(),
             follow_order_id=order.id,

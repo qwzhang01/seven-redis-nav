@@ -34,7 +34,7 @@ from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.market import Bar, BarArray
 
 # 事件总线
-from quant_trading_system.services.market.market_event_bus import (
+from quant_trading_system.engines.market_event_bus import (
     MarketEventBus,
     MarketEventType,
 )
@@ -43,7 +43,6 @@ from quant_trading_system.services.market.market_event_bus import (
 from quant_trading_system.services.market.exchange_connector import (
     BinanceConnector,
     ExchangeConnector,
-    MockConnector,
 )
 
 # 订阅器
@@ -259,6 +258,7 @@ class MarketService:
                 api_secret=api_secret or settings.BINANCE_SECRET_KEY,
             )
         elif exchange == "mock":
+            from quant_trading_system.mock.mock_connector import MockConnector
             connector = MockConnector(
                 event_bus=self._event_bus,
                 tick_interval=kwargs.get("tick_interval", 0.5),

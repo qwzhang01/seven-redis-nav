@@ -13,10 +13,10 @@ from typing import Any, TYPE_CHECKING
 
 import structlog
 
-from quant_trading_system.core.events import Event, EventEngine, EventType
+from quant_trading_system.engines.event_engine import Event, EventEngine, EventType
 from quant_trading_system.core.enums import OrderStatus
 from quant_trading_system.models.trading import Order
-from quant_trading_system.services.strategy.signal import Signal
+from quant_trading_system.strategy import StrategySignal
 
 if TYPE_CHECKING:
     from quant_trading_system.services.order.order_processor import OrderProcessor
@@ -95,7 +95,7 @@ class TradingEngine:
         """设置默认交易所"""
         self._default_exchange = exchange
 
-    async def execute_signal(self, signal: Signal, market_price: float = 0.0) -> Order | None:
+    async def execute_signal(self, signal: StrategySignal, market_price: float = 0.0) -> Order | None:
         """
         执行交易信号
 
@@ -127,7 +127,7 @@ class TradingEngine:
     async def _on_signal(self, event: Event) -> None:
         """信号事件处理"""
         signal = event.data
-        if isinstance(signal, Signal):
+        if isinstance(signal, StrategySignal):
             # 从信号中获取市场价格（如果有）
             market_price = signal.price if signal.price > 0 else 0.0
             await self.execute_signal(signal, market_price)

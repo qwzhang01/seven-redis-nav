@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
 量化交易系统 API 主入口
+======================
+
+职责：
+- 创建 FastAPI 实例
+- 注册中间件
+- 注册路由
+- 异常处理
+- OpenAPI 配置
 """
 
 from pathlib import Path
@@ -13,10 +21,9 @@ env_path = Path(__file__).parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
 
 import logging
-from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -24,6 +31,7 @@ from fastapi.openapi.utils import get_openapi
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.logging import setup_logging
+from quant_trading_system.api.lifespan import lifespan
 from quant_trading_system.api.middlewares import (
     RequestIDMiddleware,
     LoggingMiddleware,
@@ -39,292 +47,10 @@ from .m import m_router
 from .websocket.market_ws import router as market_ws_router
 from .websocket.trading_ws import router as trading_ws_router
 from .websocket.strategy_ws import router as strategy_ws_router
-from .websocket.manager import ws_manager
-
-from ..services.database.database import init_database
-
-# 从 deps 模块导入公共依赖，避免循环导入
-from quant_trading_system.api.deps import (
-    set_app_ref,
-    clear_app_ref,
-)
 
 # 设置日志
 setup_logging()
 logger = logging.getLogger(__name__)
-
-
-# ── Lifespan 启动步骤 ────────────────────────────────────────────
-async def _startup_database() -> None:
-    """初始化数据库表"""
-    try:
-        await init_database()
-        print("✅ 数据库表初始化完成")
-    except Exception as e:
-        print(f"❌ 数据库初始化失败: {e}")
-        raise
-
-
-async def _startup_orchestrator(app: FastAPI) -> None:
-    """
-    创建编排器，加载所有已注册策略（stopped 状态），
-    订阅默认交易对行情，并预加载历史K线数据。
-    """
-    # 导入策略模块以触发注册
-    import quant_trading_system.strategies  # noqa: F401
-
-    from quant_trading_system.services.strategy.base import (
-        list_strategies as list_registered,
-        get_strategy_class,
-    )
-    from quant_trading_system.services.trading.orchestrator import \
-        TradingOrchestrator
-
-    # 开发环境使用 mock 数据源，无需连接真实交易所
-    use_mock = settings.is_development
-    exchange_name = "mock" if use_mock else "binance"
-    if use_mock:
-        print("🎭 开发环境：使用 MockConnector 模拟行情数据")
-
-    orchestrator = TradingOrchestrator(
-        mode="paper",  # 默认 paper 模式，用户启动策略时可按需覆盖
-        exchange=exchange_name,
-        market_type="spot",
-        api_key=settings.BINANCE_API_KEY or "",  # 从配置读取API key
-        api_secret=settings.BINANCE_SECRET_KEY or "",  # 从配置读取API secret
-    )
-    await orchestrator.start()
-
-    # 将所有已注册策略以 stopped 状态加入编排器（不启动、不订阅行情）
-    registered = list_registered()
-    for name in registered:
-        cls = get_strategy_class(name)
-        if cls is None:
-            continue
-        # 使用策略类自带的默认交易对（若有），否则留空
-        default_symbols = list(cls.symbols) if cls.symbols else []
-        orchestrator.add_strategy(cls, symbols=default_symbols)
-
-    # 保存到 app.state
-    app.state.orchestrator = orchestrator
-    print(
-        f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
-    print(f"   已注册策略: {registered}")
-
-    # 自动订阅默认交易对的 WebSocket 实时行情
-    await _subscribe_default_symbols(orchestrator)
-
-    # 自动拉取/加载历史K线数据
-    await _preload_history(orchestrator, use_mock)
-
-
-async def _subscribe_default_symbols(orchestrator) -> None:
-    """自动订阅默认交易对的 WebSocket 实时行情"""
-    try:
-        await orchestrator.subscribe_default_symbols()
-        from quant_trading_system.core.enums import DefaultTradingPair
-        default_symbols = DefaultTradingPair.values()
-        print(f"✅ 已自动订阅默认交易对行情: {default_symbols}")
-    except Exception as e:
-        print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
-
-
-async def _preload_history(orchestrator, use_mock: bool) -> None:
-    """
-    自动拉取历史K线数据，预加载到内存缓冲区。
-    - 开发环境：从数据库加载（快速启动，无需访问交易所）
-    - 生产环境：从交易所拉取，并保存到数据库（补充发版期间的数据缺口）
-    """
-    try:
-        from quant_trading_system.core.enums import DefaultTradingPair
-        default_symbols = DefaultTradingPair.values()
-
-        # mock 模式下历史数据仍从 binance 查询（数据库中存储的是 binance 数据）
-        history_exchange = "binance" if use_mock else orchestrator.exchange
-
-        if settings.is_production:
-            # 生产环境：从交易所拉取，同时保存到数据库以补充发版期间的数据缺口
-            print("📡 生产环境：从交易所拉取历史K线数据...")
-            stats = await orchestrator.market_service.load_history(
-                symbols=default_symbols,
-                limit=500,
-                exchange=history_exchange,
-                source="exchange",
-                save_to_db=True,
-            )
-            total = sum(stats.values())
-            print(
-                f"✅ 已从交易所预加载历史K线数据并保存到数据库: {total} 条 ({stats})")
-        else:
-            # 开发环境：从数据库加载，快速启动
-            print("💾 开发环境：从数据库加载历史K线数据...")
-            stats = await orchestrator.market_service.load_history(
-                symbols=default_symbols,
-                limit=500,
-                exchange=history_exchange,
-                source="database",
-            )
-            total = sum(stats.values())
-            if total > 0:
-                print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
-            else:
-                # 数据库无数据时，回退到从交易所拉取
-                print("⚠️ 数据库中无历史K线数据，回退到从交易所拉取...")
-                stats = await orchestrator.market_service.load_history(
-                    symbols=default_symbols,
-                    limit=500,
-                    exchange=history_exchange,
-                    source="exchange",
-                )
-                total = sum(stats.values())
-                print(f"✅ 已从交易所预加载历史K线数据: {total} 条 ({stats})")
-    except Exception as e:
-        print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
-
-
-async def _startup_websocket_heartbeat() -> None:
-    """启动 WebSocket 心跳检测"""
-    try:
-        await ws_manager.start_heartbeat()
-        print("✅ WebSocket 心跳检测已启动")
-    except Exception as e:
-        print(f"⚠️ WebSocket 心跳检测启动失败: {e}")
-
-
-async def _startup_signal_engines(app: FastAPI) -> None:
-    """
-    初始化并启动信号监听引擎 + 跟单引擎 + 订单引擎
-
-    启动顺序：
-    1. CopyOrderEngine（订单引擎）— 无依赖，最先就绪
-    2. FollowEngine（跟单引擎）— 依赖订单引擎
-    3. SignalStreamEngine（信号监听引擎）— 依赖事件总线
-
-    三个引擎通过 SignalEventBus 事件总线串联：
-        SignalStreamEngine → [事件总线] → FollowEngine → CopyOrderEngine
-    """
-    try:
-        from quant_trading_system.services.exchange.copy_order_engine import CopyOrderEngine
-        from quant_trading_system.services.exchange.follow_engine import FollowEngine
-        from quant_trading_system.services.exchange.copy_trade_stream import SignalStreamEngine
-
-        # 开发环境提示：所有 Binance API 均使用 Mock，不连接真实交易所
-        if settings.is_development:
-            print("  🎭 开发环境：信号引擎使用 Mock 模式（不连接真实 Binance API）")
-
-        # 1. 创建订单引擎
-        copy_order_engine = CopyOrderEngine()
-        app.state.copy_order_engine = copy_order_engine
-        print("  ✅ 跟单订单引擎已就绪")
-
-        # 2. 创建并启动跟单引擎（扫描 signal_follow_orders 表 + 订阅事件总线）
-        follow_engine = FollowEngine(copy_order_engine=copy_order_engine)
-        await follow_engine.start()
-        app.state.follow_engine = follow_engine
-        print(f"  ✅ 跟单引擎已启动（活跃跟单: {follow_engine.total_follows}）")
-
-        # 3. 创建并启动信号监听引擎（扫描 signal 表 + 建立 WebSocket 监听）
-        signal_stream_engine = SignalStreamEngine()
-        await signal_stream_engine.start()
-        app.state.signal_stream_engine = signal_stream_engine
-        print(f"  ✅ 信号监听引擎已启动（活跃信号流: {signal_stream_engine.active_count}）")
-
-    except Exception as e:
-        print(f"⚠️ 信号引擎初始化失败（不影响系统启动）: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-# ── Lifespan 关闭步骤 ────────────────────────────────────────────
-
-
-async def _shutdown_websocket_heartbeat() -> None:
-    """停止 WebSocket 心跳检测"""
-    try:
-        await ws_manager.stop_heartbeat()
-        print("✅ WebSocket 心跳检测已停止")
-    except Exception as e:
-        print(f"❌ WebSocket 心跳检测停止失败: {e}")
-
-
-async def _shutdown_signal_engines(app: FastAPI) -> None:
-    """
-    停止信号监听引擎 + 跟单引擎 + 订单引擎
-
-    关闭顺序（与启动相反）：
-    1. SignalStreamEngine — 先停止信号源，不再产生新事件
-    2. FollowEngine — 再停止跟单引擎，不再发送新指令
-    3. CopyOrderEngine — 最后关闭订单引擎，确保进行中的订单完成
-    """
-    # 1. 停止信号监听引擎
-    signal_stream_engine = getattr(app.state, "signal_stream_engine", None)
-    if signal_stream_engine is not None:
-        try:
-            count = signal_stream_engine.active_count
-            await signal_stream_engine.stop()
-            app.state.signal_stream_engine = None
-            print(f"  ✅ 信号监听引擎已停止（已关闭 {count} 个信号流）")
-        except Exception as e:
-            print(f"  ❌ 信号监听引擎停止失败: {e}")
-
-    # 2. 停止跟单引擎
-    follow_engine = getattr(app.state, "follow_engine", None)
-    if follow_engine is not None:
-        try:
-            await follow_engine.stop()
-            app.state.follow_engine = None
-            print("  ✅ 跟单引擎已停止")
-        except Exception as e:
-            print(f"  ❌ 跟单引擎停止失败: {e}")
-
-    # 3. 关闭订单引擎
-    copy_order_engine = getattr(app.state, "copy_order_engine", None)
-    if copy_order_engine is not None:
-        try:
-            await copy_order_engine.shutdown()
-            app.state.copy_order_engine = None
-            print("  ✅ 跟单订单引擎已关闭")
-        except Exception as e:
-            print(f"  ❌ 跟单订单引擎关闭失败: {e}")
-
-
-async def _shutdown_orchestrator(app: FastAPI) -> None:
-    """停止编排器并清理状态"""
-    orch = getattr(app.state, "orchestrator", None)
-    if orch is not None:
-        await orch.stop()
-        app.state.orchestrator = None
-        print("✅ 交易引擎已停止")
-
-
-# ── Lifespan 主函数 ──────────────────────────────────────────────
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    应用生命周期管理
-    - 启动时初始化数据库，自动创建编排器并加载所有已注册策略（stopped 状态）
-    - 策略不会自动运行，需用户通过 API 显式启动
-    - 关闭时清理资源
-    """
-    set_app_ref(app)
-
-    # ── 启动 ──
-    print("🚀 启动量化交易系统...")
-    await _startup_database()
-    await _startup_orchestrator(app)
-    await _startup_websocket_heartbeat()
-    await _startup_signal_engines(app)
-
-    yield
-
-    # ── 关闭 ──
-    print("🛑 停止量化交易系统...")
-    await _shutdown_signal_engines(app)
-    await _shutdown_websocket_heartbeat()
-    await _shutdown_orchestrator(app)
-    clear_app_ref()
 
 
 # 创建FastAPI应用实例
@@ -335,12 +61,12 @@ app = FastAPI(
     docs_url=settings.DOCS_URL or None,
     redoc_url=settings.REDOC_URL or None,
     openapi_url=f"{settings.API_PREFIX}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
+
 
 # ── 中间件注册（执行顺序：后注册先执行）──────────────────────────
 # 实际执行顺序：RequestID → Logging → RateLimit → Auth → CORS → 路由
-# 注册顺序：CORS → Auth → RateLimit → Logging → RequestID
 
 # 1. CORS（最先注册，最后执行）
 app.add_middleware(
@@ -351,30 +77,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. 认证中间件：统一 JWT Token 校验，白名单路径自动跳过
+# 2. 认证中间件
 app.add_middleware(AuthMiddleware)
 
-# 3. 限流中间件：从配置读取限流参数
+# 3. 限流中间件
 app.add_middleware(
     RateLimitMiddleware,
     max_requests=settings.RATE_LIMIT_REQUESTS,
     window_seconds=settings.RATE_LIMIT_WINDOW,
 )
 
-# 4. 请求日志中间件：记录方法、路径、状态码、耗时
+# 4. 请求日志中间件
 app.add_middleware(LoggingMiddleware)
 
-# 5. 请求 ID 中间件（最外层，最先注册）：注入 X-Request-ID
+# 5. 请求 ID 中间件（最外层）
 app.add_middleware(RequestIDMiddleware)
 
 
-# 异常处理
+# ── 异常处理 ──────────────────────────────────────────────────────
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理器 - 处理所有类型的异常"""
+    """全局异常处理器"""
     from fastapi import HTTPException
 
-    # 如果是HTTPException，返回对应的状态码和错误信息
     if isinstance(exc, HTTPException):
         return JSONResponse(
             status_code=exc.status_code,
@@ -382,56 +109,49 @@ async def global_exception_handler(request: Request, exc: Exception):
                 "success": False,
                 "error": exc.detail,
                 "message": str(exc.detail),
-                "path": request.url.path
-            }
+                "path": request.url.path,
+            },
         )
 
-    # 其他异常返回500状态码
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": "内部服务器错误",
             "message": str(exc),
-            "path": request.url.path
-        }
+            "path": request.url.path,
+        },
     )
 
 
-# 注册路由
-# C 端（普通用户）：/api/v1/c/user、/api/v1/c/market、/api/v1/c/trading、/api/v1/c/backtest
-#                  /api/v1/c/signal、/api/v1/c/follows、/api/v1/c/leaderboard、/api/v1/c/user/signal-follows
+# ── 路由注册 ──────────────────────────────────────────────────────
+
+# C 端（普通用户）
 app.include_router(c_router, prefix=f"{settings.API_PREFIX}/c")
 
-# Admin 端（管理员）：/api/v1/m/strategy、/api/v1/m/system、/api/v1/m/health
-#                    /api/v1/m/stats、/api/v1/m/logs、/api/v1/m/signal、/api/v1/m/leaderboard
+# Admin 端（管理员）
 app.include_router(m_router, prefix=f"{settings.API_PREFIX}/m")
 
-# WebSocket 路由：/api/v1/ws/market、/api/v1/ws/trading、/api/v1/ws/strategy
-app.include_router(market_ws_router, prefix=f"{settings.API_PREFIX}/ws",
-                   tags=["WebSocket-行情推送"])
-app.include_router(trading_ws_router, prefix=f"{settings.API_PREFIX}/ws",
-                   tags=["WebSocket-交易推送"])
-app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws",
-                   tags=["WebSocket-策略推送"])
+# WebSocket 路由
+app.include_router(market_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-行情推送"])
+app.include_router(trading_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-交易推送"])
+app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=["WebSocket-策略推送"])
 
 
-# 根路径
+# ── 辅助路由 ──────────────────────────────────────────────────────
+
+
 @app.get("/", include_in_schema=False)
 async def root() -> Dict[str, Any]:
-    """
-    根路径
-    返回系统基本信息
-    """
+    """根路径"""
     return {
         "message": f"欢迎使用{settings.app_name} API",
         "version": settings.app_version,
         "docs": settings.DOCS_URL or "/docs",
-        "health": f"{settings.API_PREFIX}/m/health"
+        "health": f"{settings.API_PREFIX}/m/health",
     }
 
 
-# favicon.ico - 返回空响应，避免浏览器 404
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     """返回空的 favicon 响应"""
@@ -439,15 +159,17 @@ async def favicon():
     return Response(status_code=204)
 
 
-# 自定义OpenAPI文档
 @app.get("/docs", include_in_schema=False)
 async def custom_docs():
     """自定义Swagger UI文档"""
     return get_swagger_ui_html(
         openapi_url=f"{settings.API_PREFIX}/openapi.json",
         title=f"{settings.app_name} API - 文档",
-        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
+        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
     )
+
+
+# ── OpenAPI 配置 ──────────────────────────────────────────────────
 
 
 def custom_openapi():
@@ -462,16 +184,13 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # 添加安全配置
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
             "type": "http",
             "scheme": "bearer",
-            "bearerFormat": "JWT"
+            "bearerFormat": "JWT",
         }
     }
-
-    # 添加全局安全要求
     openapi_schema["security"] = [{"BearerAuth": []}]
 
     app.openapi_schema = openapi_schema
@@ -482,21 +201,17 @@ app.openapi = custom_openapi
 
 
 def create_app() -> FastAPI:
-    """
-    创建FastAPI应用实例
-    用于在其他模块中导入使用
-    """
+    """创建FastAPI应用实例（用于在其他模块中导入使用）"""
     return app
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    # 启动开发服务器
     uvicorn.run(
         "quant_trading_system.api.main:app",
         host=settings.api.host,
         port=settings.api.port,
         reload=settings.debug,
-        log_level="info"
+        log_level="info",
     )

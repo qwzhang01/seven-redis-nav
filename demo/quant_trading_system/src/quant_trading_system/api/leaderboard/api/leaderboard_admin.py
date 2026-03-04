@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from quant_trading_system.models.database import LeaderboardSnapshot, SignalTradeRecord, Signal
+from quant_trading_system.models.leaderboard import LeaderboardSnapshot
+from quant_trading_system.models.signal import SignalTradeRecord, Signal
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 

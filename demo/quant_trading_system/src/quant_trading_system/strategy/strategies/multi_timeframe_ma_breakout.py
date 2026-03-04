@@ -26,8 +26,8 @@ import structlog
 
 from quant_trading_system.models.market import Bar
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.services.strategy.base import Strategy, register_strategy
-from quant_trading_system.services.strategy.signal import Signal
+from quant_trading_system.strategy.base import Strategy, register_strategy
+from quant_trading_system.strategy.strategy_signal import StrategySignal
 
 logger = structlog.get_logger(__name__)
 
@@ -55,7 +55,7 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
     做空完全镜像。
     """
 
-    id: int = 152410378779754496
+    id: ClassVar[int] = 152410378779754496
     name: ClassVar[str] = "mtf_ma_breakout"
     description: ClassVar[str] = "多周期趋势+MA(11)回调突破+固定盈亏比策略"
     version: ClassVar[str] = "1.0.0"
@@ -117,7 +117,7 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
     # 核心回调：on_bar
     # ------------------------------------------------------------------
 
-    def on_bar(self, bar: Bar) -> Signal | list[Signal] | None:
+    def on_bar(self, bar: Bar) -> StrategySignal | list[StrategySignal] | None:
         """
         只在入场周期的K线触发时执行完整判断。
         趋势周期的K线仅用于更新 context 中的 bars 缓存（引擎自动处理）。
@@ -184,7 +184,7 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         trend_bars,
         entry_ma: np.ndarray,
         trend_ma: np.ndarray,
-    ) -> Signal | None:
+    ) -> StrategySignal | None:
         """
         做多条件：
         ① 大周期：当前K线为阳线 且 开盘价 > MA(11)
@@ -279,7 +279,7 @@ class MultiTimeframeMABreakoutStrategy(Strategy):
         trend_bars,
         entry_ma: np.ndarray,
         trend_ma: np.ndarray,
-    ) -> Signal | None:
+    ) -> StrategySignal | None:
         """
         做空条件（做多的完全镜像）：
         ① 大周期：当前K线为阴线 且 开盘价 < MA(11)

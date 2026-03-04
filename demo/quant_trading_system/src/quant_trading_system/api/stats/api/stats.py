@@ -19,9 +19,9 @@ from fastapi import APIRouter, Request, Query, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from quant_trading_system.models.database import (
-    User, SignalTradeRecord, Signal, Subscription,
-)
+from quant_trading_system.models.signal import SignalTradeRecord, Signal
+from quant_trading_system.models.user import User
+from quant_trading_system.models.subscription import Subscription
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.api.deps import get_orchestrator_dep
 

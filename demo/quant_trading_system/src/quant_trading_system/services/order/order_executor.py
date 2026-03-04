@@ -117,8 +117,16 @@ class BacktestExecutor(OrderExecutor):
     立即模拟成交，计算滑点和手续费
     """
 
+    def execute_sync(self, order: Order, market_price: float) -> ExecutionResult:
+        """回测模式同步执行：立即成交（无需事件循环，性能更优）"""
+        return self._do_execute(order, market_price)
+
     async def execute(self, order: Order, market_price: float) -> ExecutionResult:
-        """回测模式：立即成交"""
+        """回测模式：立即成交（async 接口兼容）"""
+        return self._do_execute(order, market_price)
+
+    def _do_execute(self, order: Order, market_price: float) -> ExecutionResult:
+        """回测执行核心逻辑"""
         result = ExecutionResult()
 
         if market_price <= 0:

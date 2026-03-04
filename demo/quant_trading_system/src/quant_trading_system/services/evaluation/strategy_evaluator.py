@@ -18,7 +18,7 @@ from typing import Any
 import structlog
 
 from quant_trading_system.core.enums import OrderSide
-from quant_trading_system.core.events import Event, EventEngine, EventType
+from quant_trading_system.engines.event_engine import Event, EventEngine, EventType
 from quant_trading_system.models.trading import Trade, Position
 
 logger = structlog.get_logger(__name__)

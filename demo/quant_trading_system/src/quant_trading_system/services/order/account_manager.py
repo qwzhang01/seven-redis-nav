@@ -15,7 +15,8 @@ from typing import Any
 import structlog
 
 from quant_trading_system.core.enums import OrderSide
-from quant_trading_system.models.account import Account, AccountType, Balance
+from quant_trading_system.models.account import Account, Balance
+from quant_trading_system.core.enums import MarketType
 from quant_trading_system.models.trading import Trade
 
 logger = structlog.get_logger(__name__)
@@ -35,7 +36,7 @@ class AccountManager:
         self,
         initial_capital: float,
         account_id: str = "default",
-        account_type: AccountType = AccountType.SPOT,
+        account_type: MarketType = MarketType.SPOT,
     ) -> Account:
         """
         创建账户

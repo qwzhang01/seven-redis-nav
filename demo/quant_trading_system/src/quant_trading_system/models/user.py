@@ -1,192 +1,104 @@
-from enum import Enum
-from typing import Optional, Dict, Any, List
+"""
+用户领域 ORM 模型
+=================
+
+User / Exchange / UserExchangeAPI
+"""
+
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from quant_trading_system.core.enums import MarketType as ExchangeType, ExchangeStatus
+
+from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, BigInteger
+from sqlalchemy.orm import relationship
+
+from quant_trading_system.core.snowflake import generate_snowflake_id
+from quant_trading_system.models.base import Base
 
 
-class UserType(str, Enum):
-    """用户类型"""
-    CUSTOMER = "customer"
-    ADMIN = "admin"
+class User(Base):
+    """用户信息模型"""
+    __tablename__ = "user_info"
+
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    username = Column(String(64), nullable=False, unique=True)
+    nickname = Column(String(128), nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False, unique=True)
+    email_verified = Column(Boolean, default=False)
+    phone = Column(String(32))
+    phone_verified = Column(Boolean, default=False)
+    avatar_url = Column(String(512))
+    user_type = Column(String(32), default="customer")
+    registration_time = Column(DateTime, default=datetime.utcnow)
+    last_login_time = Column(DateTime)
+    status = Column(String(32), default="active")
+    invitation_code = Column(String(64), nullable=False)
+    inviter_id = Column(BigInteger)
+    create_by = Column(String(64), default="system")
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
+
+    # 关系
+    api_keys = relationship("UserExchangeAPI", back_populates="user",
+                            foreign_keys="[UserExchangeAPI.user_id]",
+                            primaryjoin="User.id == UserExchangeAPI.user_id")
+    inviter = relationship("User", remote_side=[id], backref="invited_users",
+                           foreign_keys=[inviter_id],
+                           primaryjoin="User.inviter_id == User.id")
 
 
-class UserStatus(str, Enum):
-    """用户状态"""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    LOCKED = "locked"
-
-
-class APIKeyStatus(str, Enum):
-    """API密钥状态"""
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    DISABLED = "disabled"
-
-
-class UserBase(BaseModel):
-    """用户基础模型"""
-    username: str = Field(..., min_length=3, max_length=64, description="用户名")
-    nickname: str = Field(..., min_length=1, max_length=128, description="昵称")
-    email: EmailStr = Field(..., description="邮箱地址")
-    phone: Optional[str] = Field(None, max_length=32, description="手机号")
-    avatar_url: Optional[str] = Field(None, max_length=512, description="头像URL")
-    user_type: UserType = Field(default=UserType.CUSTOMER, description="用户类型")
-
-
-class UserCreate(UserBase):
-    """用户创建模型"""
-    password: str = Field(..., min_length=6, max_length=128, description="密码")
-
-
-class UserUpdate(BaseModel):
-    """用户更新模型"""
-    nickname: Optional[str] = Field(None, min_length=1, max_length=128, description="昵称")
-    email: Optional[EmailStr] = Field(None, description="邮箱地址")
-    phone: Optional[str] = Field(None, max_length=32, description="手机号")
-    avatar_url: Optional[str] = Field(None, max_length=512, description="头像URL")
-
-
-class UserResponse(UserBase):
-    """用户响应模型"""
-    id: int
-    email_verified: bool
-    phone_verified: bool
-    user_type: UserType
-    registration_time: datetime
-    last_login_time: Optional[datetime]
-    status: UserStatus
-    create_time: datetime
-    update_time: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class LoginRequest(BaseModel):
-    """登录请求模型"""
-    username: str = Field(..., description="用户名或邮箱")
-    password: str = Field(..., description="密码")
-
-
-class LoginResponse(BaseModel):
-    """登录响应模型"""
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: UserResponse
-
-
-class PasswordChangeRequest(BaseModel):
-    """密码修改请求模型"""
-    old_password: str = Field(..., description="旧密码")
-    new_password: str = Field(..., min_length=6, max_length=128, description="新密码")
-
-
-class PasswordResetRequest(BaseModel):
-    """密码重置请求模型"""
-    email: EmailStr = Field(..., description="邮箱地址")
-    verification_code: str = Field(..., description="验证码")
-    new_password: str = Field(..., min_length=6, max_length=128, description="新密码")
-
-
-class ExchangeInfo(BaseModel):
+class Exchange(Base):
     """交易所信息模型"""
-    id: int
-    exchange_code: str
-    exchange_name: str
-    exchange_type: ExchangeType
-    base_url: str
-    api_doc_url: Optional[str]
-    status: ExchangeStatus
-    supported_pairs: Optional[Dict[str, Any]]
-    rate_limits: Optional[Dict[str, Any]]
-    create_time: datetime
-    update_time: datetime
+    __tablename__ = "exchange_info"
 
-    class Config:
-        from_attributes = True
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    exchange_code = Column(String(32), nullable=False)
+    exchange_name = Column(String(128), nullable=False)
+    exchange_type = Column(String(32), default="spot")
+    base_url = Column(String(512), nullable=False)
+    api_doc_url = Column(String(512))
+    status = Column(String(32), default="active")
+    supported_pairs = Column(JSON)
+    rate_limits = Column(JSON)
+    create_by = Column(String(64), default="system")
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
 
-
-class APIKeyCreate(BaseModel):
-    """密钥创建模型"""
-    exchange_id: int = Field(..., description="交易所ID")
-    label: str = Field(..., min_length=1, max_length=128, description="标签")
-    api_key: str = Field(..., min_length=1, max_length=512, description="API密钥")
-    secret_key: str = Field(..., min_length=1, max_length=512, description="Secret密钥")
-    passphrase: Optional[str] = Field(None, max_length=512, description="密码短语")
-    permissions: Optional[Dict[str, Any]] = Field(default=None, description="权限配置")
+    # 关系
+    api_keys = relationship("UserExchangeAPI", back_populates="exchange",
+                            foreign_keys="[UserExchangeAPI.exchange_id]",
+                            primaryjoin="Exchange.id == UserExchangeAPI.exchange_id")
 
 
-class APIKeyUpdate(BaseModel):
-    """API密钥更新模型"""
-    label: Optional[str] = Field(None, min_length=1, max_length=128, description="标签")
-    permissions: Optional[Dict[str, Any]] = Field(None, description="权限配置")
-    status: Optional[APIKeyStatus] = Field(None, description="状态")
+class UserExchangeAPI(Base):
+    """用户交易所API密钥模型"""
+    __tablename__ = "user_exchange_api"
 
+    id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
+    user_id = Column(BigInteger, nullable=False)
+    exchange_id = Column(BigInteger, nullable=False)
+    label = Column(String(128), nullable=False)
+    api_key = Column(String(512), nullable=False)
+    secret_key = Column(String(512), nullable=False)
+    passphrase = Column(String(512))
+    permissions = Column(JSON)
+    status = Column(String(32), default="pending")
+    review_reason = Column(Text)
+    approved_by = Column(String(64))
+    approved_time = Column(DateTime)
+    last_used_time = Column(DateTime)
+    create_by = Column(String(64))
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_by = Column(String(64))
+    update_time = Column(DateTime, default=datetime.utcnow)
+    enable_flag = Column(Boolean, default=True)
 
-class APIKeyResponse(BaseModel):
-    """密钥响应模型"""
-    id: int
-    user_id: int
-    exchange_id: int
-    label: str
-    api_key: str
-    status: APIKeyStatus
-    review_reason: Optional[str]
-    approved_by: Optional[str]
-    approved_time: Optional[datetime]
-    last_used_time: Optional[datetime]
-    create_time: datetime
-    update_time: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class APIKeyListResponse(BaseModel):
-    """API密钥列表响应模型"""
-    total: int
-    items: List[APIKeyResponse]
-
-
-class ExchangeListResponse(BaseModel):
-    """交易所列表响应模型"""
-    total: int
-    items: List[ExchangeInfo]
-
-
-class UserListResponse(BaseModel):
-    """用户列表响应模型"""
-    total: int
-    items: List[UserResponse]
-
-
-# 为API响应添加成功状态包装
-class APIResponse(BaseModel):
-    """API响应包装模型"""
-    success: bool
-    data: Optional[Any] = None
-    message: str
-    error: Optional[str] = None
-    error_type: Optional[str] = None
-
-
-# 用户列表响应包装
-class UserListAPIResponse(APIResponse):
-    """用户列表API响应"""
-    data: UserListResponse
-
-
-# 交易所列表响应包装
-class ExchangeListAPIResponse(APIResponse):
-    """交易所列表API响应"""
-    data: ExchangeListResponse
-
-
-# API密钥列表响应包装
-class APIKeyListAPIResponse(APIResponse):
-    """API密钥列表API响应"""
-    data: APIKeyListResponse
+    # 关系
+    user = relationship("User", back_populates="api_keys", foreign_keys=[user_id],
+                        primaryjoin="UserExchangeAPI.user_id == User.id")
+    exchange = relationship("Exchange", back_populates="api_keys",
+                            foreign_keys=[exchange_id],
+                            primaryjoin="UserExchangeAPI.exchange_id == Exchange.id")

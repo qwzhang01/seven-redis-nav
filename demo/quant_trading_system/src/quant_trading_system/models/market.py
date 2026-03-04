@@ -1,6 +1,7 @@
 from typing import List, Optional
-from pydantic import BaseModel
+
 import numpy as np
+from pydantic import BaseModel
 
 from quant_trading_system.core.enums import KlineInterval
 
@@ -64,18 +65,25 @@ class BarArray:
         # 如果传入了 numpy 数组，则直接使用（向后兼容批量构造）
         if close is not None and len(close) > 0:
             # 将 numpy 数组转为 list 缓冲区
-            ts_arr = timestamp if timestamp is not None else np.array([], dtype="datetime64[ms]")
+            ts_arr = timestamp if timestamp is not None else np.array([],
+                                                                      dtype="datetime64[ms]")
             # timestamp 可能是 datetime64 类型，转为 int 毫秒存储
             if ts_arr.dtype.kind == 'M':  # datetime64
-                self._timestamp_buf = ts_arr.astype("datetime64[ms]").astype(np.int64).tolist()
+                self._timestamp_buf = ts_arr.astype("datetime64[ms]").astype(
+                    np.int64).tolist()
             else:
                 self._timestamp_buf = [int(x) for x in ts_arr]
-            self._open_buf = list(np.asarray(open, dtype=np.float64)) if open is not None else []
-            self._high_buf = list(np.asarray(high, dtype=np.float64)) if high is not None else []
-            self._low_buf = list(np.asarray(low, dtype=np.float64)) if low is not None else []
+            self._open_buf = list(
+                np.asarray(open, dtype=np.float64)) if open is not None else []
+            self._high_buf = list(
+                np.asarray(high, dtype=np.float64)) if high is not None else []
+            self._low_buf = list(
+                np.asarray(low, dtype=np.float64)) if low is not None else []
             self._close_buf = list(np.asarray(close, dtype=np.float64))
-            self._volume_buf = list(np.asarray(volume, dtype=np.float64)) if volume is not None else []
-            self._turnover_buf = list(np.asarray(turnover, dtype=np.float64)) if turnover is not None else []
+            self._volume_buf = list(
+                np.asarray(volume, dtype=np.float64)) if volume is not None else []
+            self._turnover_buf = list(
+                np.asarray(turnover, dtype=np.float64)) if turnover is not None else []
         else:
             self._timestamp_buf: list = []
             self._open_buf: list = []
@@ -220,16 +228,19 @@ class BarArray:
             if len(ts) == 0:
                 self._ts_ms_cache = np.array([], dtype=np.float64)
             elif ts.dtype.kind == 'M':  # datetime64
-                self._ts_ms_cache = ts.astype('datetime64[ms]').astype(np.int64).astype(np.float64)
+                self._ts_ms_cache = ts.astype('datetime64[ms]').astype(np.int64).astype(
+                    np.float64)
             else:
                 self._ts_ms_cache = np.asarray(ts, dtype=np.float64)
         return self._ts_ms_cache
 
-    def get_numpy_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_numpy_arrays(self) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """一次性获取所有 numpy 数组引用（timestamp, open, high, low, close, volume, turnover），避免多次 property 调用触发重建检查"""
         self._rebuild_cache()
         return (self._ts_cache, self._open_cache, self._high_cache,
-                self._low_cache, self._close_cache, self._volume_cache, self._turnover_cache)
+                self._low_cache, self._close_cache, self._volume_cache,
+                self._turnover_cache)
 
     @classmethod
     def from_bars(cls, bars: list["Bar"]) -> "BarArray":

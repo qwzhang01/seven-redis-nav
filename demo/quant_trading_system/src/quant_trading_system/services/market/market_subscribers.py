@@ -21,7 +21,7 @@ import structlog
 
 from quant_trading_system.core import settings
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.services.market.market_event_bus import (
+from quant_trading_system.engines.market_event_bus import (
     MarketEvent,
     MarketEventType,
     MarketSubscriber,
@@ -177,6 +177,7 @@ class WebSocketSubscriber(MarketSubscriber):
     - Ticker 行情（ticker/{symbol}）
     - K线数据（kline/{symbol}/{timeframe}）
     - 深度数据（depth/{symbol}）
+    - 技术指标（indicator/{symbol}/{timeframe}/{indicator_name}）
     """
 
     @property
@@ -190,6 +191,9 @@ class WebSocketSubscriber(MarketSubscriber):
                 await self._push_ticker(event.data)
             elif event.type == MarketEventType.KLINE:
                 await self._push_kline(event.data)
+                # 仅已闭合K线触发指标计算推送
+                if event.data.get("is_closed", False):
+                    await self._push_indicators_for_kline(event.data)
             elif event.type == MarketEventType.DEPTH:
                 await self._push_depth(event.data)
         except Exception as e:
@@ -253,6 +257,103 @@ class WebSocketSubscriber(MarketSubscriber):
             "timestamp": data.get("timestamp", 0),
         })
 
+    async def _push_indicators_for_kline(self, data: dict[str, Any]) -> None:
+        """
+        K线闭合后，检查是否有前端订阅了指标频道，若有则计算并推送
+
+        工作流程：
+        1. 获取当前被订阅的所有 indicator/{symbol}/{timeframe}/{indicator_name} 频道
+        2. 匹配当前闭合K线对应的 symbol 和 timeframe
+        3. 从 KLineEngine 内存缓冲区获取最近的 BarArray
+        4. 用 IndicatorEngine 计算指标最新值
+        5. 推送到对应频道
+        """
+        from quant_trading_system.api.websocket.market_ws import (
+            get_indicator_channels,
+            push_indicator,
+        )
+
+        symbol_key = data.get("symbol", "").replace("/", "").replace("-", "")
+        timeframe = data.get("interval", "1m")
+        if not symbol_key:
+            return
+
+        # 获取当前被订阅的指标频道
+        subscribed_channels = get_indicator_channels()
+        if not subscribed_channels:
+            return
+
+        # 筛选出匹配当前 symbol + timeframe 的指标频道
+        prefix = f"indicator/{symbol_key}/{timeframe}/"
+        matched_indicators: list[str] = []
+        for ch in subscribed_channels:
+            if ch.startswith(prefix):
+                indicator_name = ch[len(prefix):]
+                if indicator_name:
+                    matched_indicators.append(indicator_name)
+
+        if not matched_indicators:
+            return
+
+        # 从 KLineEngine 缓冲区获取 BarArray
+        try:
+            from quant_trading_system.core.container import container
+            market_service = container.market_service
+            bar_array = market_service.get_bar_array(
+                symbol_key,
+                KlineInterval(timeframe),
+            )
+        except Exception as e:
+            logger.debug("获取K线缓冲区数据失败", error=str(e), symbol=symbol_key, timeframe=timeframe)
+            return
+
+        if bar_array is None or len(bar_array) == 0:
+            return
+
+        # 获取指标引擎
+        try:
+            from quant_trading_system.indicators.indicator_engine import get_indicator_engine
+            indicator_engine = get_indicator_engine()
+        except Exception as e:
+            logger.debug("获取指标引擎失败", error=str(e))
+            return
+
+        # 逐个计算并推送
+        import numpy as np
+
+        for indicator_name in matched_indicators:
+            try:
+                result = indicator_engine.calculate(indicator_name, bar_array)
+
+                # 提取各输出字段的最新值
+                latest_values: dict[str, Any] = {}
+                for key, values in result.values.items():
+                    if len(values) > 0 and not np.isnan(values[-1]):
+                        latest_values[key] = round(float(values[-1]), 8)
+                    else:
+                        latest_values[key] = None
+
+                await push_indicator(
+                    symbol_key,
+                    timeframe,
+                    indicator_name,
+                    {
+                        "indicator": indicator_name,
+                        "symbol": data.get("symbol", ""),
+                        "timeframe": timeframe,
+                        "timestamp": data.get("timestamp", 0),
+                        "values": latest_values,
+                    },
+                )
+            except Exception as e:
+                logger.debug(
+                    "指标计算或推送失败",
+                    indicator=indicator_name,
+                    error=str(e),
+                    symbol=symbol_key,
+                    timeframe=timeframe,
+                )
+
 
 # ═══════════════════════════════════════════════════════════════
 # 3. 交易引擎订阅器
@@ -308,7 +409,7 @@ class TradingEngineSubscriber(MarketSubscriber):
     async def _process_tick(self, data: dict[str, Any]) -> None:
         """处理 Tick 事件：发布到系统事件引擎 + 合成K线"""
         from quant_trading_system.models.market import Tick
-        from quant_trading_system.core.events import Event, EventType
+        from quant_trading_system.engines.event_engine import Event, EventType
 
         tick = Tick(
             symbol=data.get("symbol", ""),
@@ -336,7 +437,7 @@ class TradingEngineSubscriber(MarketSubscriber):
     async def _process_kline(self, data: dict[str, Any]) -> None:
         """处理 K线事件：更新缓冲区 + 发布已闭合K线到事件引擎"""
         from quant_trading_system.models.market import Bar
-        from quant_trading_system.core.events import Event, EventType
+        from quant_trading_system.engines.event_engine import Event, EventType
 
         bar = Bar(
             symbol=data.get("symbol", ""),

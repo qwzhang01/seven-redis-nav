@@ -23,7 +23,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from quant_trading_system.models.database import User, SignalFollowOrder
+from quant_trading_system.models.user import User
+from quant_trading_system.models.follow import SignalFollowOrder
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.api.signal.services.follow_service import FollowService
 from quant_trading_system.api.deps import get_follow_engine_dep

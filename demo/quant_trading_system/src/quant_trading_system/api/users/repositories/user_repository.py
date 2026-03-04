@@ -10,7 +10,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from quant_trading_system.models.database import User, Exchange, UserExchangeAPI
+from quant_trading_system.models.user import User, Exchange, UserExchangeAPI
 
 logger = logging.getLogger(__name__)
 

@@ -33,12 +33,12 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
-from quant_trading_system.models.database import Signal, SignalPosition, SignalTradeRecord
+from quant_trading_system.models.signal import Signal, SignalPosition, SignalTradeRecord
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.services.exchange.binance_user_stream import (
     BinanceUserStreamManager,
 )
-from quant_trading_system.services.exchange.signal_event_bus import (
+from quant_trading_system.engines.signal_event_bus import (
     OrderFilledData,
     SignalEvent,
     SignalEventBus,
@@ -599,7 +599,7 @@ class _SignalStream:
         # 目标账户 WebSocket 监听器
         # 开发环境使用 Mock，不连接真实 Binance
         if settings.is_development:
-            from quant_trading_system.services.exchange.mock_binance_user_stream import (
+            from quant_trading_system.mock.mock_binance_user_stream import (
                 MockBinanceUserStreamManager,
             )
             self._stream_manager = MockBinanceUserStreamManager(
