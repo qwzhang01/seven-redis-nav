@@ -213,6 +213,25 @@ class KlineInterval(BaseEnum):
     WEEK_1 = "1w"
     MONTH_1 = "1M"
 
+    @classmethod
+    def from_str(cls, value: str) -> "KlineInterval | None":
+        """
+        从字符串创建 KlineInterval 枚举。
+
+        支持直接传入枚举值（如 "1m", "4h"），返回对应枚举；
+        无效值返回 None。
+
+        Args:
+            value: K线周期字符串
+
+        Returns:
+            KlineInterval 枚举或 None
+        """
+        try:
+            return cls(value)
+        except ValueError:
+            return None
+
     @property
     def seconds(self) -> int:
         """获取K线周期对应的秒数"""

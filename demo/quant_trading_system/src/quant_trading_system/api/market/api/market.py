@@ -24,17 +24,7 @@ from quant_trading_system.api.deps import get_orchestrator_dep
 # 创建行情路由实例
 router = APIRouter()
 
-# 时间周期映射表，将字符串时间周期映射为KlineInterval枚举
-TIMEFRAME_MAP = {
-    "1m": KlineInterval.MIN_1,
-    "5m": KlineInterval.MIN_5,
-    "15m": KlineInterval.MIN_15,
-    "30m": KlineInterval.MIN_30,
-    "1h": KlineInterval.HOUR_1,
-    "4h": KlineInterval.HOUR_4,
-    "1d": KlineInterval.DAY_1,
-    "1w": KlineInterval.WEEK_1,
-}
+
 
 # 合法枚举值
 VALID_EXCHANGES = {"binance", "bybit", "bitget"}
@@ -67,7 +57,7 @@ async def get_kline(
     # 将 URL 安全的 `-` 分隔符还原为 `/`（如 ETH-USDT -> ETH/USDT）
     symbol = symbol.replace("-", "/")
 
-    tf = TIMEFRAME_MAP.get(timeframe)
+    tf = KlineInterval.from_str(timeframe)
     if not tf:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
 

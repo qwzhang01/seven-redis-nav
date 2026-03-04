@@ -149,13 +149,6 @@ class BinanceConnector(ExchangeConnector):
         )
         self._sub_id = 0
 
-    # K线周期列表（subscribe/unsubscribe 共用）
-    _KLINE_INTERVALS = [
-        "1s", "1m", "3m", "5m", "15m", "30m",
-        "1h", "2h", "4h", "6h", "8h", "12h",
-        "1d", "3d", "1w", "1M",
-    ]
-
     @classmethod
     def _build_streams(cls, symbols: list[str]) -> list[str]:
         """
@@ -172,7 +165,7 @@ class BinanceConnector(ExchangeConnector):
         for symbol in symbols:
             s = symbol.lower().replace("/", "")
             streams.extend([f"{s}@trade", f"{s}@ticker", f"{s}@depth20@100ms"])
-            streams.extend([f"{s}@kline_{interval}" for interval in cls._KLINE_INTERVALS])
+            streams.extend([f"{s}@kline_{interval}" for interval in BinanceConfig.ALL_KLINE_INTERVALS])
         return streams
 
     async def start(self) -> None:

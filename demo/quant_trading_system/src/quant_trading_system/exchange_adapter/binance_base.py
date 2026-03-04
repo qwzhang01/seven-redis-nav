@@ -27,7 +27,7 @@ class BinanceConfig:
     SPOT_WS_URL = "wss://stream.binance.com:9443/stream"
     FUTURES_WS_URL = "wss://fstream.binance.com/stream"
 
-    # 时间周期映射
+    # 时间周期映射（系统内部代号 → 币安 API 字符串）
     TIMEFRAME_MAP = {
         "M1": "1m",
         "M5": "5m",
@@ -38,6 +38,13 @@ class BinanceConfig:
         "D1": "1d",
         "W1": "1w",
     }
+
+    # 币安支持的所有 K 线周期（WebSocket 订阅等场景使用）
+    ALL_KLINE_INTERVALS = [
+        "1s", "1m", "3m", "5m", "15m", "30m",
+        "1h", "2h", "4h", "6h", "8h", "12h",
+        "1d", "3d", "1w", "1M",
+    ]
 
     @staticmethod
     def get_base_url(market_type: str) -> str:

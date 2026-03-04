@@ -28,18 +28,6 @@ router = APIRouter()
 _backtest_instances: dict[str, BacktestEngine] = {}
 _backtest_results: dict[str, Any] = {}
 
-# 时间周期映射表
-TIMEFRAME_MAP = {
-    "1m": KlineInterval.MIN_1,
-    "5m": KlineInterval.MIN_5,
-    "15m": KlineInterval.MIN_15,
-    "30m": KlineInterval.MIN_30,
-    "1h": KlineInterval.HOUR_1,
-    "4h": KlineInterval.HOUR_4,
-    "1d": KlineInterval.DAY_1,
-    "1w": KlineInterval.WEEK_1,
-}
-
 
 class BacktestRequest(BaseModel):
     """
@@ -103,7 +91,7 @@ async def run_backtest(request: BacktestRequest) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail=f"Unknown strategy type: {request.strategy_type}")
 
         # 验证时间周期
-        timeframe = TIMEFRAME_MAP.get(request.timeframe)
+        timeframe = KlineInterval.from_str(request.timeframe)
         if not timeframe:
             raise HTTPException(status_code=400, detail=f"Invalid timeframe: {request.timeframe}")
 
