@@ -641,7 +641,7 @@ class KLineEngine:
                         self._bar_count += 1
                         symbol_count += 1
 
-                    logger.info(
+                    logger.debug(
                         "Loaded historical klines from database",
                         symbol=symbol,
                         timeframe=tf.value,
@@ -772,7 +772,7 @@ class KLineEngine:
                                         error=str(store_err),
                                     )
 
-                        logger.info(
+                        logger.debug(
                             "Loaded historical klines from exchange",
                             symbol=symbol,
                             timeframe=tf.value,
