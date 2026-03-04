@@ -79,7 +79,27 @@ class FollowService:
             SignalFollowOrder.enable_flag == True,
         ).first()
         if existing:
-            raise ValueError("已存在该策略的活跃跟单，请先停止后再创建")
+            return {
+                "id": str(existing.id),
+                "signalId": existing.strategy_id,
+                "signalName": existing.signal_name,
+                "exchange": existing.exchange,
+                "status": existing.status,
+                "followAmount": float(existing.follow_amount) if existing.follow_amount else 0,
+                "currentValue": float(existing.current_value) if existing.current_value else 0,
+                "totalReturn": 0,
+                "todayReturn": 0,
+                "maxDrawdown": 0,
+                "winRate": 0,
+                "followRatio": float(existing.follow_ratio) if existing.follow_ratio else 1.0,
+                "stopLoss": float(existing.stop_loss) if existing.stop_loss else 0,
+                "riskLevel": "low",
+                "totalTrades": 0,
+                "followDays": 0,
+                "startTime": existing.start_time.isoformat() if existing.start_time else None,
+                "stopTime": None,
+                "createTime": existing.create_time.isoformat() if existing.create_time else None,
+            }
 
         now = datetime.now(timezone.utc)
         order = SignalFollowOrder(

@@ -251,11 +251,18 @@ export interface DrawdownPoint {
 
 /** 回撤分析响应 */
 export interface SignalDrawdownResponse {
-  signal_id: string
-  max_drawdown: number
-  current_drawdown: number
-  avg_drawdown: number
-  drawdown_curve: DrawdownPoint[]
+  statistics: DrawdownStatistics
+  drawdownCurve: number[]
+  labels: string[]
+
+}
+
+export interface DrawdownStatistics {
+  currentDrawdown: number
+  maxDrawdown: number
+  avgDrawdown: number
+  maxDrawdownDate: string
+  maxDrawdownDuration: number
 }
 
 /** 用户评价项 */

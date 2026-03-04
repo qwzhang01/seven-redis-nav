@@ -707,7 +707,7 @@ async function fetchHistory() {
   try {
     const res = await getSignalHistory(signalId.value, { page: 1, pageSize: 10 })
     if (isUnmounted.value) return
-    signalHistory.value = res.records || []
+    signalHistory.value = res.items || []
   } catch (e) {
     console.error('获取信号历史失败', e)
   }
@@ -730,12 +730,12 @@ async function fetchDrawdown() {
   try {
     const res = await getSignalDrawdown(signalId.value)
     if (isUnmounted.value) return
-    drawdownData.value = (res.drawdown_curve || []).map(d => d.drawdown * 100)
-    drawdownLabels.value = (res.drawdown_curve || []).map(d => d.date)
+    drawdownData.value = (res.drawdownCurve || [])
+    drawdownLabels.value = (res.labels || [])
     drawdownStatsData.value = {
-      current: (res.current_drawdown || 0) * 100,
-      max: (res.max_drawdown || 0) * 100,
-      avg: (res.avg_drawdown || 0) * 100,
+      current: (res.statistics.currentDrawdown || 0) * 100,
+      max: (res.statistics.maxDrawdown || 0) * 100,
+      avg: (res.statistics.avgDrawdown || 0) * 100,
     }
   } catch (e) {
     console.error('获取回撤分析失败', e)

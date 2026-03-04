@@ -445,7 +445,45 @@ class SignalService:
 
         return {"total": 0, "page": page, "pageSize": page_size, "records": []}
 
+    @staticmethod
+    def get_signal_history(
+        db: Session, signal_id: int, page: int = 1, page_size: int = 20
+    ) -> dict[str, Any]:
+        """
+        获取信号历史记录（交易信号历史列表，支持分页）
 
+        基于 signal_trade_record 表查询指定信号的历史交易记录。
+        """
+        total = db.query(func.count(SignalTradeRecord.id)).filter(
+            SignalTradeRecord.signal_id == signal_id,
+        ).scalar() or 0
+
+        records = db.query(SignalTradeRecord).filter(
+            SignalTradeRecord.signal_id == signal_id,
+        ).order_by(
+            SignalTradeRecord.traded_at.desc()
+        ).offset((page - 1) * page_size).limit(page_size).all()
+
+        items = []
+        for r in records:
+            items.append({
+                "id": str(r.id),
+                "action": r.action,
+                "symbol": r.symbol,
+                "price": float(r.price) if r.price else 0,
+                "amount": float(r.amount) if r.amount else 0,
+                "total": float(r.total) if r.total else 0,
+                "strength": r.strength or "medium",
+                "pnl": float(r.pnl) if r.pnl else None,
+                "tradedAt": r.traded_at.isoformat() if r.traded_at else None,
+            })
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pages": (total + page_size - 1) // page_size if total > 0 else 0,
+        }
 
     @staticmethod
     def _get_signal_positions(db: Session, strategy_id: str) -> list[dict]:
