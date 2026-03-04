@@ -157,25 +157,96 @@ class BinanceUserStreamManager:
         url = f"{self.base_url}{self._get_listen_key_path()}"
         headers = {"X-MBX-APIKEY": self.api_key}
 
-        response = await client.post(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        listen_key = data["listenKey"]
-        logger.info(f"已创建 listenKey: {listen_key[:8]}...")
-        return listen_key
+        logger.info(
+            f"正在创建 listenKey: url={url}, "
+            f"account_type={self.account_type}, "
+            f"testnet={self.testnet}, "
+            f"api_key={self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else '***'}"
+        )
+
+        try:
+            response = await client.post(url, headers=headers)
+            logger.info(
+                f"创建 listenKey 响应: status={response.status_code}, "
+                f"headers={dict(response.headers)}"
+            )
+            if response.status_code != 200:
+                logger.error(
+                    f"创建 listenKey 失败: status={response.status_code}, "
+                    f"response_body={response.text}, "
+                    f"url={url}, "
+                    f"api_key={self.api_key[:8]}..."
+                )
+            response.raise_for_status()
+            data = response.json()
+            listen_key = data["listenKey"]
+            logger.info(f"已创建 listenKey: {listen_key[:8]}...")
+            return listen_key
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"创建 listenKey HTTP 错误: status={e.response.status_code}, "
+                f"response_body={e.response.text}, "
+                f"url={url}, "
+                f"api_key={self.api_key[:8]}..., "
+                f"account_type={self.account_type}, "
+                f"testnet={self.testnet}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"创建 listenKey 未知异常: error={e}, "
+                f"error_type={type(e).__name__}, "
+                f"url={url}",
+                exc_info=True,
+            )
+            raise
 
     async def _keepalive_listen_key(self) -> None:
         """续期 listenKey（PUT 请求）"""
         if not self._listen_key:
+            logger.warning("续期 listenKey 跳过: listen_key 为空")
             return
         client = await self._ensure_http_client()
         url = f"{self.base_url}{self._get_listen_key_path()}"
         headers = {"X-MBX-APIKEY": self.api_key}
         params = {"listenKey": self._listen_key}
 
-        response = await client.put(url, headers=headers, params=params)
-        response.raise_for_status()
-        logger.debug(f"listenKey 续期成功: {self._listen_key[:8]}...")
+        logger.info(
+            f"正在续期 listenKey: url={url}, "
+            f"listen_key={self._listen_key[:8]}..., "
+            f"api_key={self.api_key[:8]}..."
+        )
+
+        try:
+            response = await client.put(url, headers=headers, params=params)
+            if response.status_code != 200:
+                logger.error(
+                    f"续期 listenKey 失败: status={response.status_code}, "
+                    f"response_body={response.text}, "
+                    f"listen_key={self._listen_key[:8]}..., "
+                    f"url={url}"
+                )
+            response.raise_for_status()
+            logger.info(f"listenKey 续期成功: {self._listen_key[:8]}...")
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"续期 listenKey HTTP 错误: status={e.response.status_code}, "
+                f"response_body={e.response.text}, "
+                f"listen_key={self._listen_key[:8]}..., "
+                f"url={url}, "
+                f"api_key={self.api_key[:8]}...",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"续期 listenKey 未知异常: error={e}, "
+                f"error_type={type(e).__name__}, "
+                f"url={url}",
+                exc_info=True,
+            )
+            raise
 
     async def _delete_listen_key(self) -> None:
         """删除 listenKey（DELETE 请求）"""
@@ -199,19 +270,40 @@ class BinanceUserStreamManager:
         """listenKey 定时续期循环"""
         while self._running:
             try:
+                logger.debug(
+                    f"listenKey 续期循环等待 {self.KEEPALIVE_INTERVAL} 秒, "
+                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
+                )
                 await asyncio.sleep(self.KEEPALIVE_INTERVAL)
                 if self._running and self._listen_key:
                     await self._keepalive_listen_key()
+                elif self._running:
+                    logger.warning(
+                        "续期循环: listen_key 为空，跳过续期, "
+                        f"running={self._running}"
+                    )
             except asyncio.CancelledError:
+                logger.info("listenKey 续期循环被取消")
                 break
             except Exception as e:
-                logger.error(f"listenKey 续期失败: {e}")
+                logger.error(
+                    f"listenKey 续期失败: {e}, "
+                    f"error_type={type(e).__name__}, "
+                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
+                    f"account_type={self.account_type}",
+                    exc_info=True,
+                )
                 # 续期失败时尝试重新创建
                 try:
+                    logger.info("续期失败后尝试重新创建 listenKey...")
                     self._listen_key = await self._create_listen_key()
-                    logger.info("已重新创建 listenKey")
+                    logger.info(f"已重新创建 listenKey: {self._listen_key[:8]}...")
                 except Exception as e2:
-                    logger.error(f"重新创建 listenKey 也失败: {e2}")
+                    logger.error(
+                        f"重新创建 listenKey 也失败: {e2}, "
+                        f"error_type={type(e2).__name__}",
+                        exc_info=True,
+                    )
 
     # ── WebSocket 连接与事件处理 ──────────────────────────────
 
@@ -220,10 +312,20 @@ class BinanceUserStreamManager:
         while self._running:
             try:
                 # 创建或刷新 listenKey
+                logger.info(
+                    f"WebSocket 循环开始: account_type={self.account_type}, "
+                    f"testnet={self.testnet}, "
+                    f"reconnect_count={self._reconnect_count}, "
+                    f"base_url={self.base_url}, "
+                    f"ws_base_url={self.ws_base_url}"
+                )
                 self._listen_key = await self._create_listen_key()
                 ws_url = f"{self.ws_base_url}/{self._listen_key}"
 
-                logger.info(f"正在连接币安 User Data Stream: {self.ws_base_url}...")
+                logger.info(
+                    f"正在连接币安 User Data Stream: ws_url={ws_url}, "
+                    f"listen_key={self._listen_key[:8]}..."
+                )
 
                 async with websockets.connect(
                     ws_url,
@@ -233,7 +335,11 @@ class BinanceUserStreamManager:
                 ) as ws:
                     self._connected_since = time.time()
                     self._reconnect_count = 0
-                    logger.info("✅ 币安 User Data Stream 已连接")
+                    logger.info(
+                        f"✅ 币安 User Data Stream 已连接, "
+                        f"listen_key={self._listen_key[:8]}..., "
+                        f"connected_at={self._connected_since}"
+                    )
 
                     async for message in ws:
                         if not self._running:
@@ -241,11 +347,36 @@ class BinanceUserStreamManager:
                         await self._handle_message(message)
 
             except asyncio.CancelledError:
+                logger.info("WebSocket 循环被取消")
                 break
             except ConnectionClosed as e:
-                logger.warning(f"WebSocket 连接关闭: code={e.code}, reason={e.reason}")
+                logger.warning(
+                    f"WebSocket 连接关闭: code={e.code}, reason={e.reason}, "
+                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
+                    f"reconnect_count={self._reconnect_count}, "
+                    f"connected_since={self._connected_since}"
+                )
+            except httpx.HTTPStatusError as e:
+                logger.error(
+                    f"WebSocket 循环中 HTTP 错误: status={e.response.status_code}, "
+                    f"response_body={e.response.text}, "
+                    f"url={e.request.url}, "
+                    f"method={e.request.method}, "
+                    f"api_key={self.api_key[:8]}..., "
+                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
+                    f"account_type={self.account_type}, "
+                    f"testnet={self.testnet}",
+                    exc_info=True,
+                )
             except Exception as e:
-                logger.error(f"WebSocket 错误: {e}")
+                logger.error(
+                    f"WebSocket 错误: {e}, "
+                    f"error_type={type(e).__name__}, "
+                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
+                    f"account_type={self.account_type}, "
+                    f"reconnect_count={self._reconnect_count}",
+                    exc_info=True,
+                )
 
             # 重连逻辑
             if not self._running:
@@ -255,7 +386,11 @@ class BinanceUserStreamManager:
             self._reconnect_count += 1
 
             if 0 < self.RECONNECT_MAX_RETRIES < self._reconnect_count:
-                logger.error(f"达到最大重连次数 {self.RECONNECT_MAX_RETRIES}，停止重连")
+                logger.error(
+                    f"达到最大重连次数 {self.RECONNECT_MAX_RETRIES}，停止重连, "
+                    f"account_type={self.account_type}, "
+                    f"last_listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
+                )
                 self._running = False
                 break
 
@@ -263,7 +398,11 @@ class BinanceUserStreamManager:
                 self.RECONNECT_BASE_DELAY * (2 ** (self._reconnect_count - 1)),
                 self.RECONNECT_MAX_DELAY,
             )
-            logger.info(f"将在 {delay:.1f} 秒后重连（第 {self._reconnect_count} 次）...")
+            logger.info(
+                f"将在 {delay:.1f} 秒后重连（第 {self._reconnect_count} 次）, "
+                f"account_type={self.account_type}, "
+                f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
+            )
             await asyncio.sleep(delay)
 
     async def _handle_message(self, raw_message: str) -> None:
