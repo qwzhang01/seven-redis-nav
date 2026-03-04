@@ -87,7 +87,7 @@ class BinanceAPI:
         start_ts = TimeUtils.parse_time_string(start_time) if start_time else None
         end_ts = TimeUtils.parse_time_string(end_time) if end_time else None
 
-        logger.info(
+        logger.debug(
             "Fetching klines from Binance",
             symbol=symbol_formatted,
             timeframe=interval,
