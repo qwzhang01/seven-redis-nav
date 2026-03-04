@@ -2,15 +2,16 @@
 币安 User Data Stream 管理器
 ==============================
 
-通过 WebSocket 监听币安用户数据流，实时接收以下事件：
+通过 python-binance 库监听币安用户数据流，实时接收以下事件：
 - executionReport: 订单状态变化（新订单、成交、取消等）
 - outboundAccountPosition: 账户余额变化
 - balanceUpdate: 余额更新
 
 核心流程：
-1. 通过 REST API 创建/续期 listenKey
-2. 建立 WebSocket 连接监听用户数据流
-3. 解析事件并通过回调函数分发
+1. 使用 python-binance 的 AsyncClient 创建异步客户端
+2. 使用 BinanceSocketManager 建立 WebSocket 连接
+3. python-binance 内部自动管理 listenKey 的创建与续期
+4. 解析事件并通过回调函数分发
 
 使用说明：
     manager = BinanceUserStreamManager(api_key, api_secret, account_type="spot")
@@ -21,14 +22,11 @@
 """
 
 import asyncio
-import json
 import logging
 import time
 from typing import Any, Callable, Coroutine, Optional
 
-import httpx
-import websockets
-from websockets.exceptions import ConnectionClosed
+from binance import AsyncClient, BinanceSocketManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,29 +38,18 @@ class BinanceUserStreamManager:
     """
     币安 User Data Stream 管理器
 
-    管理 listenKey 生命周期和 WebSocket 连接，
+    基于 python-binance 库，管理 WebSocket 连接，
     接收实时订单/账户事件并通过回调分发。
 
-    支持：
-    - 自动续期 listenKey（每 30 分钟）
+    python-binance 内部自动处理：
+    - listenKey 创建与续期
+    - WebSocket 心跳
+
+    本类额外提供：
     - WebSocket 自动重连（指数退避）
     - 优雅关闭
+    - 事件回调分发
     """
-
-    # 币安 API 基础URL
-    SPOT_BASE_URL = "https://api.binance.com"
-    FUTURES_BASE_URL = "https://fapi.binance.com"
-    SPOT_WS_URL = "wss://stream.binance.com:9443/ws"
-    FUTURES_WS_URL = "wss://fstream.binance.com/ws"
-
-    # 测试网
-    SPOT_TESTNET_BASE_URL = "https://testnet.binance.vision"
-    FUTURES_TESTNET_BASE_URL = "https://testnet.binancefuture.com"
-    SPOT_TESTNET_WS_URL = "wss://testnet.binance.vision/ws"
-    FUTURES_TESTNET_WS_URL = "wss://stream.binancefuture.com/ws"
-
-    # listenKey 续期间隔（30分钟，币安要求60分钟内续期）
-    KEEPALIVE_INTERVAL = 30 * 60  # 秒
 
     # WebSocket 重连参数
     RECONNECT_BASE_DELAY = 1.0   # 初始重连延迟（秒）
@@ -90,28 +77,13 @@ class BinanceUserStreamManager:
         self.account_type = account_type
         self.testnet = testnet
 
-        # 设置 URL
-        if testnet:
-            if account_type == "spot":
-                self.base_url = self.SPOT_TESTNET_BASE_URL
-                self.ws_base_url = self.SPOT_TESTNET_WS_URL
-            else:
-                self.base_url = self.FUTURES_TESTNET_BASE_URL
-                self.ws_base_url = self.FUTURES_TESTNET_WS_URL
-        else:
-            if account_type == "spot":
-                self.base_url = self.SPOT_BASE_URL
-                self.ws_base_url = self.SPOT_WS_URL
-            else:
-                self.base_url = self.FUTURES_BASE_URL
-                self.ws_base_url = self.FUTURES_WS_URL
+        # python-binance 客户端
+        self._client: Optional[AsyncClient] = None
+        self._bm: Optional[BinanceSocketManager] = None
 
         # 状态
-        self._listen_key: Optional[str] = None
         self._running = False
         self._ws_task: Optional[asyncio.Task] = None
-        self._keepalive_task: Optional[asyncio.Task] = None
-        self._http_client: Optional[httpx.AsyncClient] = None
         self._reconnect_count = 0
 
         # 事件回调
@@ -125,185 +97,41 @@ class BinanceUserStreamManager:
         self._last_event_time: Optional[float] = None
         self._connected_since: Optional[float] = None
 
-    # ── listenKey REST API ────────────────────────────────────
+    # ── AsyncClient 生命周期 ──────────────────────────────────
 
-    def _get_listen_key_path(self) -> str:
-        """获取 listenKey API 路径"""
-        if self.account_type == "spot":
-            return "/api/v3/userDataStream"
-        else:
-            return "/fapi/v1/listenKey"
-
-    async def _ensure_http_client(self) -> httpx.AsyncClient:
-        """确保异步 HTTP 客户端可用"""
-        if self._http_client is None or self._http_client.is_closed:
-            self._http_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0),
-                verify=True,
-            )
-        return self._http_client
-
-    async def _create_listen_key(self) -> str:
+    async def _create_client(self) -> AsyncClient:
         """
-        创建 listenKey
+        创建 python-binance AsyncClient
 
         Returns:
-            listenKey 字符串
-
-        Raises:
-            httpx.HTTPStatusError: API 请求失败
+            AsyncClient 实例
         """
-        client = await self._ensure_http_client()
-        url = f"{self.base_url}{self._get_listen_key_path()}"
-        headers = {"X-MBX-APIKEY": self.api_key}
-
         logger.info(
-            f"正在创建 listenKey: url={url}, "
+            f"正在创建 AsyncClient: "
             f"account_type={self.account_type}, "
             f"testnet={self.testnet}, "
             f"api_key={self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else '***'}"
         )
 
-        try:
-            response = await client.post(url, headers=headers)
-            logger.info(
-                f"创建 listenKey 响应: status={response.status_code}, "
-                f"headers={dict(response.headers)}"
-            )
-            if response.status_code != 200:
-                logger.error(
-                    f"创建 listenKey 失败: status={response.status_code}, "
-                    f"response_body={response.text}, "
-                    f"url={url}, "
-                    f"api_key={self.api_key[:8]}..."
-                )
-            response.raise_for_status()
-            data = response.json()
-            listen_key = data["listenKey"]
-            logger.info(f"已创建 listenKey: {listen_key[:8]}...")
-            return listen_key
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"创建 listenKey HTTP 错误: status={e.response.status_code}, "
-                f"response_body={e.response.text}, "
-                f"url={url}, "
-                f"api_key={self.api_key[:8]}..., "
-                f"account_type={self.account_type}, "
-                f"testnet={self.testnet}",
-                exc_info=True,
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"创建 listenKey 未知异常: error={e}, "
-                f"error_type={type(e).__name__}, "
-                f"url={url}",
-                exc_info=True,
-            )
-            raise
-
-    async def _keepalive_listen_key(self) -> None:
-        """续期 listenKey（PUT 请求）"""
-        if not self._listen_key:
-            logger.warning("续期 listenKey 跳过: listen_key 为空")
-            return
-        client = await self._ensure_http_client()
-        url = f"{self.base_url}{self._get_listen_key_path()}"
-        headers = {"X-MBX-APIKEY": self.api_key}
-        params = {"listenKey": self._listen_key}
-
-        logger.info(
-            f"正在续期 listenKey: url={url}, "
-            f"listen_key={self._listen_key[:8]}..., "
-            f"api_key={self.api_key[:8]}..."
+        client = await AsyncClient.create(
+            api_key=self.api_key,
+            api_secret=self.api_secret,
+            testnet=self.testnet,
         )
+        logger.info("AsyncClient 创建成功")
+        return client
 
-        try:
-            response = await client.put(url, headers=headers, params=params)
-            if response.status_code != 200:
-                logger.error(
-                    f"续期 listenKey 失败: status={response.status_code}, "
-                    f"response_body={response.text}, "
-                    f"listen_key={self._listen_key[:8]}..., "
-                    f"url={url}"
-                )
-            response.raise_for_status()
-            logger.info(f"listenKey 续期成功: {self._listen_key[:8]}...")
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"续期 listenKey HTTP 错误: status={e.response.status_code}, "
-                f"response_body={e.response.text}, "
-                f"listen_key={self._listen_key[:8]}..., "
-                f"url={url}, "
-                f"api_key={self.api_key[:8]}...",
-                exc_info=True,
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"续期 listenKey 未知异常: error={e}, "
-                f"error_type={type(e).__name__}, "
-                f"url={url}",
-                exc_info=True,
-            )
-            raise
-
-    async def _delete_listen_key(self) -> None:
-        """删除 listenKey（DELETE 请求）"""
-        if not self._listen_key:
-            return
-        try:
-            client = await self._ensure_http_client()
-            url = f"{self.base_url}{self._get_listen_key_path()}"
-            headers = {"X-MBX-APIKEY": self.api_key}
-            params = {"listenKey": self._listen_key}
-
-            response = await client.delete(url, headers=headers, params=params)
-            response.raise_for_status()
-            logger.info(f"已删除 listenKey: {self._listen_key[:8]}...")
-        except Exception as e:
-            logger.warning(f"删除 listenKey 失败（可忽略）: {e}")
-
-    # ── listenKey 自动续期 ────────────────────────────────────
-
-    async def _keepalive_loop(self) -> None:
-        """listenKey 定时续期循环"""
-        while self._running:
+    async def _close_client(self) -> None:
+        """关闭 AsyncClient"""
+        if self._client:
             try:
-                logger.debug(
-                    f"listenKey 续期循环等待 {self.KEEPALIVE_INTERVAL} 秒, "
-                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
-                )
-                await asyncio.sleep(self.KEEPALIVE_INTERVAL)
-                if self._running and self._listen_key:
-                    await self._keepalive_listen_key()
-                elif self._running:
-                    logger.warning(
-                        "续期循环: listen_key 为空，跳过续期, "
-                        f"running={self._running}"
-                    )
-            except asyncio.CancelledError:
-                logger.info("listenKey 续期循环被取消")
-                break
+                await self._client.close_connection()
+                logger.info("AsyncClient 已关闭")
             except Exception as e:
-                logger.error(
-                    f"listenKey 续期失败: {e}, "
-                    f"error_type={type(e).__name__}, "
-                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
-                    f"account_type={self.account_type}",
-                    exc_info=True,
-                )
-                # 续期失败时尝试重新创建
-                try:
-                    logger.info("续期失败后尝试重新创建 listenKey...")
-                    self._listen_key = await self._create_listen_key()
-                    logger.info(f"已重新创建 listenKey: {self._listen_key[:8]}...")
-                except Exception as e2:
-                    logger.error(
-                        f"重新创建 listenKey 也失败: {e2}, "
-                        f"error_type={type(e2).__name__}",
-                        exc_info=True,
-                    )
+                logger.warning(f"关闭 AsyncClient 失败（可忽略）: {e}")
+            finally:
+                self._client = None
+                self._bm = None
 
     # ── WebSocket 连接与事件处理 ──────────────────────────────
 
@@ -311,68 +139,52 @@ class BinanceUserStreamManager:
         """WebSocket 连接主循环（含自动重连）"""
         while self._running:
             try:
-                # 创建或刷新 listenKey
+                # 创建或重建 AsyncClient
                 logger.info(
                     f"WebSocket 循环开始: account_type={self.account_type}, "
                     f"testnet={self.testnet}, "
-                    f"reconnect_count={self._reconnect_count}, "
-                    f"base_url={self.base_url}, "
-                    f"ws_base_url={self.ws_base_url}"
-                )
-                self._listen_key = await self._create_listen_key()
-                ws_url = f"{self.ws_base_url}/{self._listen_key}"
-
-                logger.info(
-                    f"正在连接币安 User Data Stream: ws_url={ws_url}, "
-                    f"listen_key={self._listen_key[:8]}..."
+                    f"reconnect_count={self._reconnect_count}"
                 )
 
-                async with websockets.connect(
-                    ws_url,
-                    ping_interval=20,
-                    ping_timeout=10,
-                    close_timeout=5,
-                ) as ws:
+                # 每次重连时重新创建客户端，确保 listenKey 是新的
+                await self._close_client()
+                self._client = await self._create_client()
+                self._bm = BinanceSocketManager(self._client)
+
+                # 根据账户类型选择对应的 user socket
+                if self.account_type == "spot":
+                    socket = self._bm.user_socket()
+                    logger.info("正在连接现货 User Data Stream...")
+                else:
+                    socket = self._bm.futures_user_socket()
+                    logger.info("正在连接合约 User Data Stream...")
+
+                async with socket as stream:
                     self._connected_since = time.time()
                     self._reconnect_count = 0
                     logger.info(
                         f"✅ 币安 User Data Stream 已连接, "
-                        f"listen_key={self._listen_key[:8]}..., "
+                        f"account_type={self.account_type}, "
                         f"connected_at={self._connected_since}"
                     )
 
-                    async for message in ws:
-                        if not self._running:
-                            break
-                        await self._handle_message(message)
+                    while self._running:
+                        try:
+                            # 设置超时以便能定期检查 _running 状态
+                            msg = await asyncio.wait_for(stream.recv(), timeout=30.0)
+                            if msg and isinstance(msg, dict):
+                                await self._handle_message(msg)
+                        except asyncio.TimeoutError:
+                            # 超时只是用于检查 _running 状态，不是错误
+                            continue
 
             except asyncio.CancelledError:
                 logger.info("WebSocket 循环被取消")
                 break
-            except ConnectionClosed as e:
-                logger.warning(
-                    f"WebSocket 连接关闭: code={e.code}, reason={e.reason}, "
-                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
-                    f"reconnect_count={self._reconnect_count}, "
-                    f"connected_since={self._connected_since}"
-                )
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"WebSocket 循环中 HTTP 错误: status={e.response.status_code}, "
-                    f"response_body={e.response.text}, "
-                    f"url={e.request.url}, "
-                    f"method={e.request.method}, "
-                    f"api_key={self.api_key[:8]}..., "
-                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
-                    f"account_type={self.account_type}, "
-                    f"testnet={self.testnet}",
-                    exc_info=True,
-                )
             except Exception as e:
                 logger.error(
                     f"WebSocket 错误: {e}, "
                     f"error_type={type(e).__name__}, "
-                    f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}, "
                     f"account_type={self.account_type}, "
                     f"reconnect_count={self._reconnect_count}",
                     exc_info=True,
@@ -388,8 +200,7 @@ class BinanceUserStreamManager:
             if 0 < self.RECONNECT_MAX_RETRIES < self._reconnect_count:
                 logger.error(
                     f"达到最大重连次数 {self.RECONNECT_MAX_RETRIES}，停止重连, "
-                    f"account_type={self.account_type}, "
-                    f"last_listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
+                    f"account_type={self.account_type}"
                 )
                 self._running = False
                 break
@@ -400,14 +211,15 @@ class BinanceUserStreamManager:
             )
             logger.info(
                 f"将在 {delay:.1f} 秒后重连（第 {self._reconnect_count} 次）, "
-                f"account_type={self.account_type}, "
-                f"listen_key={self._listen_key[:8] + '...' if self._listen_key else 'None'}"
+                f"account_type={self.account_type}"
             )
             await asyncio.sleep(delay)
 
-    async def _handle_message(self, raw_message: str) -> None:
+    async def _handle_message(self, event: dict[str, Any]) -> None:
         """
         解析并分发 WebSocket 消息
+
+        python-binance 已将 JSON 解析为字典，直接处理即可。
 
         币安 User Data Stream 事件类型：
         - executionReport: 现货订单更新
@@ -416,12 +228,6 @@ class BinanceUserStreamManager:
         - ACCOUNT_UPDATE: 合约账户更新
         - balanceUpdate: 余额更新
         """
-        try:
-            event = json.loads(raw_message)
-        except json.JSONDecodeError:
-            logger.warning(f"收到无效 JSON: {raw_message[:200]}")
-            return
-
         self._events_received += 1
         self._last_event_time = time.time()
 
@@ -458,7 +264,8 @@ class BinanceUserStreamManager:
         """
         启动 User Data Stream 监听
 
-        创建 listenKey，建立 WebSocket 连接，启动续期循环。
+        创建 AsyncClient，通过 BinanceSocketManager 建立 WebSocket 连接。
+        python-binance 自动处理 listenKey 的创建和续期。
         """
         if self._running:
             logger.warning("User Data Stream 已在运行中")
@@ -470,18 +277,13 @@ class BinanceUserStreamManager:
         # 启动 WebSocket 连接协程
         self._ws_task = asyncio.create_task(self._ws_loop(), name="binance_user_stream_ws")
 
-        # 启动 listenKey 续期协程
-        self._keepalive_task = asyncio.create_task(
-            self._keepalive_loop(), name="binance_user_stream_keepalive"
-        )
-
         logger.info("币安 User Data Stream 管理器已启动")
 
     async def stop(self) -> None:
         """
         停止 User Data Stream 监听
 
-        关闭 WebSocket 连接，删除 listenKey，释放资源。
+        关闭 WebSocket 连接，释放资源。
         """
         if not self._running:
             return
@@ -490,26 +292,18 @@ class BinanceUserStreamManager:
         self._running = False
 
         # 取消后台任务
-        for task in (self._ws_task, self._keepalive_task):
-            if task and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        if self._ws_task and not self._ws_task.done():
+            self._ws_task.cancel()
+            try:
+                await self._ws_task
+            except asyncio.CancelledError:
+                pass
 
         self._ws_task = None
-        self._keepalive_task = None
-
-        # 删除 listenKey
-        await self._delete_listen_key()
-        self._listen_key = None
         self._connected_since = None
 
-        # 关闭 HTTP 客户端
-        if self._http_client and not self._http_client.is_closed:
-            await self._http_client.aclose()
-            self._http_client = None
+        # 关闭 AsyncClient（内部会清理 listenKey 和 WebSocket 连接）
+        await self._close_client()
 
         logger.info("✅ 币安 User Data Stream 已停止")
 
@@ -534,7 +328,6 @@ class BinanceUserStreamManager:
                 running: bool,
                 connected: bool,
                 account_type: str,
-                listen_key: str (masked),
                 connected_since: float,
                 uptime_seconds: float,
                 events_received: int,
@@ -549,7 +342,6 @@ class BinanceUserStreamManager:
             "running": self._running,
             "connected": self.is_connected,
             "account_type": self.account_type,
-            "listen_key": f"{self._listen_key[:8]}..." if self._listen_key else None,
             "connected_since": self._connected_since,
             "uptime_seconds": round(uptime, 1),
             "events_received": self._events_received,
