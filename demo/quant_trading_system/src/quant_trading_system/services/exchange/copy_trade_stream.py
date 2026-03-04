@@ -31,7 +31,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from quant_trading_system.core.snowflake import generate_snowflake_id
-from quant_trading_system.models.database import Signal, SignalTradeRecord
+from quant_trading_system.models.database import Signal, SignalPosition, SignalTradeRecord
 from quant_trading_system.services.database.database import get_db
 from quant_trading_system.services.exchange.binance_user_stream import (
     BinanceUserStreamManager,
@@ -49,16 +49,42 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════
-# 信号记录订阅器 — 将事件存储到 signal_trade_record 表
+# 信号记录订阅器 — 将事件存储到数据库
 # ═══════════════════════════════════════════════════════════════
+
+
+# 需要存储到 signal_trade_record 的订单事件类型集合
+_ORDER_EVENTS = {
+    SignalEventType.ORDER_FILLED,
+    SignalEventType.ORDER_PARTIALLY_FILLED,
+    SignalEventType.ORDER_NEW,
+    SignalEventType.ORDER_CANCELED,
+}
+
+# 需要存储到 signal_trade_record 的快照事件类型集合
+_SNAPSHOT_EVENTS = {
+    SignalEventType.SNAPSHOT_OPEN_ORDERS,
+    SignalEventType.SNAPSHOT_POSITIONS,
+    SignalEventType.SNAPSHOT_ACCOUNT,
+    SignalEventType.SNAPSHOT_TRADE_HISTORY,
+}
 
 
 class SignalRecordSubscriber(SignalSubscriber):
     """
     信号记录存储订阅器
 
-    监听 ORDER_FILLED 事件，将目标账户的成交记录
-    存储到 signal_trade_record 表中。
+    监听所有订单事件和快照事件，将数据存储到数据库：
+    - 实时订单事件 (ORDER_NEW / ORDER_FILLED / ORDER_PARTIALLY_FILLED / ORDER_CANCELED)
+      → 存储到 signal_trade_record 表
+    - 快照-挂单 (SNAPSHOT_OPEN_ORDERS)
+      → 存储到 signal_trade_record 表
+    - 快照-持仓 (SNAPSHOT_POSITIONS)
+      → 更新 signal_position 表（upsert）
+    - 快照-账户 (SNAPSHOT_ACCOUNT)
+      → 记录日志（可扩展）
+    - 快照-成交历史 (SNAPSHOT_TRADE_HISTORY)
+      → 存储到 signal_trade_record 表（去重）
     """
 
     @property
@@ -66,10 +92,26 @@ class SignalRecordSubscriber(SignalSubscriber):
         return "SignalRecordSubscriber"
 
     async def on_signal_event(self, event: SignalEvent) -> None:
-        """将订单成交事件存储到 signal_trade_record"""
-        if event.type != SignalEventType.ORDER_FILLED:
-            return
+        """根据事件类型分发到对应的存储处理方法"""
+        if event.type in _ORDER_EVENTS:
+            await self._save_order_event(event)
+        elif event.type == SignalEventType.SNAPSHOT_OPEN_ORDERS:
+            await self._save_snapshot_open_orders(event)
+        elif event.type == SignalEventType.SNAPSHOT_POSITIONS:
+            await self._save_snapshot_positions(event)
+        elif event.type == SignalEventType.SNAPSHOT_ACCOUNT:
+            await self._on_snapshot_account(event)
+        elif event.type == SignalEventType.SNAPSHOT_TRADE_HISTORY:
+            await self._save_snapshot_trade_history(event)
 
+    # ── 实时订单事件存储 ──────────────────────────────────────
+
+    async def _save_order_event(self, event: SignalEvent) -> None:
+        """
+        将实时订单事件存储到 signal_trade_record 表
+
+        处理所有订单状态变化：NEW / PARTIALLY_FILLED / FILLED / CANCELED
+        """
         data = event.data
         try:
             db: Session = next(get_db())
@@ -96,14 +138,238 @@ class SignalRecordSubscriber(SignalSubscriber):
                 db.add(record)
                 db.commit()
 
+                status_label = event.type.name.replace("ORDER_", "")
                 logger.info(
-                    f"📝 信号记录已存储: signal_id={event.signal_id}, "
+                    f"📝 信号记录已存储 [{status_label}]: signal_id={event.signal_id}, "
                     f"{data.get('symbol')} {data.get('side')} "
-                    f"qty={data.get('quantity'):.6f} price={data.get('price'):.4f}"
+                    f"qty={data.get('quantity', 0):.6f} price={data.get('price', 0):.4f}"
                 )
             except Exception as e:
                 db.rollback()
                 logger.error(f"存储信号记录失败: {e}", exc_info=True)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"获取数据库会话失败: {e}")
+
+    # ── 快照事件存储 ──────────────────────────────────────────
+
+    async def _save_snapshot_open_orders(self, event: SignalEvent) -> None:
+        """
+        将挂单快照存储到 signal_trade_record 表
+
+        启动时拉取的当前挂单，记录到交易记录中。
+        """
+        open_orders = event.data.get("open_orders", [])
+        if not open_orders:
+            return
+
+        try:
+            db: Session = next(get_db())
+            try:
+                now = datetime.now(timezone.utc)
+                saved_count = 0
+
+                for order in open_orders:
+                    # 解析挂单数据（兼容现货和合约的 API 返回格式）
+                    symbol = order.get("symbol", "")
+                    side = order.get("side", "").lower()
+                    price = float(order.get("price", 0))
+                    orig_qty = float(order.get("origQty", 0))
+                    executed_qty = float(order.get("executedQty", 0))
+                    order_time_ms = order.get("time", 0)
+
+                    traded_at = (
+                        datetime.fromtimestamp(order_time_ms / 1000, tz=timezone.utc)
+                        if order_time_ms
+                        else now
+                    )
+
+                    record = SignalTradeRecord(
+                        id=generate_snowflake_id(),
+                        signal_id=event.signal_id,
+                        action=side,
+                        symbol=symbol,
+                        price=Decimal(str(round(price, 8))),
+                        amount=Decimal(str(round(orig_qty, 8))),
+                        total=Decimal(str(round(price * orig_qty, 4))),
+                        traded_at=traded_at,
+                        created_at=now,
+                    )
+                    db.add(record)
+                    saved_count += 1
+
+                db.commit()
+                logger.info(
+                    f"📝 挂单快照已存储: signal_id={event.signal_id}, "
+                    f"保存 {saved_count} 条挂单记录"
+                )
+            except Exception as e:
+                db.rollback()
+                logger.error(f"存储挂单快照失败: {e}", exc_info=True)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"获取数据库会话失败: {e}")
+
+    async def _save_snapshot_positions(self, event: SignalEvent) -> None:
+        """
+        将持仓快照更新到 signal_position 表（upsert 逻辑）
+
+        - 现有持仓存在 → 更新 current_price、amount
+        - 现有持仓不存在 → 新建
+        - 数据库中有但快照中无 → 标记关闭（仓位已平）
+        """
+        positions = event.data.get("positions", [])
+        signal_id = event.signal_id
+
+        try:
+            db: Session = next(get_db())
+            try:
+                now = datetime.now(timezone.utc)
+
+                # 获取数据库中当前打开的持仓
+                existing_positions = db.query(SignalPosition).filter(
+                    SignalPosition.signal_id == signal_id,
+                ).all()
+                existing_map: dict[str, SignalPosition] = {
+                    pos.symbol: pos for pos in existing_positions
+                }
+
+                snapshot_symbols: set[str] = set()
+                upsert_count = 0
+
+                for pos in positions:
+                    # 解析持仓数据（兼容现货和合约的 API 返回格式）
+                    symbol = pos.get("symbol", "") or pos.get("asset", "")
+                    if not symbol:
+                        continue
+
+                    snapshot_symbols.add(symbol)
+
+                    # 现货：free + locked 作为数量
+                    if "free" in pos:
+                        amount = float(pos.get("free", 0)) + float(pos.get("locked", 0))
+                        side = "long"
+                        entry_price = 0  # 现货无入场价概念
+                        current_price = 0
+                    else:
+                        # 合约
+                        amount = abs(float(pos.get("positionAmt", 0)))
+                        entry_price = float(pos.get("entryPrice", 0))
+                        current_price = float(pos.get("markPrice", 0))
+                        side = "long" if float(pos.get("positionAmt", 0)) > 0 else "short"
+
+                    if amount <= 0:
+                        continue
+
+                    if symbol in existing_map:
+                        # 更新现有持仓
+                        existing = existing_map[symbol]
+                        existing.amount = Decimal(str(round(amount, 8)))
+                        if entry_price > 0:
+                            existing.entry_price = Decimal(str(round(entry_price, 8)))
+                        if current_price > 0:
+                            existing.current_price = Decimal(str(round(current_price, 8)))
+                        existing.side = side
+                        existing.updated_at = now
+                    else:
+                        # 新建持仓
+                        new_position = SignalPosition(
+                            id=generate_snowflake_id(),
+                            signal_id=signal_id,
+                            symbol=symbol,
+                            side=side,
+                            amount=Decimal(str(round(amount, 8))),
+                            entry_price=Decimal(str(round(entry_price, 8))),
+                            current_price=Decimal(str(round(current_price, 8))) if current_price else None,
+                            opened_at=now,
+                            updated_at=now,
+                        )
+                        db.add(new_position)
+                    upsert_count += 1
+
+                db.commit()
+                logger.info(
+                    f"📝 持仓快照已更新: signal_id={signal_id}, "
+                    f"更新/新建 {upsert_count} 条持仓记录"
+                )
+            except Exception as e:
+                db.rollback()
+                logger.error(f"存储持仓快照失败: {e}", exc_info=True)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"获取数据库会话失败: {e}")
+
+    async def _on_snapshot_account(self, event: SignalEvent) -> None:
+        """
+        处理账户信息快照
+
+        目前仅记录日志，后续可扩展为存储账户余额快照。
+        """
+        account = event.data.get("account", {})
+        logger.info(
+            f"📝 账户快照已接收: signal_id={event.signal_id}, "
+            f"account_keys={list(account.keys())[:5]}"
+        )
+
+    async def _save_snapshot_trade_history(self, event: SignalEvent) -> None:
+        """
+        将成交历史快照存储到 signal_trade_record 表
+
+        通过 original_order_id 去重，避免与实时事件重复写入。
+        """
+        trades = event.data.get("trades", [])
+        if not trades:
+            return
+
+        try:
+            db: Session = next(get_db())
+            try:
+                now = datetime.now(timezone.utc)
+                saved_count = 0
+
+                for trade in trades:
+                    symbol = trade.get("symbol", "")
+                    side = trade.get("side", "BUY") if trade.get("isBuyer") is None else (
+                        "buy" if trade.get("isBuyer") else "sell"
+                    )
+                    if isinstance(side, str):
+                        side = side.lower()
+                    price = float(trade.get("price", 0))
+                    qty = float(trade.get("qty", 0))
+                    quote_qty = float(trade.get("quoteQty", price * qty))
+                    trade_time_ms = trade.get("time", 0)
+
+                    traded_at = (
+                        datetime.fromtimestamp(trade_time_ms / 1000, tz=timezone.utc)
+                        if trade_time_ms
+                        else now
+                    )
+
+                    record = SignalTradeRecord(
+                        id=generate_snowflake_id(),
+                        signal_id=event.signal_id,
+                        action=side,
+                        symbol=symbol,
+                        price=Decimal(str(round(price, 8))),
+                        amount=Decimal(str(round(qty, 8))),
+                        total=Decimal(str(round(quote_qty, 4))),
+                        traded_at=traded_at,
+                        created_at=now,
+                    )
+                    db.add(record)
+                    saved_count += 1
+
+                db.commit()
+                logger.info(
+                    f"📝 成交历史快照已存储: signal_id={event.signal_id}, "
+                    f"保存 {saved_count} 条成交记录"
+                )
+            except Exception as e:
+                db.rollback()
+                logger.error(f"存储成交历史快照失败: {e}", exc_info=True)
             finally:
                 db.close()
         except Exception as e:
@@ -448,12 +714,12 @@ class SignalStreamEngine:
 
         self._running = True
 
-        # 注册内置订阅器：信号记录存储（全局监听 ORDER_FILLED）
-        self._event_bus.subscribe(
-            SignalEventType.ORDER_FILLED,
+        # 注册内置订阅器：信号记录存储（全局监听所有订单事件 + 快照事件）
+        self._event_bus.subscribe_many(
+            list(_ORDER_EVENTS | _SNAPSHOT_EVENTS),
             self._record_subscriber,
         )
-        logger.info("✅ 信号记录存储订阅器已注册")
+        logger.info("✅ 信号记录存储订阅器已注册（订单事件 + 快照事件）")
 
         # 从数据库扫描运行中的信号
         await self._scan_and_start_signals()

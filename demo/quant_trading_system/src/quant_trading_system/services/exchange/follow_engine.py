@@ -47,6 +47,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# 跟单引擎需要监听的所有实时订单事件类型
+_FOLLOW_ORDER_EVENTS = [
+    SignalEventType.ORDER_FILLED,
+    SignalEventType.ORDER_PARTIALLY_FILLED,
+    SignalEventType.ORDER_NEW,
+    SignalEventType.ORDER_CANCELED,
+]
+
 
 # ═══════════════════════════════════════════════════════════════
 # 跟单上下文 — 单个跟单订单的运行时数据
@@ -138,12 +146,13 @@ class FollowEngine(SignalSubscriber):
         # 从数据库加载活跃跟单
         await self._scan_and_load_follows()
 
-        # 注册到事件总线（全局监听 ORDER_FILLED）
-        self._event_bus.subscribe(SignalEventType.ORDER_FILLED, self)
+        # 注册到事件总线（全局监听所有实时订单事件）
+        self._event_bus.subscribe_many(_FOLLOW_ORDER_EVENTS, self)
 
         logger.info(
             f"✅ 跟单引擎已启动，活跃跟单: {sum(len(v) for v in self._follow_map.values())} 个，"
-            f"监听信号源: {len(self._follow_map)} 个"
+            f"监听信号源: {len(self._follow_map)} 个，"
+            f"监听事件类型: {[e.name for e in _FOLLOW_ORDER_EVENTS]}"
         )
 
     async def stop(self) -> None:
@@ -168,12 +177,18 @@ class FollowEngine(SignalSubscriber):
         """
         处理信号事件（SignalSubscriber 接口实现）
 
-        收到 ORDER_FILLED 事件后：
-        1. 按 signal_id 查找所有关联的跟单订单
-        2. 对每个跟单订单计算跟单参数
-        3. 调用 CopyOrderEngine 执行下单
+        监听所有实时订单状态变化事件：
+        - ORDER_NEW: 新订单创建，记录日志
+        - ORDER_PARTIALLY_FILLED: 部分成交，记录日志
+        - ORDER_FILLED: 完全成交，触发跟单下单
+        - ORDER_CANCELED: 订单取消，记录日志（后续可扩展取消跟单挂单）
         """
-        if event.type != SignalEventType.ORDER_FILLED:
+        if event.type not in {
+            SignalEventType.ORDER_FILLED,
+            SignalEventType.ORDER_PARTIALLY_FILLED,
+            SignalEventType.ORDER_NEW,
+            SignalEventType.ORDER_CANCELED,
+        }:
             return
 
         signal_id = event.signal_id
@@ -187,21 +202,40 @@ class FollowEngine(SignalSubscriber):
         side = data.get("side", "")
         quantity = data.get("quantity", 0)
         price = data.get("price", 0)
+        status_label = event.type.name.replace("ORDER_", "")
 
         logger.info(
-            f"🔔 跟单引擎收到信号: signal_id={signal_id} {symbol} {side} "
+            f"🔔 跟单引擎收到信号 [{status_label}]: signal_id={signal_id} {symbol} {side} "
             f"qty={quantity:.6f} price={price:.4f}, "
             f"关联跟单数: {len(contexts)}"
         )
 
-        # 并发处理所有关联的跟单订单
-        tasks = []
-        for ctx in contexts:
-            ctx.signals_received += 1
-            ctx.last_signal_time = datetime.now(timezone.utc)
-            tasks.append(self._process_follow(ctx, event))
+        # 只有完全成交才触发跟单下单
+        if event.type == SignalEventType.ORDER_FILLED:
+            # 并发处理所有关联的跟单订单
+            tasks = []
+            for ctx in contexts:
+                ctx.signals_received += 1
+                ctx.last_signal_time = datetime.now(timezone.utc)
+                tasks.append(self._process_follow(ctx, event))
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        elif event.type == SignalEventType.ORDER_CANCELED:
+            # 订单取消：记录到各跟单上下文，后续可扩展为取消对应的跟单挂单
+            for ctx in contexts:
+                ctx.signals_received += 1
+                ctx.last_signal_time = datetime.now(timezone.utc)
+            logger.info(
+                f"📋 信号源订单已取消: signal_id={signal_id} {symbol} {side}, "
+                f"已通知 {len(contexts)} 个跟单上下文"
+            )
+
+        else:
+            # ORDER_NEW / ORDER_PARTIALLY_FILLED：仅更新统计
+            for ctx in contexts:
+                ctx.signals_received += 1
+                ctx.last_signal_time = datetime.now(timezone.utc)
 
     async def _process_follow(
         self,
