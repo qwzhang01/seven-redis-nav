@@ -29,7 +29,7 @@ import structlog
 
 from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.market import Bar
-from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 from quant_trading_system.engines.market_event_bus import (
     MarketEvent,
     MarketEventBus,

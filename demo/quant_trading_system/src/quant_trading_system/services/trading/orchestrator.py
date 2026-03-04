@@ -354,26 +354,28 @@ class TradingOrchestrator:
             )
             return
 
-        if self.exchange == "binance":
-            from quant_trading_system.exchange_adapter.binance_gateway import BinanceGateway
+        try:
+            from quant_trading_system.exchange_adapter.factory import create_gateway
 
-            gateway = BinanceGateway(
+            gateway = create_gateway(
+                exchange=self.exchange,
                 api_key=self.api_key,
                 api_secret=self.api_secret,
                 market_type=self.market_type,
             )
+        except ValueError as e:
+            logger.warning(f"Gateway 创建失败: {e}")
+            return
 
-            # 注入到 LiveExecutor
-            if isinstance(self._executor, LiveExecutor):
-                self._executor.set_gateway(gateway)
+        # 注入到 LiveExecutor
+        if isinstance(self._executor, LiveExecutor):
+            self._executor.set_gateway(gateway)
 
-            # 注册到 TradingEngine
-            self.trading_engine.register_gateway(self.exchange, gateway)
-            self.trading_engine.set_default_exchange(self.exchange)
+        # 注册到 TradingEngine
+        self.trading_engine.register_gateway(self.exchange, gateway)
+        self.trading_engine.set_default_exchange(self.exchange)
 
-            logger.info("Binance gateway configured for live trading")
-        else:
-            logger.warning(f"Gateway not implemented for {self.exchange}")
+        logger.info("Gateway configured for live trading", exchange=self.exchange)
 
     # ------------------------------------------------------------------
     # 状态查询

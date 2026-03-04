@@ -40,7 +40,7 @@ from quant_trading_system.models.follow import (
     SignalFollowTrade,
 )
 from quant_trading_system.services.database.database import get_db
-from quant_trading_system.exchange_adapter.binance_rest_client import (
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import (
     BinanceRestClient,
 )
 
@@ -94,7 +94,7 @@ class CopyOrderEngine:
         cache_key = (api_key, account_type)
         if cache_key not in self._clients:
             if settings.is_development:
-                from quant_trading_system.mock.mock_binance_copy_trade import (
+                from quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade import (
                     MockBinanceCopyTradeClient,
                 )
                 self._clients[cache_key] = MockBinanceCopyTradeClient(

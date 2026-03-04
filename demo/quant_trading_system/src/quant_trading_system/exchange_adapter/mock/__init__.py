@@ -2,7 +2,7 @@
 Mock 模块
 =========
 
-集中管理所有 Mock 实现，通过配置可以自由切换是否使用 mock。
+集中管理所有交易所对接的 Mock 实现，通过配置可以自由切换是否使用 mock。
 本模块提供以下 mock 功能：
 
 - MockConnector: 模拟行情连接器（tick / kline / depth 推送）
@@ -11,10 +11,7 @@ Mock 模块
 - generate_mock_klines / generate_multi_timeframe_klines: 生成模拟 K线数据
 
 使用方式：
-    from quant_trading_system.mock import MockConnector, is_mock_enabled
-
-    # 或直接导入子模块
-    from quant_trading_system.mock.mock_connector import MockConnector
+    from quant_trading_system.exchange_adapter.mock import MockConnector, is_mock_enabled
 """
 
 from quant_trading_system.core.config import settings
@@ -31,17 +28,15 @@ def is_mock_enabled() -> bool:
 
 
 # ── 延迟导入，避免循环依赖 ──
-# mock_connector 依赖 exchange_connector → services/__init__ → services/market/__init__
-# 如果在 mock/__init__.py 中直接导入，会形成循环。
 
 _LAZY_IMPORTS = {
-    "MockConnector":                ("quant_trading_system.mock.mock_connector", "MockConnector"),
-    "SymbolConfig":                 ("quant_trading_system.mock.mock_connector", "SymbolConfig"),
-    "DEFAULT_SYMBOL_CONFIGS":       ("quant_trading_system.mock.mock_connector", "DEFAULT_SYMBOL_CONFIGS"),
-    "MockBinanceCopyTradeClient":   ("quant_trading_system.mock.mock_binance_copy_trade", "MockBinanceCopyTradeClient"),
-    "MockBinanceUserStreamManager": ("quant_trading_system.mock.mock_binance_user_stream", "MockBinanceUserStreamManager"),
-    "generate_mock_klines":         ("quant_trading_system.mock.mock_data", "generate_mock_klines"),
-    "generate_multi_timeframe_klines": ("quant_trading_system.mock.mock_data", "generate_multi_timeframe_klines"),
+    "MockConnector":                ("quant_trading_system.exchange_adapter.mock.mock_connector", "MockConnector"),
+    "SymbolConfig":                 ("quant_trading_system.exchange_adapter.mock.mock_connector", "SymbolConfig"),
+    "DEFAULT_SYMBOL_CONFIGS":       ("quant_trading_system.exchange_adapter.mock.mock_connector", "DEFAULT_SYMBOL_CONFIGS"),
+    "MockBinanceCopyTradeClient":   ("quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade", "MockBinanceCopyTradeClient"),
+    "MockBinanceUserStreamManager": ("quant_trading_system.exchange_adapter.mock.mock_binance_user_stream", "MockBinanceUserStreamManager"),
+    "generate_mock_klines":         ("quant_trading_system.exchange_adapter.mock.mock_data", "generate_mock_klines"),
+    "generate_multi_timeframe_klines": ("quant_trading_system.exchange_adapter.mock.mock_data", "generate_multi_timeframe_klines"),
 }
 
 

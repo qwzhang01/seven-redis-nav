@@ -2,45 +2,17 @@
 币安交易所网关
 ==============
 
-定义交易所网关的抽象接口和币安实现。
 BinanceGateway 委托 BinanceRestClient 执行实际的 REST 请求，避免重复实现。
 """
 
-from abc import ABC, abstractmethod
 from typing import Any
 
 import structlog
 
-from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.base import ExchangeGateway
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 
 logger = structlog.get_logger(__name__)
-
-
-class ExchangeGateway(ABC):
-    """
-    交易所网关抽象基类
-
-    封装交易所下单/撤单等交易相关 REST API。
-    """
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    @abstractmethod
-    async def submit_order(self, order: Any) -> dict[str, Any]:
-        """提交订单到交易所，返回交易所侧的响应"""
-
-    @abstractmethod
-    async def cancel_order(self, order: Any) -> dict[str, Any]:
-        """取消订单，返回交易所侧的响应"""
-
-    @abstractmethod
-    async def query_order(self, symbol: str, order_id: str) -> dict[str, Any]:
-        """查询订单状态"""
-
-    @abstractmethod
-    async def get_account(self) -> dict[str, Any]:
-        """查询账户信息"""
 
 
 class BinanceGateway(ExchangeGateway):

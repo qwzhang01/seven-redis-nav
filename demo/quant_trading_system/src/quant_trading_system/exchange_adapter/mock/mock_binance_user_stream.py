@@ -266,9 +266,9 @@ class MockBinanceUserStreamManager:
                 logger.error(f"[Mock] 事件生成器异常: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
-    # ── REST API 模拟 ─────────────────────────────────────────
+    # ── REST API 模拟（私有方法，仅供 fetch_initial_snapshot 内部使用） ──
 
-    async def fetch_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+    async def _mock_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
         """返回模拟的挂单数据"""
         orders = []
         # 随机生成 0~3 个挂单
@@ -291,7 +291,7 @@ class MockBinanceUserStreamManager:
         logger.info(f"🎭 [Mock] 返回模拟挂单: count={len(orders)}, symbol={symbol or 'ALL'}")
         return orders
 
-    async def fetch_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+    async def _mock_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
         """返回模拟的历史订单"""
         orders = []
         now_ms = int(time.time() * 1000)
@@ -316,7 +316,7 @@ class MockBinanceUserStreamManager:
         logger.info(f"🎭 [Mock] 返回模拟历史订单: symbol={symbol}, count={len(orders)}")
         return orders
 
-    async def fetch_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+    async def _mock_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
         """返回模拟的成交记录"""
         trades = []
         now_ms = int(time.time() * 1000)
@@ -341,7 +341,7 @@ class MockBinanceUserStreamManager:
         logger.info(f"🎭 [Mock] 返回模拟成交记录: symbol={symbol}, count={len(trades)}")
         return trades
 
-    async def fetch_positions(self) -> list[dict[str, Any]]:
+    async def _mock_positions(self) -> list[dict[str, Any]]:
         """返回模拟的持仓数据"""
         positions = []
         for balance in MOCK_BALANCES:
@@ -357,7 +357,7 @@ class MockBinanceUserStreamManager:
         logger.info(f"🎭 [Mock] 返回模拟持仓: count={len(positions)}")
         return positions
 
-    async def fetch_account_info(self) -> dict[str, Any]:
+    async def _mock_account_info(self) -> dict[str, Any]:
         """返回模拟的账户信息"""
         account = {
             "makerCommission": 10,
@@ -378,9 +378,9 @@ class MockBinanceUserStreamManager:
         """模拟拉取初始快照"""
         logger.info(f"🎭 [Mock] 开始拉取模拟初始快照: account_type={self.account_type}")
 
-        open_orders = await self.fetch_open_orders()
-        positions = await self.fetch_positions()
-        account = await self.fetch_account_info()
+        open_orders = await self._mock_open_orders()
+        positions = await self._mock_positions()
+        account = await self._mock_account_info()
 
         snapshot = {
             "open_orders": open_orders,

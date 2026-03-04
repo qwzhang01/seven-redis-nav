@@ -17,7 +17,7 @@ from quant_trading_system.engines.market_event_bus import (
     MarketEventBus,
     MarketEventType,
 )
-from quant_trading_system.exchange_adapter.binance_connector import ExchangeConnector
+from quant_trading_system.exchange_adapter.base import ExchangeConnector
 
 logger = structlog.get_logger(__name__)
 

@@ -1,114 +1,27 @@
 """
-交易所连接器
-============
+币安交易所连接器
+================
 
-纯粹负责对接交易所，职责单一：
+纯粹负责对接币安交易所，职责单一：
 - WebSocket 实时数据流连接与订阅管理
 - 将交易所原始数据转换为统一格式后，通过事件总线发布
-
-设计原则：
-- 单一职责原则（SRP）：只处理交易所通信，不关心数据如何消费
-- 适配器模式（Adapter Pattern）：将不同交易所的API统一适配为内部标准接口
-- 模板方法模式（Template Method Pattern）：基类定义流程骨架，子类实现具体细节
-
-每个交易所对应一个 Connector 子类，所有子类共享：
-- WebSocket 连接管理（连接、断线重连、心跳）
-- 消息接收与解析流程
-- 通过 MarketEventBus 发布行情事件
 """
 
-from abc import ABC, abstractmethod
 from typing import Any
 
 import structlog
 
 from quant_trading_system.engines.market_event_bus import (
-    MarketEvent,
-    MarketEventBus,
-    MarketEventType,
+    MarketEventType, MarketEventBus,
 )
-from quant_trading_system.exchange_adapter.binance_base import (
+from quant_trading_system.exchange_adapter.base import ExchangeConnector
+from quant_trading_system.exchange_adapter.binance.binance_base import (
     BinanceConfig,
     BinanceDataConverter,
 )
 from quant_trading_system.exchange_adapter.ws_client import WebSocketClient
 
 logger = structlog.get_logger(__name__)
-
-
-# ═══════════════════════════════════════════════════════════════
-# 交易所连接器抽象基类
-# ═══════════════════════════════════════════════════════════════
-
-class ExchangeConnector(ABC):
-    """
-    交易所连接器抽象基类（适配器模式 + 模板方法模式）
-
-    职责：
-    1. 管理与交易所的 WebSocket 连接
-    2. 接收交易所推送的原始数据
-    3. 将数据转换为统一格式
-    4. 通过 MarketEventBus 发布事件
-
-    不负责：
-    - 数据存储（由 DatabaseSubscriber 处理）
-    - WebSocket 前端推送（由 WebSocketSubscriber 处理）
-    - 交易信号计算（由 TradingEngineSubscriber 处理）
-    """
-
-    def __init__(self, name: str, event_bus: MarketEventBus) -> None:
-        self._name = name
-        self._event_bus = event_bus
-        self._running = False
-        self._subscriptions: set[str] = set()
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @abstractmethod
-    async def start(self) -> None:
-        """启动连接器"""
-        ...
-
-    @abstractmethod
-    async def stop(self) -> None:
-        """停止连接器"""
-        ...
-
-    @abstractmethod
-    async def subscribe(self, symbols: list[str]) -> None:
-        """订阅交易对"""
-        ...
-
-    @abstractmethod
-    async def unsubscribe(self, symbols: list[str]) -> None:
-        """取消订阅"""
-        ...
-
-    async def _publish(
-        self,
-        event_type: MarketEventType,
-        data: dict[str, Any],
-        exchange: str = "",
-        symbol: str = "",
-    ) -> None:
-        """便捷方法：发布事件到事件总线"""
-        event = MarketEvent(
-            type=event_type,
-            data=data,
-            exchange=exchange or self._name,
-            symbol=symbol,
-        )
-        await self._event_bus.publish(event)
-
-    @property
-    def is_running(self) -> bool:
-        return self._running
-
-    @property
-    def subscriptions(self) -> set[str]:
-        return self._subscriptions.copy()
 
 
 # ═══════════════════════════════════════════════════════════════

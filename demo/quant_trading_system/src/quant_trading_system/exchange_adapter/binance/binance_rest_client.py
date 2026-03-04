@@ -23,7 +23,7 @@ import numpy as np
 
 from quant_trading_system.models.market import BarArray
 from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.exchange_adapter.binance_base import (
+from quant_trading_system.exchange_adapter.binance.binance_base import (
     BinanceConfig,
     BinanceRestBase,
 )

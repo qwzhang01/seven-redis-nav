@@ -27,7 +27,7 @@ from quant_trading_system.services.signal.signal_record_subscriber import (
     ORDER_EVENTS,
     SNAPSHOT_EVENTS,
 )
-from quant_trading_system.exchange_adapter.signal_stream import SignalStream
+from quant_trading_system.services.flow.signal_stream import SignalStream
 from quant_trading_system.engines.signal_event_bus import (
     SignalEventBus,
     signal_event_bus,

@@ -164,9 +164,9 @@ async def _startup_signal_engines(app: FastAPI) -> None:
     3. SignalStreamEngine（信号监听引擎）— 依赖事件总线
     """
     try:
-        from quant_trading_system.exchange_adapter.copy_order_engine import CopyOrderEngine
-        from quant_trading_system.exchange_adapter.follow_engine import FollowEngine
-        from quant_trading_system.exchange_adapter.signal_stream_engine import SignalStreamEngine
+        from quant_trading_system.services.flow.copy_order_engine import CopyOrderEngine
+        from quant_trading_system.services.flow.follow_engine import FollowEngine
+        from quant_trading_system.services.flow.signal_stream_engine import SignalStreamEngine
 
         if settings.is_development:
             print("  🎭 开发环境：信号引擎使用 Mock 模式（不连接真实 Binance API）")

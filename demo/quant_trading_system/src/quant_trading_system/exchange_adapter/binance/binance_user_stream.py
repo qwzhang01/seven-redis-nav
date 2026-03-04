@@ -28,7 +28,7 @@ from typing import Any, Callable, Coroutine, Optional
 
 from binance import AsyncClient, BinanceSocketManager
 
-from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 
 logger = logging.getLogger(__name__)
 
@@ -294,63 +294,14 @@ class BinanceUserStreamManager:
         except Exception as e:
             logger.error(f"处理事件回调异常: {event_type}, 错误: {e}", exc_info=True)
 
-    # ── REST API 历史数据拉取（委托 BinanceRestClient） ─────────
-
-    async def fetch_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
-        """拉取当前挂单（委托 BinanceRestClient）"""
-        try:
-            orders = await self._rest_client.async_get_open_orders(symbol=symbol)
-            logger.info(f"拉取当前挂单: account_type={self.account_type}, symbol={symbol or 'ALL'}, count={len(orders)}")
-            return orders
-        except Exception as e:
-            logger.error(f"拉取当前挂单失败: {e}", exc_info=True)
-            raise
-
-    async def fetch_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
-        """拉取指定交易对的历史订单（委托 BinanceRestClient）"""
-        try:
-            orders = await self._rest_client.async_get_all_orders(symbol=symbol, limit=limit)
-            logger.info(f"拉取历史订单: account_type={self.account_type}, symbol={symbol}, count={len(orders)}")
-            return orders
-        except Exception as e:
-            logger.error(f"拉取历史订单失败: symbol={symbol}, error={e}", exc_info=True)
-            raise
-
-    async def fetch_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
-        """拉取指定交易对的成交记录（委托 BinanceRestClient）"""
-        try:
-            trades = await self._rest_client.async_get_my_trades(symbol=symbol, limit=limit)
-            logger.info(f"拉取成交记录: account_type={self.account_type}, symbol={symbol}, count={len(trades)}")
-            return trades
-        except Exception as e:
-            logger.error(f"拉取成交记录失败: symbol={symbol}, error={e}", exc_info=True)
-            raise
-
-    async def fetch_positions(self) -> list[dict[str, Any]]:
-        """拉取当前持仓信息（委托 BinanceRestClient）"""
-        try:
-            positions = await self._rest_client.async_get_positions()
-            logger.info(f"拉取持仓信息: account_type={self.account_type}, count={len(positions)}")
-            return positions
-        except Exception as e:
-            logger.error(f"拉取持仓信息失败: {e}", exc_info=True)
-            raise
-
-    async def fetch_account_info(self) -> dict[str, Any]:
-        """拉取账户信息（委托 BinanceRestClient）"""
-        try:
-            account = await self._rest_client.async_get_account_info()
-            logger.info(f"拉取账户信息: account_type={self.account_type}")
-            return account
-        except Exception as e:
-            logger.error(f"拉取账户信息失败: {e}", exc_info=True)
-            raise
+    # ── 启动时拉取初始快照（直接调用 BinanceRestClient） ─────────
 
     async def fetch_initial_snapshot(self) -> dict[str, Any]:
         """
         拉取启动时的初始快照
 
         并发拉取当前挂单、持仓、账户信息，并通过 on_snapshot_ready 回调通知上层。
+        直接调用 BinanceRestClient 的异步方法，不做多余的中间封装。
 
         Returns:
             快照数据字典:
@@ -362,10 +313,16 @@ class BinanceUserStreamManager:
         """
         logger.info(f"开始拉取初始快照: account_type={self.account_type}")
 
-        # 并发拉取各项数据
-        open_orders_task = asyncio.create_task(self._safe_fetch(self.fetch_open_orders, "open_orders"))
-        positions_task = asyncio.create_task(self._safe_fetch(self.fetch_positions, "positions"))
-        account_task = asyncio.create_task(self._safe_fetch(self.fetch_account_info, "account"))
+        # 并发拉取各项数据（直接使用 _rest_client）
+        open_orders_task = asyncio.create_task(
+            self._safe_fetch(self._rest_client.async_get_open_orders, "open_orders")
+        )
+        positions_task = asyncio.create_task(
+            self._safe_fetch(self._rest_client.async_get_positions, "positions")
+        )
+        account_task = asyncio.create_task(
+            self._safe_fetch(self._rest_client.async_get_account_info, "account")
+        )
 
         results = await asyncio.gather(open_orders_task, positions_task, account_task)
 

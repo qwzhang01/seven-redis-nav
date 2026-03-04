@@ -104,7 +104,7 @@ def backtest(
         # 3. 获取历史数据
         if mock:
             click.echo(f"Generating mock data...")
-            from quant_trading_system.mock.mock_data import (
+            from quant_trading_system.exchange_adapter.mock.mock_data import (
                 generate_mock_klines,
                 generate_multi_timeframe_klines,
             )
@@ -143,7 +143,7 @@ def backtest(
                 )
         else:
             click.echo(f"Fetching historical data from Binance...")
-            from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+            from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 
             strategy_tfs = list(
                 strategy_class.timeframes) if strategy_class.timeframes else [tf]

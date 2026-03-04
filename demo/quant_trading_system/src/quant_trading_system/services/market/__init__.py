@@ -16,10 +16,8 @@ from quant_trading_system.engines.market_event_bus import (
     MarketEventType,
     MarketSubscriber,
 )
-from quant_trading_system.exchange_adapter.binance_connector import (
-    BinanceConnector,
-    ExchangeConnector,
-)
+from quant_trading_system.exchange_adapter.base import ExchangeConnector
+from quant_trading_system.exchange_adapter.factory import create_connector
 from quant_trading_system.exchange_adapter.ws_client import WebSocketClient
 from quant_trading_system.services.market.market_subscribers import (
     DatabaseSubscriber,
@@ -35,14 +33,6 @@ from quant_trading_system.services.market.kline_engine import KLineEngine
 from quant_trading_system.services.market.market_service import MarketService
 
 
-def __getattr__(name: str):
-    """延迟导入 MockConnector，避免与 mock 包的循环依赖"""
-    if name == "MockConnector":
-        from quant_trading_system.mock.mock_connector import MockConnector
-        return MockConnector
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 __all__ = [
     # 事件总线
     "MarketEventBus",
@@ -51,8 +41,7 @@ __all__ = [
     "MarketSubscriber",
     # 交易所连接器
     "ExchangeConnector",
-    "BinanceConnector",
-    "MockConnector",
+    "create_connector",
     "WebSocketClient",
     # 订阅器
     "DatabaseSubscriber",

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Optional
 
 from quant_trading_system.core.config import settings
-from quant_trading_system.exchange_adapter.binance_user_stream import (
+from quant_trading_system.exchange_adapter.binance.binance_user_stream import (
     BinanceUserStreamManager,
 )
 from quant_trading_system.engines.signal_event_bus import (
@@ -56,7 +56,7 @@ class SignalStream:
         # 目标账户 WebSocket 监听器
         # 开发环境使用 Mock，不连接真实 Binance
         if settings.is_development:
-            from quant_trading_system.mock.mock_binance_user_stream import (
+            from quant_trading_system.exchange_adapter.mock.mock_binance_user_stream import (
                 MockBinanceUserStreamManager,
             )
             self._stream_manager = MockBinanceUserStreamManager(

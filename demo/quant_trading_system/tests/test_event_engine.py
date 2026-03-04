@@ -17,7 +17,7 @@ import asyncio
 
 import pytest
 
-from quant_trading_system.core.events import (
+from quant_trading_system.engines.event_engine import (
     Event,
     EventEngine,
     EventPriority,

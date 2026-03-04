@@ -40,10 +40,8 @@ from quant_trading_system.engines.market_event_bus import (
 )
 
 # 交易所连接器
-from quant_trading_system.exchange_adapter.binance_connector import (
-    BinanceConnector,
-    ExchangeConnector,
-)
+from quant_trading_system.exchange_adapter.base import ExchangeConnector
+from quant_trading_system.exchange_adapter.factory import create_connector
 
 # 订阅器
 from quant_trading_system.services.market.market_subscribers import (
@@ -57,7 +55,7 @@ from quant_trading_system.services.market.historical_kline_syncer import (
     HistoricalKlineSyncer,
     SyncerConfig,
 )
-from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 
 # K线引擎（保持原有实现，负责内存缓冲和K线合成）
 from quant_trading_system.services.market.kline_engine import KLineEngine
@@ -248,25 +246,18 @@ class MarketService:
             logger.warning("交易所已添加", exchange=exchange)
             return
 
-        # 创建连接器（适配器模式）
-        connector: ExchangeConnector
-        if exchange == "binance":
-            connector = BinanceConnector(
+        # 通过工厂创建连接器（适配器模式）
+        try:
+            connector = create_connector(
+                exchange=exchange,
                 event_bus=self._event_bus,
                 market_type=market_type,
                 api_key=api_key or settings.BINANCE_API_KEY,
                 api_secret=api_secret or settings.BINANCE_SECRET_KEY,
+                **kwargs,
             )
-        elif exchange == "mock":
-            from quant_trading_system.mock.mock_connector import MockConnector
-            connector = MockConnector(
-                event_bus=self._event_bus,
-                tick_interval=kwargs.get("tick_interval", 0.5),
-                depth_interval=kwargs.get("depth_interval", 1.0),
-                kline_intervals=kwargs.get("kline_intervals", ["1m", "5m", "15m", "1h"]),
-            )
-        else:
-            logger.error("不支持的交易所", exchange=exchange)
+        except ValueError as e:
+            logger.error("创建连接器失败", exchange=exchange, error=str(e))
             return
 
         self._connectors[connector_key] = connector
