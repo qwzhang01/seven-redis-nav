@@ -31,6 +31,7 @@ from typing import Any, Optional
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.models.database import Signal, SignalPosition, SignalTradeRecord
 from quant_trading_system.services.database.database import get_db
@@ -113,6 +114,9 @@ class SignalRecordSubscriber(SignalSubscriber):
 
         处理所有订单状态变化：NEW / PARTIALLY_FILLED / FILLED / CANCELED
         通过 signal_id + original_order_id + order_status 去重，避免重复写入。
+        卖出（平仓）时：
+        - 关联对应的开仓交易记录（open_trade_id）
+        - 更新 signal_position 表（计算盈亏、标记关闭）
         """
         data = event.data
         original_order_id = data.get("original_order_id", "")
@@ -129,16 +133,64 @@ class SignalRecordSubscriber(SignalSubscriber):
                     else now
                 )
 
+                action = data.get("side", "").lower()
+                symbol = data.get("symbol", "")
+                price = Decimal(str(round(data.get("price", 0), 8)))
+                amount = Decimal(str(round(data.get("quantity", 0), 8)))
+
+                # 如果是卖出（平仓）且订单已成交，提前查询持仓和开仓记录，计算 pnl
+                open_trade_id = None
+                trade_pnl = None
+                trade_strength = None
+                position = None
+                is_close_trade = (action == "sell" and order_status == "FILLED")
+
+                if is_close_trade:
+                    # 查找对应的开仓交易记录
+                    open_trade = db.query(SignalTradeRecord).filter(
+                        SignalTradeRecord.signal_id == event.signal_id,
+                        SignalTradeRecord.symbol == symbol,
+                        SignalTradeRecord.action == "buy",
+                        SignalTradeRecord.order_status == "FILLED",
+                    ).order_by(SignalTradeRecord.traded_at.desc()).first()
+                    if open_trade:
+                        open_trade_id = open_trade.id
+
+                    # 查询当前持仓，提前计算 pnl
+                    position = db.query(SignalPosition).filter(
+                        SignalPosition.signal_id == event.signal_id,
+                        SignalPosition.symbol == symbol,
+                        SignalPosition.status == "open",
+                    ).first()
+                    if position and position.entry_price and position.entry_price > 0:
+                        if position.side == "long":
+                            trade_pnl = round((price - position.entry_price) * amount, 4)
+                            pnl_pct = abs((price - position.entry_price) / position.entry_price * 100)
+                        else:
+                            trade_pnl = round((position.entry_price - price) * amount, 4)
+                            pnl_pct = abs((position.entry_price - price) / position.entry_price * 100)
+
+                        # 根据盈亏比例判定信号强度
+                        if pnl_pct >= 5:
+                            trade_strength = "strong"
+                        elif pnl_pct >= 2:
+                            trade_strength = "medium"
+                        else:
+                            trade_strength = "weak"
+
                 values = {
                     "id": generate_snowflake_id(),
                     "signal_id": event.signal_id,
                     "original_order_id": original_order_id or None,
                     "order_status": order_status or None,
-                    "action": data.get("side", "").lower(),
-                    "symbol": data.get("symbol", ""),
-                    "price": Decimal(str(round(data.get("price", 0), 8))),
-                    "amount": Decimal(str(round(data.get("quantity", 0), 8))),
+                    "action": action,
+                    "symbol": symbol,
+                    "price": price,
+                    "amount": amount,
                     "total": Decimal(str(round(data.get("quote_quantity", 0), 4))),
+                    "strength": trade_strength,
+                    "pnl": trade_pnl,
+                    "open_trade_id": open_trade_id,
                     "traded_at": traded_at,
                     "created_at": now,
                 }
@@ -150,6 +202,36 @@ class SignalRecordSubscriber(SignalSubscriber):
                     index_elements=["signal_id", "original_order_id", "order_status"],
                 )
                 result = db.execute(stmt)
+
+                # 如果是卖出（平仓）成交，更新 signal_position 表
+                if is_close_trade and result.rowcount > 0 and position:
+                    # 计算并写入持仓盈亏
+                    if position.entry_price and position.entry_price > 0:
+                        if position.side == "long":
+                            pnl_percent = (price - position.entry_price) / position.entry_price * Decimal("100")
+                        else:
+                            pnl_percent = (position.entry_price - price) / position.entry_price * Decimal("100")
+                        position.pnl = trade_pnl
+                        position.pnl_percent = round(pnl_percent, 4)
+
+                    # 更新持仓数量
+                    remaining = position.amount - amount
+                    if remaining <= 0:
+                        # 全部平仓
+                        position.amount = Decimal("0")
+                        position.status = "closed"
+                        position.closed_at = now
+                    else:
+                        # 部分平仓，仅减少数量
+                        position.amount = remaining
+
+                    position.current_price = price
+                    position.updated_at = now
+                    logger.info(
+                        f"📉 持仓已更新: signal_id={event.signal_id}, symbol={symbol}, "
+                        f"remaining={position.amount}, pnl={position.pnl}, status={position.status}"
+                    )
+
                 db.commit()
 
                 # rowcount == 1 表示插入成功，== 0 表示冲突被跳过
@@ -292,9 +374,10 @@ class SignalRecordSubscriber(SignalSubscriber):
             try:
                 now = datetime.now(timezone.utc)
 
-                # 获取数据库中当前打开的持仓
+                # 获取数据库中当前打开的持仓（仅 open 状态）
                 existing_positions = db.query(SignalPosition).filter(
                     SignalPosition.signal_id == signal_id,
+                    SignalPosition.status == "open",
                 ).all()
                 existing_map: dict[str, SignalPosition] = {
                     pos.symbol: pos for pos in existing_positions
@@ -353,10 +436,33 @@ class SignalRecordSubscriber(SignalSubscriber):
                         db.add(new_position)
                     upsert_count += 1
 
+                # ── 数据库中有但快照中无 → 标记关闭（仓位已平） ──
+                closed_count = 0
+                for symbol, pos in existing_map.items():
+                    if symbol not in snapshot_symbols:
+                        # 计算平仓盈亏
+                        if pos.entry_price and pos.current_price and pos.entry_price > 0:
+                            if pos.side == "long":
+                                pnl = (pos.current_price - pos.entry_price) * pos.amount
+                            else:
+                                pnl = (pos.entry_price - pos.current_price) * pos.amount
+                            pnl_percent = ((pos.current_price - pos.entry_price) / pos.entry_price * Decimal("100")) if pos.side == "long" else ((pos.entry_price - pos.current_price) / pos.entry_price * Decimal("100"))
+                            pos.pnl = round(pnl, 4)
+                            pos.pnl_percent = round(pnl_percent, 4)
+                        pos.status = "closed"
+                        pos.closed_at = now
+                        pos.amount = Decimal("0")
+                        pos.updated_at = now
+                        closed_count += 1
+                        logger.info(
+                            f"📉 持仓已平仓: signal_id={signal_id}, symbol={symbol}, "
+                            f"pnl={pos.pnl}, pnl_percent={pos.pnl_percent}%"
+                        )
+
                 db.commit()
                 logger.info(
                     f"📝 持仓快照已更新: signal_id={signal_id}, "
-                    f"更新/新建 {upsert_count} 条持仓记录"
+                    f"更新/新建 {upsert_count} 条, 关闭 {closed_count} 条持仓记录"
                 )
             except Exception as e:
                 db.rollback()
@@ -491,12 +597,24 @@ class _SignalStream:
         self._event_bus = event_bus or signal_event_bus
 
         # 目标账户 WebSocket 监听器
-        self._stream_manager = BinanceUserStreamManager(
-            api_key=target_api_key,
-            api_secret=target_api_secret,
-            account_type=account_type,
-            testnet=testnet,
-        )
+        # 开发环境使用 Mock，不连接真实 Binance
+        if settings.is_development:
+            from quant_trading_system.services.exchange.mock_binance_user_stream import (
+                MockBinanceUserStreamManager,
+            )
+            self._stream_manager = MockBinanceUserStreamManager(
+                api_key=target_api_key,
+                api_secret=target_api_secret,
+                account_type=account_type,
+                testnet=testnet,
+            )
+        else:
+            self._stream_manager = BinanceUserStreamManager(
+                api_key=target_api_key,
+                api_secret=target_api_secret,
+                account_type=account_type,
+                testnet=testnet,
+            )
 
         # 统计
         self._events_received = 0

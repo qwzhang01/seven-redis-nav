@@ -6,7 +6,7 @@
 """
 
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, ForeignKey, BigInteger, Integer, Numeric
+from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, BigInteger, Integer, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -33,7 +33,7 @@ class User(Base):
     last_login_time = Column(DateTime)
     status = Column(String(32), default="active")
     invitation_code = Column(String(64), nullable=False)  # 邀请码字段
-    inviter_id = Column(BigInteger, ForeignKey("user_info.id"))  # 邀请人ID
+    inviter_id = Column(BigInteger)  # 邀请人ID（软关联 -> user_info.id）
     create_by = Column(String(64), default="system")
     create_time = Column(DateTime, default=datetime.utcnow)
     update_by = Column(String(64))
@@ -41,8 +41,8 @@ class User(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    api_keys = relationship("UserExchangeAPI", back_populates="user")
-    inviter = relationship("User", remote_side=[id], backref="invited_users")  # 自关联关系
+    api_keys = relationship("UserExchangeAPI", back_populates="user", foreign_keys="[UserExchangeAPI.user_id]", primaryjoin="User.id == UserExchangeAPI.user_id")
+    inviter = relationship("User", remote_side=[id], backref="invited_users", foreign_keys=[inviter_id], primaryjoin="User.inviter_id == User.id")  # 自关联关系
 
 
 class Exchange(Base):
@@ -65,7 +65,7 @@ class Exchange(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    api_keys = relationship("UserExchangeAPI", back_populates="exchange")
+    api_keys = relationship("UserExchangeAPI", back_populates="exchange", foreign_keys="[UserExchangeAPI.exchange_id]", primaryjoin="Exchange.id == UserExchangeAPI.exchange_id")
 
 
 class UserExchangeAPI(Base):
@@ -73,8 +73,8 @@ class UserExchangeAPI(Base):
     __tablename__ = "user_exchange_api"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    user_id = Column(BigInteger, ForeignKey("user_info.id"), nullable=False)
-    exchange_id = Column(BigInteger, ForeignKey("exchange_info.id"), nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
+    exchange_id = Column(BigInteger, nullable=False)  # 软关联 -> exchange_info.id
     label = Column(String(128), nullable=False)
     api_key = Column(String(512), nullable=False)
     secret_key = Column(String(512), nullable=False)
@@ -92,8 +92,8 @@ class UserExchangeAPI(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    user = relationship("User", back_populates="api_keys")
-    exchange = relationship("Exchange", back_populates="api_keys")
+    user = relationship("User", back_populates="api_keys", foreign_keys=[user_id], primaryjoin="UserExchangeAPI.user_id == User.id")
+    exchange = relationship("Exchange", back_populates="api_keys", foreign_keys=[exchange_id], primaryjoin="UserExchangeAPI.exchange_id == Exchange.id")
 
 
 class Subscription(Base):
@@ -117,7 +117,7 @@ class Subscription(Base):
     config = Column(JSON)
 
     # 关系
-    sync_tasks = relationship("SyncTask", back_populates="subscription", cascade="all, delete-orphan")
+    sync_tasks = relationship("SyncTask", back_populates="subscription", cascade="all, delete-orphan", foreign_keys="[SyncTask.subscription_id]", primaryjoin="Subscription.id == SyncTask.subscription_id")
 
 
 class HistoricalSyncTask(Base):
@@ -148,7 +148,7 @@ class SyncTask(Base):
     __tablename__ = "sync_tasks"
 
     id = Column(String(50), primary_key=True)
-    subscription_id = Column(String(50), ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False)
+    subscription_id = Column(String(50), nullable=False)  # 软关联 -> subscriptions.id
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     status = Column(String(20), default="pending")  # pending/running/completed/failed/cancelled
@@ -161,7 +161,7 @@ class SyncTask(Base):
     completed_at = Column(DateTime)
 
     # 关系
-    subscription = relationship("Subscription", back_populates="sync_tasks")
+    subscription = relationship("Subscription", back_populates="sync_tasks", foreign_keys=[subscription_id], primaryjoin="SyncTask.subscription_id == Subscription.id")
 
 
 class SignalSubscription(Base):
@@ -169,7 +169,7 @@ class SignalSubscription(Base):
     __tablename__ = "signal_subscriptions"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     strategy_id = Column(String(128), nullable=False)
     notify_type = Column(String(32), default="realtime")  # realtime/daily/weekly
     is_active = Column(Boolean, default=True)
@@ -188,7 +188,7 @@ class LeaderboardSnapshot(Base):
     entity_id = Column(String(128), nullable=False)
     entity_name = Column(String(256))
     entity_type = Column(String(64))
-    owner_id = Column(BigInteger, ForeignKey("user_info.id"))
+    owner_id = Column(BigInteger)  # 软关联 -> user_info.id
     owner_name = Column(String(128))
     total_return = Column(Numeric(10, 6))
     annual_return = Column(Numeric(10, 6))
@@ -211,7 +211,7 @@ class AuditLog(Base):
     log_time = Column(DateTime, primary_key=True, default=datetime.utcnow, nullable=False)
     log_level = Column(String(16), nullable=False, default="INFO")
     log_category = Column(String(32), nullable=False)  # system/trading/strategy/user/risk/market
-    user_id = Column(BigInteger, ForeignKey("user_info.id"))
+    user_id = Column(BigInteger)  # 软关联 -> user_info.id
     username = Column(String(64))
     action = Column(String(128), nullable=False)
     resource_type = Column(String(64))
@@ -236,7 +236,7 @@ class RiskAlert(Base):
     severity = Column(String(16), nullable=False, default="warning")  # info/warning/critical
     strategy_id = Column(String(128))
     symbol = Column(String(32))
-    user_id = Column(BigInteger, ForeignKey("user_info.id"))
+    user_id = Column(BigInteger)  # 软关联 -> user_info.id
     title = Column(String(256), nullable=False)
     message = Column(Text, nullable=False)
     trigger_value = Column(Numeric(20, 8))
@@ -253,7 +253,7 @@ class SignalFollowOrder(Base):
     __tablename__ = "signal_follow_orders"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     # 信号id 不是策略ID
     strategy_id = Column(String(128), nullable=False)
     signal_name = Column(String(256), nullable=False)
@@ -285,8 +285,8 @@ class SignalFollowOrder(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    positions = relationship("SignalFollowPosition", back_populates="follow_order", cascade="all, delete-orphan")
-    trades = relationship("SignalFollowTrade", back_populates="follow_order", cascade="all, delete-orphan")
+    positions = relationship("SignalFollowPosition", back_populates="follow_order", cascade="all, delete-orphan", foreign_keys="[SignalFollowPosition.follow_order_id]", primaryjoin="SignalFollowOrder.id == SignalFollowPosition.follow_order_id")
+    trades = relationship("SignalFollowTrade", back_populates="follow_order", cascade="all, delete-orphan", foreign_keys="[SignalFollowTrade.follow_order_id]", primaryjoin="SignalFollowOrder.id == SignalFollowTrade.follow_order_id")
 
 
 class SignalFollowPosition(Base):
@@ -294,8 +294,8 @@ class SignalFollowPosition(Base):
     __tablename__ = "signal_follow_positions"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    follow_order_id = Column(BigInteger, nullable=False)  # 软关联 -> signal_follow_orders.id
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     symbol = Column(String(32), nullable=False)
     side = Column(String(8), nullable=False)                     # long/short
     amount = Column(Numeric(20, 8), nullable=False)              # 持仓数量
@@ -310,7 +310,7 @@ class SignalFollowPosition(Base):
     update_time = Column(DateTime, default=datetime.utcnow)
 
     # 关系
-    follow_order = relationship("SignalFollowOrder", back_populates="positions")
+    follow_order = relationship("SignalFollowOrder", back_populates="positions", foreign_keys=[follow_order_id], primaryjoin="SignalFollowPosition.follow_order_id == SignalFollowOrder.id")
 
 
 class SignalFollowTrade(Base):
@@ -318,9 +318,9 @@ class SignalFollowTrade(Base):
     __tablename__ = "signal_follow_trades"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
-    position_id = Column(BigInteger, ForeignKey("signal_follow_positions.id"))
+    follow_order_id = Column(BigInteger, nullable=False)  # 软关联 -> signal_follow_orders.id
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
+    position_id = Column(BigInteger)  # 软关联 -> signal_follow_positions.id
     symbol = Column(String(32), nullable=False)
     side = Column(String(8), nullable=False)                     # buy/sell
     price = Column(Numeric(20, 8), nullable=False)               # 成交价格
@@ -328,14 +328,14 @@ class SignalFollowTrade(Base):
     total = Column(Numeric(20, 8), nullable=False)               # 成交额（USDT）
     pnl = Column(Numeric(20, 8))                                 # 盈亏金额（已平仓时有值）
     fee = Column(Numeric(20, 8), default=0)                      # 手续费
-    signal_record_id = Column(BigInteger, ForeignKey("signal_trade_record.id"))
+    signal_record_id = Column(BigInteger)  # 软关联 -> signal_trade_record.id
     signal_time = Column(DateTime)                               # 信号源发出时间
     slippage = Column(Numeric(10, 6), default=0)                 # 滑点百分比
     trade_time = Column(DateTime, default=datetime.utcnow)
     create_time = Column(DateTime, default=datetime.utcnow)
 
     # 关系
-    follow_order = relationship("SignalFollowOrder", back_populates="trades")
+    follow_order = relationship("SignalFollowOrder", back_populates="trades", foreign_keys=[follow_order_id], primaryjoin="SignalFollowTrade.follow_order_id == SignalFollowOrder.id")
 
 
 class SignalProvider(Base):
@@ -343,7 +343,7 @@ class SignalProvider(Base):
     __tablename__ = "signal_providers"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     name = Column(String(128), nullable=False)
     avatar = Column(String(512))
     verified = Column(Boolean, default=False)
@@ -359,7 +359,7 @@ class SignalProvider(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id], primaryjoin="SignalProvider.user_id == User.id")
 
 
 class SignalReview(Base):
@@ -367,8 +367,8 @@ class SignalReview(Base):
     __tablename__ = "signal_reviews"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal_trade_record.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    signal_id = Column(BigInteger, nullable=False)  # 软关联 -> signal_trade_record.id
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     rating = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     likes = Column(Integer, default=0)
@@ -377,7 +377,7 @@ class SignalReview(Base):
     update_time = Column(DateTime, default=datetime.utcnow)
 
     # 关系
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id], primaryjoin="SignalReview.user_id == User.id")
 
 
 class SignalReviewLike(Base):
@@ -385,8 +385,8 @@ class SignalReviewLike(Base):
     __tablename__ = "signal_review_likes"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    review_id = Column(BigInteger, ForeignKey("signal_reviews.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    review_id = Column(BigInteger, nullable=False)  # 软关联 -> signal_reviews.id
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     create_time = Column(DateTime, default=datetime.utcnow)
 
 
@@ -395,8 +395,8 @@ class SignalFollowEvent(Base):
     __tablename__ = "signal_follow_events"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    follow_order_id = Column(BigInteger, nullable=False)  # 软关联 -> signal_follow_orders.id
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     event_type = Column(String(16), nullable=False)        # trade/success/risk/error/system
     type_label = Column(String(32), nullable=False)
     message = Column(Text, nullable=False)
@@ -427,7 +427,7 @@ class Signal(Base):
     timeframe = Column(String(16))
     signal_frequency = Column(String(16))                           # high / medium / low
     description = Column(Text)
-    provider_id = Column(BigInteger, ForeignKey("signal_providers.id"))
+    provider_id = Column(BigInteger)  # 软关联 -> signal_providers.id
     strategy_id = Column(String(128))
 
     # ── 订阅大佬账户时的 API 授权信息（signal_source='subscribe' 时必填）──
@@ -452,12 +452,12 @@ class Signal(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    provider = relationship("SignalProvider", backref="signals")
-    risk_parameters = relationship("SignalRiskParameters", uselist=False, back_populates="signal", cascade="all, delete-orphan")
-    performance_metrics = relationship("SignalPerformanceMetrics", uselist=False, back_populates="signal", cascade="all, delete-orphan")
-    notification_settings = relationship("SignalNotificationSettings", uselist=False, back_populates="signal", cascade="all, delete-orphan")
-    positions = relationship("SignalPosition", back_populates="signal", cascade="all, delete-orphan")
-    trade_records = relationship("SignalTradeRecord", back_populates="signal", cascade="all, delete-orphan")
+    provider = relationship("SignalProvider", backref="signals", foreign_keys=[provider_id], primaryjoin="Signal.provider_id == SignalProvider.id")
+    risk_parameters = relationship("SignalRiskParameters", uselist=False, back_populates="signal", cascade="all, delete-orphan", foreign_keys="[SignalRiskParameters.signal_id]", primaryjoin="Signal.id == SignalRiskParameters.signal_id")
+    performance_metrics = relationship("SignalPerformanceMetrics", uselist=False, back_populates="signal", cascade="all, delete-orphan", foreign_keys="[SignalPerformanceMetrics.signal_id]", primaryjoin="Signal.id == SignalPerformanceMetrics.signal_id")
+    notification_settings = relationship("SignalNotificationSettings", uselist=False, back_populates="signal", cascade="all, delete-orphan", foreign_keys="[SignalNotificationSettings.signal_id]", primaryjoin="Signal.id == SignalNotificationSettings.signal_id")
+    positions = relationship("SignalPosition", back_populates="signal", cascade="all, delete-orphan", foreign_keys="[SignalPosition.signal_id]", primaryjoin="Signal.id == SignalPosition.signal_id")
+    trade_records = relationship("SignalTradeRecord", back_populates="signal", cascade="all, delete-orphan", foreign_keys="[SignalTradeRecord.signal_id]", primaryjoin="Signal.id == SignalTradeRecord.signal_id")
 
 
 class SignalRiskParameters(Base):
@@ -465,7 +465,7 @@ class SignalRiskParameters(Base):
     __tablename__ = "signal_risk_parameters"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    signal_id = Column(BigInteger, nullable=False, unique=True)  # 软关联 -> signal.id
     max_position_size = Column(Numeric(8, 2))           # 最大仓位(%)
     stop_loss_percentage = Column(Numeric(8, 2))        # 止损比例(%)
     take_profit_percentage = Column(Numeric(8, 2))      # 止盈比例(%)
@@ -474,7 +474,7 @@ class SignalRiskParameters(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    signal = relationship("Signal", back_populates="risk_parameters")
+    signal = relationship("Signal", back_populates="risk_parameters", foreign_keys=[signal_id], primaryjoin="SignalRiskParameters.signal_id == Signal.id")
 
 
 class SignalPerformanceMetrics(Base):
@@ -482,7 +482,7 @@ class SignalPerformanceMetrics(Base):
     __tablename__ = "signal_performance_metrics"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    signal_id = Column(BigInteger, nullable=False, unique=True)  # 软关联 -> signal.id
     sharpe_ratio = Column(Numeric(8, 4))                # 夏普比率
     win_rate = Column(Numeric(8, 4))                    # 胜率(%)
     profit_factor = Column(Numeric(8, 4))               # 盈亏比
@@ -496,7 +496,7 @@ class SignalPerformanceMetrics(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    signal = relationship("Signal", back_populates="performance_metrics")
+    signal = relationship("Signal", back_populates="performance_metrics", foreign_keys=[signal_id], primaryjoin="SignalPerformanceMetrics.signal_id == Signal.id")
 
 
 class SignalNotificationSettings(Base):
@@ -504,7 +504,7 @@ class SignalNotificationSettings(Base):
     __tablename__ = "signal_notification_settings"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False, unique=True)
+    signal_id = Column(BigInteger, nullable=False, unique=True)  # 软关联 -> signal.id
     email_alerts = Column(Boolean, default=True)
     push_notifications = Column(Boolean, default=True)
     telegram_bot = Column(Boolean, default=False)
@@ -513,7 +513,7 @@ class SignalNotificationSettings(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    signal = relationship("Signal", back_populates="notification_settings")
+    signal = relationship("Signal", back_populates="notification_settings", foreign_keys=[signal_id], primaryjoin="SignalNotificationSettings.signal_id == Signal.id")
 
 
 class SignalPosition(Base):
@@ -521,7 +521,7 @@ class SignalPosition(Base):
     __tablename__ = "signal_position"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False)
+    signal_id = Column(BigInteger, nullable=False)  # 软关联 -> signal.id
     symbol = Column(String(32), nullable=False)
     side = Column(String(8), nullable=False)             # long / short
     amount = Column(Numeric(18, 8), nullable=False)
@@ -529,10 +529,12 @@ class SignalPosition(Base):
     current_price = Column(Numeric(18, 8))
     pnl = Column(Numeric(14, 4))
     pnl_percent = Column(Numeric(10, 4))
+    status = Column(String(16), nullable=False, default="open")  # open / closed
     opened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    closed_at = Column(DateTime)                          # 平仓时间
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    signal = relationship("Signal", back_populates="positions")
+    signal = relationship("Signal", back_populates="positions", foreign_keys=[signal_id], primaryjoin="SignalPosition.signal_id == Signal.id")
 
 
 class SignalTradeRecord(Base):
@@ -540,7 +542,7 @@ class SignalTradeRecord(Base):
     __tablename__ = "signal_trade_record"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False)
+    signal_id = Column(BigInteger, nullable=False)  # 软关联 -> signal.id
     original_order_id = Column(String(64), nullable=True, index=True)  # 交易所原始订单ID，用于去重
     order_status = Column(String(24), nullable=True)     # NEW / PARTIALLY_FILLED / FILLED / CANCELED / SNAPSHOT
     action = Column(String(8), nullable=False)           # buy / sell
@@ -550,17 +552,19 @@ class SignalTradeRecord(Base):
     total = Column(Numeric(18, 4))
     strength = Column(String(8))                         # strong / medium / weak
     pnl = Column(Numeric(14, 4))
+    open_trade_id = Column(BigInteger, nullable=True)  # 软关联 -> signal_trade_record.id，平仓时关联的开仓交易记录ID
     traded_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    signal = relationship("Signal", back_populates="trade_records")
+    signal = relationship("Signal", back_populates="trade_records", foreign_keys=[signal_id], primaryjoin="SignalTradeRecord.signal_id == Signal.id")
+    open_trade = relationship("SignalTradeRecord", remote_side=[id], foreign_keys=[open_trade_id], primaryjoin="SignalTradeRecord.open_trade_id == SignalTradeRecord.id")  # 关联的开仓记录
 
 
 class SignalMonthlyReturn(Base):
     """信号月度收益模型"""
     __tablename__ = "signal_monthly_return"
 
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), primary_key=True)
+    signal_id = Column(BigInteger, primary_key=True)  # 软关联 -> signal.id
     month = Column(DateTime, primary_key=True)           # 月份（取当月1日）
     return_value = Column(Numeric(12, 4), nullable=False)
 
@@ -569,7 +573,7 @@ class SignalReturnCurve(Base):
     """信号收益曲线模型（时序表）"""
     __tablename__ = "signal_return_curve"
 
-    signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), primary_key=True)
+    signal_id = Column(BigInteger, primary_key=True)  # 软关联 -> signal.id
     time = Column(DateTime, primary_key=True)
     return_value = Column(Numeric(12, 4), nullable=False)
     drawdown = Column(Numeric(12, 4))
@@ -579,7 +583,7 @@ class SignalFollowReturnCurve(Base):
     """跟单收益曲线模型（时序表）"""
     __tablename__ = "signal_follow_return_curve"
 
-    follow_id = Column(BigInteger, ForeignKey("signal_follow_orders.id", ondelete="CASCADE"), primary_key=True)
+    follow_id = Column(BigInteger, primary_key=True)  # 软关联 -> signal_follow_orders.id
     time = Column(DateTime, primary_key=True)
     return_value = Column(Numeric(12, 4), nullable=False)
     signal_return = Column(Numeric(12, 4))
@@ -590,13 +594,13 @@ class ExchangeCopyAccount(Base):
     __tablename__ = "exchange_copy_accounts"
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
-    user_id = Column(BigInteger, ForeignKey("user_info.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # 软关联 -> user_info.id
     exchange = Column(String(32), nullable=False, default="binance")
     account_type = Column(String(16), nullable=False, default="spot")
     target_account_id = Column(String(256), nullable=False)
     target_account_name = Column(String(256))
-    api_key_id = Column(BigInteger, ForeignKey("user_exchange_api.id"))
-    follow_order_id = Column(BigInteger, ForeignKey("signal_follow_orders.id"))
+    api_key_id = Column(BigInteger)  # 软关联 -> user_exchange_api.id
+    follow_order_id = Column(BigInteger)  # 软关联 -> signal_follow_orders.id
     sync_interval = Column(Integer, default=5)
     last_sync_time = Column(DateTime)
     last_sync_order_id = Column(String(256))
@@ -609,6 +613,6 @@ class ExchangeCopyAccount(Base):
     enable_flag = Column(Boolean, default=True)
 
     # 关系
-    user = relationship("User")
-    api_key = relationship("UserExchangeAPI")
-    follow_order = relationship("SignalFollowOrder")
+    user = relationship("User", foreign_keys=[user_id], primaryjoin="ExchangeCopyAccount.user_id == User.id")
+    api_key = relationship("UserExchangeAPI", foreign_keys=[api_key_id], primaryjoin="ExchangeCopyAccount.api_key_id == UserExchangeAPI.id")
+    follow_order = relationship("SignalFollowOrder", foreign_keys=[follow_order_id], primaryjoin="ExchangeCopyAccount.follow_order_id == SignalFollowOrder.id")

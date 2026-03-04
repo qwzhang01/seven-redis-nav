@@ -1225,19 +1225,60 @@ const chartIndicators = computed<IndicatorData[]>(() => {
   return indicators
 })
 
-// 从信号历史记录生成买卖点标记
+// 从K线数据中生成 demo 买卖点标记（确保时间戳与K线精确对齐）
 const tradeMarks = computed<TradeMarkData[]>(() => {
-  return signalHistory.value.map(record => {
-    // 将ISO时间转为unix时间戳
-    const timestamp = Math.floor(new Date(record.time).getTime() / 1000)
-    const isBuy = record.action === 'buy'
-    return {
-      time: timestamp,
-      position: isBuy ? 'belowBar' : 'aboveBar',
-      color: isBuy ? '#10b981' : '#ef5350',
-      shape: isBuy ? 'arrowUp' : 'arrowDown',
-      text: isBuy ? '买入' : '卖出',
-    } as TradeMarkData
-  })
+  const data = klineData.value
+  if (data.length < 30) return []
+
+  const marks: TradeMarkData[] = []
+
+  // 在K线数据中选取若干典型位置生成 demo 买卖点
+  // 策略：简单基于价格局部极值来标记买卖点
+  for (let i = 10; i < data.length - 5; i++) {
+    const prev2 = data[i - 2]
+    const prev1 = data[i - 1]
+    const curr = data[i]
+    const next1 = data[i + 1]
+    const next2 = data[i + 2]
+
+    // 局部最低点 → 买入信号（前两根和后两根的 low 都高于当前）
+    if (
+      curr.low < prev1.low &&
+      curr.low < prev2.low &&
+      curr.low < next1.low &&
+      curr.low < next2.low
+    ) {
+      marks.push({
+        time: curr.time,
+        position: 'belowBar',
+        color: '#10b981',
+        shape: 'arrowUp',
+        text: '买入',
+      })
+      // 跳过后续几根避免密集标记
+      i += 8
+      continue
+    }
+
+    // 局部最高点 → 卖出信号（前两根和后两根的 high 都低于当前）
+    if (
+      curr.high > prev1.high &&
+      curr.high > prev2.high &&
+      curr.high > next1.high &&
+      curr.high > next2.high
+    ) {
+      marks.push({
+        time: curr.time,
+        position: 'aboveBar',
+        color: '#ef5350',
+        shape: 'arrowDown',
+        text: '卖出',
+      })
+      i += 8
+      continue
+    }
+  }
+
+  return marks
 })
 </script>

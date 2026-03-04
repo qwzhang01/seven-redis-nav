@@ -208,6 +208,10 @@ async def _startup_signal_engines(app: FastAPI) -> None:
         from quant_trading_system.services.exchange.follow_engine import FollowEngine
         from quant_trading_system.services.exchange.copy_trade_stream import SignalStreamEngine
 
+        # 开发环境提示：所有 Binance API 均使用 Mock，不连接真实交易所
+        if settings.is_development:
+            print("  🎭 开发环境：信号引擎使用 Mock 模式（不连接真实 Binance API）")
+
         # 1. 创建订单引擎
         copy_order_engine = CopyOrderEngine()
         app.state.copy_order_engine = copy_order_engine

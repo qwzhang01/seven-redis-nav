@@ -52,85 +52,14 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================
 -- 3. 信号主表 — 7条信号（5条策略信号 + 2条订阅大佬账户信号）
 -- ============================================================
-INSERT INTO signal (
-    id, name, platform, type, signal_source, status, exchange, account_type,
-    trading_pair, timeframe, signal_frequency, description,
-    provider_id, strategy_id,
-    target_api_key, target_api_secret, target_passphrase, target_account_name, testnet,
-    auto_start_stream, watch_symbols, sync_history,
-    followers_count, run_days, cumulative_return, max_drawdown,
-    created_at, updated_at, enable_flag
-)
-VALUES
-    -- 信号1：高收益趋势跟踪（策略信号）
-    (300001, 'Alpha Trend v2', 'Binance', 'live', 'strategy', 'running',
-     'Binance', 'spot', 'BTC/USDT', '4H', 'medium',
-     '基于多周期均线交叉和MACD动量的趋势跟踪策略，适合中长期持仓。在趋势行情中表现优异，配合严格的止损管理控制回撤。',
-     200001, 'strat_alpha_trend_v2',
-     NULL, NULL, NULL, NULL, FALSE,
-     FALSE, NULL, FALSE,
-     1256, 186, 45.8200, -12.3400,
-     '2024-08-15 10:30:00+08', NOW(), TRUE),
-
-    -- 信号2：量化多因子（策略信号）
-    (300002, 'Quant Multi-Factor', 'OKX', 'live', 'strategy', 'running',
-     'OKX', 'futures', 'ETH/USDT', '1H', 'high',
-     '多因子量化模型，综合价格动量、波动率、链上活跃度等因子打分，自动生成高频交易信号。',
-     200002, 'strat_quant_mf_01',
-     NULL, NULL, NULL, NULL, FALSE,
-     FALSE, NULL, FALSE,
-     832, 245, 62.1500, -8.7600,
-     '2024-06-03 09:00:00+08', NOW(), TRUE),
-
-    -- 信号3：BTC长线低频（策略信号）
-    (300003, 'BTC Hodl Signal', 'Binance', 'live', 'strategy', 'running',
-     'Binance', 'spot', 'BTC/USDT', '1D', 'low',
-     '比特币长线趋势信号，基于周线级别的趋势判断，每月仅发出1-3次信号。适合长期持有者，低频操作降低交易成本。',
-     200003, NULL,
-     NULL, NULL, NULL, NULL, FALSE,
-     FALSE, NULL, FALSE,
-     423, 320, 28.4600, -15.8900,
-     '2024-04-10 08:00:00+08', NOW(), TRUE),
-
-    -- 信号4：DeFi多链套利（策略信号，模拟盘）
-    (300004, 'DeFi Alpha Scanner', 'Bybit', 'simulated', 'strategy', 'running',
-     'Bybit', 'spot', 'SOL/USDT', '15m', 'high',
-     '基于链上数据分析的DeFi套利信号，目前处于模拟盘测试阶段。跟踪DEX流动性变化、大户钱包动向等链上指标。',
-     200004, 'strat_defi_scanner',
-     NULL, NULL, NULL, NULL, FALSE,
-     FALSE, NULL, FALSE,
-     287, 95, 18.6300, -6.4200,
-     '2024-11-25 14:00:00+08', NOW(), TRUE),
-
-    -- 信号5：网格震荡策略（策略信号，已暂停）
-    (300005, 'Grid Master ETH', 'Binance', 'live', 'strategy', 'paused',
-     'Binance', 'spot', 'ETH/USDT', '15m', 'high',
-     '以太坊网格交易策略，在2800-4200 USDT区间内自动挂单。当前因ETH突破区间上限暂停运行，待调整参数后重启。',
-     200005, 'strat_grid_eth_01',
-     NULL, NULL, NULL, NULL, FALSE,
-     FALSE, NULL, FALSE,
-     198, 150, 12.7800, -3.2100,
-     '2024-09-20 11:00:00+08', NOW(), TRUE),
-
-    -- 信号6：订阅大佬账户 — CryptoKing（现货，自动启动WebSocket监听）
-    (300006, 'CryptoKing 实盘跟踪', 'Binance', 'live', 'subscribe', 'running',
-     'Binance', 'spot', NULL, NULL, NULL,
-     '订阅加密货币顶级交易员 CryptoKing 的现货账户，实时跟踪其所有交易操作。该交易员长期稳定盈利，擅长BTC和ETH的波段操作。',
-     200001, NULL,
-     'demo_target_api_key_spot_001', 'demo_target_api_secret_spot_001', NULL, 'CryptoKing 现货主账户', TRUE,
-     TRUE, '["BTCUSDT","ETHUSDT","SOLUSDT"]', TRUE,
-     356, 120, 38.5600, -9.8200,
-     '2024-10-05 08:00:00+08', NOW(), TRUE),
-
-    -- 信号7：订阅大佬账户 — FuturesWhale（合约，自动启动WebSocket监听）
-    (300007, 'FuturesWhale 合约跟踪', 'Binance', 'live', 'subscribe', 'running',
-     'Binance', 'futures', NULL, NULL, NULL,
-     '订阅合约交易大佬 FuturesWhale 的U本位合约账户，实时跟踪其合约持仓变化。该交易员擅长趋势交易和突破策略，胜率较高。',
-     200002, NULL,
-     'demo_target_api_key_futures_001', 'demo_target_api_secret_futures_001', NULL, 'FuturesWhale 合约账户', TRUE,
-     TRUE, '["BTCUSDT","ETHUSDT"]', FALSE,
-     189, 85, 52.3400, -14.6500,
-     '2024-11-10 10:00:00+08', NOW(), TRUE)
+INSERT INTO public.signal (id,"name",platform,"type",signal_source,status,exchange,account_type,trading_pair,timeframe,signal_frequency,description,provider_id,strategy_id,target_api_key,target_api_secret,target_passphrase,target_account_name,testnet,auto_start_stream,watch_symbols,sync_history,followers_count,run_days,cumulative_return,max_drawdown,created_at,updated_at,enable_flag) VALUES
+	 (300001,'Alpha Trend v2','Binance','live','strategy','running','Binance','spot','BTC/USDT','4H','medium','基于多周期均线交叉和MACD动量的趋势跟踪策略，适合中长期持仓。在趋势行情中表现优异，配合严格的止损管理控制回撤。',200001,'strat_alpha_trend_v2',NULL,NULL,NULL,NULL,false,false,NULL,false,1256,186,45.8200,-12.3400,'2024-08-15 10:30:00.000','2026-03-02 15:12:42.573',true),
+	 (300002,'Quant Multi-Factor','OKX','live','strategy','running','OKX','futures','ETH/USDT','1H','high','多因子量化模型，综合价格动量、波动率、链上活跃度等因子打分，自动生成高频交易信号。',200002,'strat_quant_mf_01',NULL,NULL,NULL,NULL,false,false,NULL,false,832,245,62.1500,-8.7600,'2024-06-03 09:00:00.000','2026-03-02 15:12:42.573',true),
+	 (300003,'BTC Hodl Signal','Binance','live','strategy','running','Binance','spot','BTC/USDT','1D','low','比特币长线趋势信号，基于周线级别的趋势判断，每月仅发出1-3次信号。适合长期持有者，低频操作降低交易成本。',200003,NULL,NULL,NULL,NULL,NULL,false,false,NULL,false,423,320,28.4600,-15.8900,'2024-04-10 08:00:00.000','2026-03-02 15:12:42.573',true),
+	 (300004,'DeFi Alpha Scanner','Bybit','simulated','strategy','running','Bybit','spot','SOL/USDT','15m','high','基于链上数据分析的DeFi套利信号，目前处于模拟盘测试阶段。跟踪DEX流动性变化、大户钱包动向等链上指标。',200004,'strat_defi_scanner',NULL,NULL,NULL,NULL,false,false,NULL,false,287,95,18.6300,-6.4200,'2024-11-25 14:00:00.000','2026-03-02 15:12:42.573',true),
+	 (300005,'Grid Master ETH','Binance','live','strategy','paused','Binance','spot','ETH/USDT','15m','high','以太坊网格交易策略，在2800-4200 USDT区间内自动挂单。当前因ETH突破区间上限暂停运行，待调整参数后重启。',200005,'strat_grid_eth_01',NULL,NULL,NULL,NULL,false,false,NULL,false,198,150,12.7800,-3.2100,'2024-09-20 11:00:00.000','2026-03-02 15:12:42.573',true),
+	 (300006,'CryptoKing 实盘跟踪','Binance','live','subscribe','running','Binance','spot','BTC/USDT','15m','high','订阅加密货币顶级交易员 CryptoKing 的现货账户，实时跟踪其所有交易操作。该交易员长期稳定盈利，擅长BTC和ETH的波段操作。',200001,NULL,'YV1R3v2Q6WrOgZ8PwOrEuTkVoGGukIbynS1mUkMDDnoDbM1WuHvduPO08fwsPOon','GDWvhTTTflJcaiBkgnu9c9tGH26IHDlDVzhal8DTaeeUlve1PfsPheYsz6MH0xN4',NULL,'CryptoKing 现货主账户',false,true,'["BTCUSDT", "ETHUSDT", "SOLUSDT"]',true,356,120,38.5600,-9.8200,'2024-10-05 08:00:00.000','2026-03-02 15:12:42.573',true),
+	 (300007,'FuturesWhale 合约跟踪','Binance','live','subscribe','running','Binance','futures','BTC/USDT','15m','high','订阅合约交易大佬 FuturesWhale 的U本位合约账户，实时跟踪其合约持仓变化。该交易员擅长趋势交易和突破策略，胜率较高。',200002,NULL,'YV1R3v2Q6WrOgZ8PwOrEuTkVoGGukIbynS1mUkMDDnoDbM1WuHvduPO08fwsPOon','GDWvhTTTflJcaiBkgnu9c9tGH26IHDlDVzhal8DTaeeUlve1PfsPheYsz6MH0xN4',NULL,'FuturesWhale 合约账户',false,true,'["BTCUSDT", "ETHUSDT"]',true,189,85,52.3400,-14.6500,'2024-11-10 10:00:00.000','2026-03-02 15:12:42.573',true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
@@ -178,93 +107,93 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================
 -- 7. 当前持仓（每个信号2-3条持仓记录）
 -- ============================================================
-INSERT INTO signal_position (id, signal_id, symbol, side, amount, entry_price, current_price, pnl, pnl_percent, opened_at)
+INSERT INTO signal_position (id, signal_id, symbol, side, amount, entry_price, current_price, pnl, pnl_percent, status, opened_at)
 VALUES
     -- 信号1 Alpha Trend v2 的持仓
-    (700001, 300001, 'BTC/USDT', 'long',  0.05000000, 89234.50000000, 91850.00000000,  130.78, 2.93, '2025-02-20 14:30:00+08'),
-    (700002, 300001, 'ETH/USDT', 'long',  1.20000000,  3120.80000000,  3245.60000000,  149.76, 4.00, '2025-02-22 09:15:00+08'),
+    (700001, 300001, 'BTC/USDT', 'long',  0.05000000, 89234.50000000, 91850.00000000,  130.78, 2.93, 'open', '2025-02-20 14:30:00+08'),
+    (700002, 300001, 'ETH/USDT', 'long',  1.20000000,  3120.80000000,  3245.60000000,  149.76, 4.00, 'open', '2025-02-22 09:15:00+08'),
 
     -- 信号2 Quant Multi-Factor 的持仓
-    (700003, 300002, 'ETH/USDT', 'long',  2.50000000,  3180.00000000,  3245.60000000,  164.00, 2.06, '2025-02-25 16:00:00+08'),
-    (700004, 300002, 'BTC/USDT', 'short', 0.03000000, 92100.00000000, 91850.00000000,    7.50, 0.27, '2025-02-26 08:30:00+08'),
-    (700005, 300002, 'SOL/USDT', 'long',  15.00000000,   145.20000000,   152.80000000,  114.00, 5.23, '2025-02-24 11:45:00+08'),
+    (700003, 300002, 'ETH/USDT', 'long',  2.50000000,  3180.00000000,  3245.60000000,  164.00, 2.06, 'open', '2025-02-25 16:00:00+08'),
+    (700004, 300002, 'BTC/USDT', 'short', 0.03000000, 92100.00000000, 91850.00000000,    7.50, 0.27, 'open', '2025-02-26 08:30:00+08'),
+    (700005, 300002, 'SOL/USDT', 'long',  15.00000000,   145.20000000,   152.80000000,  114.00, 5.23, 'open', '2025-02-24 11:45:00+08'),
 
     -- 信号3 BTC Hodl Signal 的持仓
-    (700006, 300003, 'BTC/USDT', 'long',  0.12000000, 85600.00000000, 91850.00000000,  750.00, 7.30, '2025-01-15 10:00:00+08'),
+    (700006, 300003, 'BTC/USDT', 'long',  0.12000000, 85600.00000000, 91850.00000000,  750.00, 7.30, 'open', '2025-01-15 10:00:00+08'),
 
     -- 信号4 DeFi Alpha Scanner 的持仓
-    (700007, 300004, 'SOL/USDT', 'long',  25.00000000,   148.50000000,   152.80000000,  107.50, 2.90, '2025-02-25 13:20:00+08'),
-    (700008, 300004, 'ETH/USDT', 'short',  0.80000000,  3280.00000000,  3245.60000000,   27.52, 1.05, '2025-02-26 10:00:00+08'),
+    (700007, 300004, 'SOL/USDT', 'long',  25.00000000,   148.50000000,   152.80000000,  107.50, 2.90, 'open', '2025-02-25 13:20:00+08'),
+    (700008, 300004, 'ETH/USDT', 'short',  0.80000000,  3280.00000000,  3245.60000000,   27.52, 1.05, 'open', '2025-02-26 10:00:00+08'),
 
     -- 信号5 Grid Master ETH 当前暂停，无持仓（不插入）
     -- 但保留最后一条历史持仓记录
-    (700009, 300005, 'ETH/USDT', 'long',  3.00000000,  3150.00000000,  3245.60000000,  286.80, 3.03, '2025-02-10 09:00:00+08'),
+    (700009, 300005, 'ETH/USDT', 'long',  3.00000000,  3150.00000000,  3245.60000000,  286.80, 3.03, 'open', '2025-02-10 09:00:00+08'),
 
     -- 信号6 CryptoKing 实盘跟踪（subscribe 类型）的持仓
-    (700010, 300006, 'BTC/USDT', 'long',  0.08000000, 90120.00000000, 91850.00000000,  138.40, 1.92, '2025-02-23 10:00:00+08'),
-    (700011, 300006, 'ETH/USDT', 'long',  2.00000000,  3180.00000000,  3245.60000000,  131.20, 2.06, '2025-02-24 14:30:00+08'),
-    (700012, 300006, 'SOL/USDT', 'long',  20.00000000,   149.80000000,   152.80000000,   60.00, 2.00, '2025-02-25 09:00:00+08'),
+    (700010, 300006, 'BTC/USDT', 'long',  0.08000000, 90120.00000000, 91850.00000000,  138.40, 1.92, 'open', '2025-02-23 10:00:00+08'),
+    (700011, 300006, 'ETH/USDT', 'long',  2.00000000,  3180.00000000,  3245.60000000,  131.20, 2.06, 'open', '2025-02-24 14:30:00+08'),
+    (700012, 300006, 'SOL/USDT', 'long',  20.00000000,   149.80000000,   152.80000000,   60.00, 2.00, 'open', '2025-02-25 09:00:00+08'),
 
     -- 信号7 FuturesWhale 合约跟踪（subscribe 类型）的持仓
-    (700013, 300007, 'BTC/USDT', 'long',  0.10000000, 88500.00000000, 91850.00000000,  335.00, 3.79, '2025-02-20 08:00:00+08'),
-    (700014, 300007, 'ETH/USDT', 'short', 3.00000000,  3300.00000000,  3245.60000000,  163.20, 1.65, '2025-02-25 16:30:00+08')
+    (700013, 300007, 'BTC/USDT', 'long',  0.10000000, 88500.00000000, 91850.00000000,  335.00, 3.79, 'open', '2025-02-20 08:00:00+08'),
+    (700014, 300007, 'ETH/USDT', 'short', 3.00000000,  3300.00000000,  3245.60000000,  163.20, 1.65, 'open', '2025-02-25 16:30:00+08')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- 8. 交易记录（每个信号4-6条近期交易）
 -- ============================================================
-INSERT INTO signal_trade_record (id, signal_id, original_order_id, order_status, action, symbol, price, amount, total, strength, pnl, traded_at)
+INSERT INTO signal_trade_record (id, signal_id, original_order_id, order_status, action, symbol, price, amount, total, strength, pnl, open_trade_id, traded_at)
 VALUES
     -- 信号1 Alpha Trend v2 的交易记录
-    (800001, 300001, 'SEED-800001', 'FILLED', 'buy',  'BTC/USDT', 89234.50000000, 0.05000000,  4461.73, 'strong', NULL,    '2025-02-20 14:30:00+08'),
-    (800002, 300001, 'SEED-800002', 'FILLED', 'buy',  'ETH/USDT',  3120.80000000, 1.20000000,  3744.96, 'medium', NULL,    '2025-02-22 09:15:00+08'),
-    (800003, 300001, 'SEED-800003', 'FILLED', 'sell', 'SOL/USDT',   158.40000000, 10.00000000, 1584.00, 'strong', 124.50,  '2025-02-18 16:45:00+08'),
-    (800004, 300001, 'SEED-800004', 'FILLED', 'buy',  'SOL/USDT',   146.00000000, 10.00000000, 1460.00, 'medium', NULL,    '2025-02-15 11:20:00+08'),
-    (800005, 300001, 'SEED-800005', 'FILLED', 'sell', 'BTC/USDT', 88500.00000000, 0.04000000,  3540.00, 'weak',   -86.20,  '2025-02-12 08:00:00+08'),
+    (800001, 300001, 'SEED-800001', 'FILLED', 'buy',  'BTC/USDT', 89234.50000000, 0.05000000,  4461.73, 'strong', NULL,    NULL,   '2025-02-20 14:30:00+08'),
+    (800002, 300001, 'SEED-800002', 'FILLED', 'buy',  'ETH/USDT',  3120.80000000, 1.20000000,  3744.96, 'medium', NULL,    NULL,   '2025-02-22 09:15:00+08'),
+    (800003, 300001, 'SEED-800003', 'FILLED', 'sell', 'SOL/USDT',   158.40000000, 10.00000000, 1584.00, 'strong', 124.50,  800004, '2025-02-18 16:45:00+08'),
+    (800004, 300001, 'SEED-800004', 'FILLED', 'buy',  'SOL/USDT',   146.00000000, 10.00000000, 1460.00, 'medium', NULL,    NULL,   '2025-02-15 11:20:00+08'),
+    (800005, 300001, 'SEED-800005', 'FILLED', 'sell', 'BTC/USDT', 88500.00000000, 0.04000000,  3540.00, 'weak',   -86.20,  NULL,   '2025-02-12 08:00:00+08'),
 
     -- 信号2 Quant Multi-Factor 的交易记录
-    (800006, 300002, 'SEED-800006', 'FILLED', 'buy',  'ETH/USDT',  3180.00000000, 2.50000000,  7950.00, 'strong', NULL,    '2025-02-25 16:00:00+08'),
-    (800007, 300002, 'SEED-800007', 'FILLED', 'sell', 'BTC/USDT', 92100.00000000, 0.03000000,  2763.00, 'medium', NULL,    '2025-02-26 08:30:00+08'),
-    (800008, 300002, 'SEED-800008', 'FILLED', 'buy',  'SOL/USDT',   145.20000000, 15.00000000, 2178.00, 'strong', NULL,    '2025-02-24 11:45:00+08'),
-    (800009, 300002, 'SEED-800009', 'FILLED', 'sell', 'ETH/USDT',  3250.00000000, 1.80000000,  5850.00, 'medium', 198.00,  '2025-02-23 14:20:00+08'),
-    (800010, 300002, 'SEED-800010', 'FILLED', 'buy',  'ETH/USDT',  3140.00000000, 1.80000000,  5652.00, 'strong', NULL,    '2025-02-21 10:00:00+08'),
-    (800011, 300002, 'SEED-800011', 'FILLED', 'sell', 'SOL/USDT',   155.80000000, 20.00000000, 3116.00, 'medium', 212.00,  '2025-02-20 09:30:00+08'),
+    (800006, 300002, 'SEED-800006', 'FILLED', 'buy',  'ETH/USDT',  3180.00000000, 2.50000000,  7950.00, 'strong', NULL,    NULL,   '2025-02-25 16:00:00+08'),
+    (800007, 300002, 'SEED-800007', 'FILLED', 'sell', 'BTC/USDT', 92100.00000000, 0.03000000,  2763.00, 'medium', NULL,    NULL,   '2025-02-26 08:30:00+08'),
+    (800008, 300002, 'SEED-800008', 'FILLED', 'buy',  'SOL/USDT',   145.20000000, 15.00000000, 2178.00, 'strong', NULL,    NULL,   '2025-02-24 11:45:00+08'),
+    (800009, 300002, 'SEED-800009', 'FILLED', 'sell', 'ETH/USDT',  3250.00000000, 1.80000000,  5850.00, 'medium', 198.00,  800010, '2025-02-23 14:20:00+08'),
+    (800010, 300002, 'SEED-800010', 'FILLED', 'buy',  'ETH/USDT',  3140.00000000, 1.80000000,  5652.00, 'strong', NULL,    NULL,   '2025-02-21 10:00:00+08'),
+    (800011, 300002, 'SEED-800011', 'FILLED', 'sell', 'SOL/USDT',   155.80000000, 20.00000000, 3116.00, 'medium', 212.00,  NULL,   '2025-02-20 09:30:00+08'),
 
     -- 信号3 BTC Hodl Signal 的交易记录
-    (800012, 300003, 'SEED-800012', 'FILLED', 'buy',  'BTC/USDT', 85600.00000000, 0.12000000, 10272.00, 'strong', NULL,    '2025-01-15 10:00:00+08'),
-    (800013, 300003, 'SEED-800013', 'FILLED', 'sell', 'BTC/USDT', 84200.00000000, 0.10000000,  8420.00, 'medium', -320.00, '2024-12-20 15:30:00+08'),
-    (800014, 300003, 'SEED-800014', 'FILLED', 'buy',  'BTC/USDT', 87400.00000000, 0.10000000,  8740.00, 'strong', NULL,    '2024-11-08 09:00:00+08'),
-    (800015, 300003, 'SEED-800015', 'FILLED', 'sell', 'BTC/USDT', 95300.00000000, 0.08000000,  7624.00, 'strong', 632.00,  '2024-10-15 14:00:00+08'),
+    (800012, 300003, 'SEED-800012', 'FILLED', 'buy',  'BTC/USDT', 85600.00000000, 0.12000000, 10272.00, 'strong', NULL,    NULL,   '2025-01-15 10:00:00+08'),
+    (800013, 300003, 'SEED-800013', 'FILLED', 'sell', 'BTC/USDT', 84200.00000000, 0.10000000,  8420.00, 'medium', -320.00, 800014, '2024-12-20 15:30:00+08'),
+    (800014, 300003, 'SEED-800014', 'FILLED', 'buy',  'BTC/USDT', 87400.00000000, 0.10000000,  8740.00, 'strong', NULL,    NULL,   '2024-11-08 09:00:00+08'),
+    (800015, 300003, 'SEED-800015', 'FILLED', 'sell', 'BTC/USDT', 95300.00000000, 0.08000000,  7624.00, 'strong', 632.00,  NULL,   '2024-10-15 14:00:00+08'),
 
     -- 信号4 DeFi Alpha Scanner 的交易记录
-    (800016, 300004, 'SEED-800016', 'FILLED', 'buy',  'SOL/USDT',   148.50000000, 25.00000000, 3712.50, 'medium', NULL,    '2025-02-25 13:20:00+08'),
-    (800017, 300004, 'SEED-800017', 'FILLED', 'sell', 'ETH/USDT',  3280.00000000, 0.80000000,  2624.00, 'strong', NULL,    '2025-02-26 10:00:00+08'),
-    (800018, 300004, 'SEED-800018', 'FILLED', 'sell', 'SOL/USDT',   152.00000000, 30.00000000, 4560.00, 'medium', 105.00,  '2025-02-23 17:00:00+08'),
-    (800019, 300004, 'SEED-800019', 'FILLED', 'buy',  'SOL/USDT',   148.50000000, 30.00000000, 4455.00, 'strong', NULL,    '2025-02-22 08:30:00+08'),
-    (800020, 300004, 'SEED-800020', 'FILLED', 'buy',  'ETH/USDT',  3210.00000000, 1.50000000,  4815.00, 'medium', NULL,    '2025-02-21 12:00:00+08'),
-    (800021, 300004, 'SEED-800021', 'FILLED', 'sell', 'ETH/USDT',  3290.00000000, 1.50000000,  4935.00, 'strong', 120.00,  '2025-02-24 09:45:00+08'),
+    (800016, 300004, 'SEED-800016', 'FILLED', 'buy',  'SOL/USDT',   148.50000000, 25.00000000, 3712.50, 'medium', NULL,    NULL,   '2025-02-25 13:20:00+08'),
+    (800017, 300004, 'SEED-800017', 'FILLED', 'sell', 'ETH/USDT',  3280.00000000, 0.80000000,  2624.00, 'strong', NULL,    NULL,   '2025-02-26 10:00:00+08'),
+    (800018, 300004, 'SEED-800018', 'FILLED', 'sell', 'SOL/USDT',   152.00000000, 30.00000000, 4560.00, 'medium', 105.00,  800019, '2025-02-23 17:00:00+08'),
+    (800019, 300004, 'SEED-800019', 'FILLED', 'buy',  'SOL/USDT',   148.50000000, 30.00000000, 4455.00, 'strong', NULL,    NULL,   '2025-02-22 08:30:00+08'),
+    (800020, 300004, 'SEED-800020', 'FILLED', 'buy',  'ETH/USDT',  3210.00000000, 1.50000000,  4815.00, 'medium', NULL,    NULL,   '2025-02-21 12:00:00+08'),
+    (800021, 300004, 'SEED-800021', 'FILLED', 'sell', 'ETH/USDT',  3290.00000000, 1.50000000,  4935.00, 'strong', 120.00,  800020, '2025-02-24 09:45:00+08'),
 
     -- 信号5 Grid Master ETH 的交易记录（暂停前的最后几笔）
-    (800022, 300005, 'SEED-800022', 'FILLED', 'sell', 'ETH/USDT',  3200.00000000, 0.50000000,  1600.00, 'medium',  25.00,  '2025-02-08 16:30:00+08'),
-    (800023, 300005, 'SEED-800023', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 0.50000000,  1575.00, 'medium', NULL,    '2025-02-08 14:20:00+08'),
-    (800024, 300005, 'SEED-800024', 'FILLED', 'sell', 'ETH/USDT',  3180.00000000, 0.50000000,  1590.00, 'medium',  15.00,  '2025-02-07 11:00:00+08'),
-    (800025, 300005, 'SEED-800025', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 0.50000000,  1575.00, 'medium', NULL,    '2025-02-07 09:30:00+08'),
-    (800026, 300005, 'SEED-800026', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 3.00000000,  9450.00, 'strong', NULL,    '2025-02-10 09:00:00+08'),
+    (800022, 300005, 'SEED-800022', 'FILLED', 'sell', 'ETH/USDT',  3200.00000000, 0.50000000,  1600.00, 'medium',  25.00,  800023, '2025-02-08 16:30:00+08'),
+    (800023, 300005, 'SEED-800023', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 0.50000000,  1575.00, 'medium', NULL,    NULL,   '2025-02-08 14:20:00+08'),
+    (800024, 300005, 'SEED-800024', 'FILLED', 'sell', 'ETH/USDT',  3180.00000000, 0.50000000,  1590.00, 'medium',  15.00,  800025, '2025-02-07 11:00:00+08'),
+    (800025, 300005, 'SEED-800025', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 0.50000000,  1575.00, 'medium', NULL,    NULL,   '2025-02-07 09:30:00+08'),
+    (800026, 300005, 'SEED-800026', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 3.00000000,  9450.00, 'strong', NULL,    NULL,   '2025-02-10 09:00:00+08'),
 
     -- 信号6 CryptoKing 实盘跟踪（subscribe 类型）的交易记录
-    (800027, 300006, 'SEED-800027', 'FILLED', 'buy',  'BTC/USDT', 90120.00000000, 0.08000000,  7209.60, 'strong', NULL,    '2025-02-23 10:00:00+08'),
-    (800028, 300006, 'SEED-800028', 'FILLED', 'buy',  'ETH/USDT',  3180.00000000, 2.00000000,  6360.00, 'medium', NULL,    '2025-02-24 14:30:00+08'),
-    (800029, 300006, 'SEED-800029', 'FILLED', 'buy',  'SOL/USDT',   149.80000000, 20.00000000, 2996.00, 'strong', NULL,    '2025-02-25 09:00:00+08'),
-    (800030, 300006, 'SEED-800030', 'FILLED', 'sell', 'BTC/USDT', 91200.00000000, 0.05000000,  4560.00, 'medium', 78.50,   '2025-02-22 15:30:00+08'),
-    (800031, 300006, 'SEED-800031', 'FILLED', 'buy',  'BTC/USDT', 89650.00000000, 0.05000000,  4482.50, 'strong', NULL,    '2025-02-20 11:00:00+08'),
+    (800027, 300006, 'SEED-800027', 'FILLED', 'buy',  'BTC/USDT', 90120.00000000, 0.08000000,  7209.60, 'strong', NULL,    NULL,   '2025-02-23 10:00:00+08'),
+    (800028, 300006, 'SEED-800028', 'FILLED', 'buy',  'ETH/USDT',  3180.00000000, 2.00000000,  6360.00, 'medium', NULL,    NULL,   '2025-02-24 14:30:00+08'),
+    (800029, 300006, 'SEED-800029', 'FILLED', 'buy',  'SOL/USDT',   149.80000000, 20.00000000, 2996.00, 'strong', NULL,    NULL,   '2025-02-25 09:00:00+08'),
+    (800030, 300006, 'SEED-800030', 'FILLED', 'sell', 'BTC/USDT', 91200.00000000, 0.05000000,  4560.00, 'medium', 78.50,   800031, '2025-02-22 15:30:00+08'),
+    (800031, 300006, 'SEED-800031', 'FILLED', 'buy',  'BTC/USDT', 89650.00000000, 0.05000000,  4482.50, 'strong', NULL,    NULL,   '2025-02-20 11:00:00+08'),
 
     -- 信号7 FuturesWhale 合约跟踪（subscribe 类型）的交易记录
-    (800032, 300007, 'SEED-800032', 'FILLED', 'buy',  'BTC/USDT', 88500.00000000, 0.10000000,  8850.00, 'strong', NULL,    '2025-02-20 08:00:00+08'),
-    (800033, 300007, 'SEED-800033', 'FILLED', 'sell', 'ETH/USDT',  3300.00000000, 3.00000000,  9900.00, 'strong', NULL,    '2025-02-25 16:30:00+08'),
-    (800034, 300007, 'SEED-800034', 'FILLED', 'sell', 'BTC/USDT', 91500.00000000, 0.06000000,  5490.00, 'medium', 186.00,  '2025-02-24 10:00:00+08'),
-    (800035, 300007, 'SEED-800035', 'FILLED', 'buy',  'BTC/USDT', 88400.00000000, 0.06000000,  5304.00, 'strong', NULL,    '2025-02-19 09:30:00+08'),
-    (800036, 300007, 'SEED-800036', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 2.00000000,  6300.00, 'medium', NULL,    '2025-02-18 14:00:00+08'),
-    (800037, 300007, 'SEED-800037', 'FILLED', 'sell', 'ETH/USDT',  3280.00000000, 2.00000000,  6560.00, 'strong', 260.00,  '2025-02-22 11:45:00+08')
+    (800032, 300007, 'SEED-800032', 'FILLED', 'buy',  'BTC/USDT', 88500.00000000, 0.10000000,  8850.00, 'strong', NULL,    NULL,   '2025-02-20 08:00:00+08'),
+    (800033, 300007, 'SEED-800033', 'FILLED', 'sell', 'ETH/USDT',  3300.00000000, 3.00000000,  9900.00, 'strong', NULL,    NULL,   '2025-02-25 16:30:00+08'),
+    (800034, 300007, 'SEED-800034', 'FILLED', 'sell', 'BTC/USDT', 91500.00000000, 0.06000000,  5490.00, 'medium', 186.00,  800035, '2025-02-24 10:00:00+08'),
+    (800035, 300007, 'SEED-800035', 'FILLED', 'buy',  'BTC/USDT', 88400.00000000, 0.06000000,  5304.00, 'strong', NULL,    NULL,   '2025-02-19 09:30:00+08'),
+    (800036, 300007, 'SEED-800036', 'FILLED', 'buy',  'ETH/USDT',  3150.00000000, 2.00000000,  6300.00, 'medium', NULL,    NULL,   '2025-02-18 14:00:00+08'),
+    (800037, 300007, 'SEED-800037', 'FILLED', 'sell', 'ETH/USDT',  3280.00000000, 2.00000000,  6560.00, 'strong', 260.00,  800036, '2025-02-22 11:45:00+08')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================

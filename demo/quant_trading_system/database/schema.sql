@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS invitation_codes (
     type VARCHAR(32) DEFAULT 'user', -- user/admin/system
     max_uses INTEGER DEFAULT 1, -- 最大使用次数
     used_count INTEGER DEFAULT 0, -- 已使用次数
-    created_by BIGINT REFERENCES user_info(id), -- 创建者
-    created_for BIGINT REFERENCES user_info(id), -- 指定给特定用户使用
+    created_by BIGINT,  -- 软关联, 创建者
+    created_for BIGINT,  -- 软关联, 指定给特定用户使用
     valid_from TIMESTAMPTZ DEFAULT NOW(), -- 生效时间
     valid_until TIMESTAMPTZ, -- 过期时间
     status VARCHAR(32) DEFAULT 'active', -- active/expired/disabled
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS invitation_codes (
 -- 创建用户交易所API表
 CREATE TABLE IF NOT EXISTS user_exchange_api (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_info(id),
-    exchange_id BIGINT NOT NULL REFERENCES exchange_info(id),
+    user_id BIGINT NOT NULL,  -- 软关联
+    exchange_id BIGINT NOT NULL,  -- 软关联
     label VARCHAR(128) NOT NULL,
     api_key VARCHAR(512) NOT NULL,
     secret_key VARCHAR(512) NOT NULL,
@@ -283,7 +283,7 @@ COMMENT ON COLUMN subscriptions.config IS '高级配置（auto_restart/max_retri
 -- 创建同步任务表
 CREATE TABLE IF NOT EXISTS sync_tasks (
     id VARCHAR(50) PRIMARY KEY,
-    subscription_id VARCHAR(50) NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+    subscription_id VARCHAR(50) NOT NULL,  -- 软关联
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) DEFAULT 'pending', -- pending/running/completed/failed/cancelled
@@ -428,7 +428,7 @@ CREATE INDEX IF NOT EXISTS idx_historical_sync_tasks_created_at ON historical_sy
 -- 创建信号订阅表
 CREATE TABLE IF NOT EXISTS signal_subscriptions (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,  -- 软关联
     strategy_id VARCHAR(128) NOT NULL,
     notify_type VARCHAR(32) DEFAULT 'realtime', -- realtime/daily/weekly
     is_active BOOLEAN DEFAULT TRUE,
@@ -449,7 +449,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
     entity_id VARCHAR(128) NOT NULL,
     entity_name VARCHAR(256),
     entity_type VARCHAR(64),
-    owner_id BIGINT REFERENCES user_info(id),
+    owner_id BIGINT,  -- 软关联
     owner_name VARCHAR(128),
     total_return DECIMAL(10, 6),
     annual_return DECIMAL(10, 6),
@@ -502,7 +502,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     log_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     log_level VARCHAR(16) NOT NULL DEFAULT 'INFO', -- DEBUG/INFO/WARNING/ERROR/CRITICAL
     log_category VARCHAR(32) NOT NULL,              -- system/trading/strategy/user/risk/market
-    user_id BIGINT REFERENCES user_info(id),
+    user_id BIGINT,  -- 软关联
     username VARCHAR(64),
     action VARCHAR(128) NOT NULL,
     resource_type VARCHAR(64),
@@ -533,7 +533,7 @@ CREATE TABLE IF NOT EXISTS risk_alerts (
     severity VARCHAR(16) NOT NULL DEFAULT 'warning', -- info/warning/critical
     strategy_id VARCHAR(128),
     symbol VARCHAR(32),
-    user_id BIGINT REFERENCES user_info(id),
+    user_id BIGINT,  -- 软关联
     title VARCHAR(256) NOT NULL,
     message TEXT NOT NULL,
     trigger_value DECIMAL(20, 8),
@@ -558,7 +558,7 @@ CREATE INDEX IF NOT EXISTS idx_risk_alert_resolved ON risk_alerts (is_resolved);
 -- 创建信号跟单订单表（用户跟单记录主表）
 CREATE TABLE IF NOT EXISTS signal_follow_orders (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,  -- 软关联
     strategy_id VARCHAR(128) NOT NULL,              -- 跟单的策略ID
     signal_name VARCHAR(256) NOT NULL,              -- 信号/策略名称
     exchange VARCHAR(32) NOT NULL DEFAULT 'binance',-- 交易所
@@ -610,8 +610,8 @@ CREATE INDEX IF NOT EXISTS idx_follow_orders_create_time ON signal_follow_orders
 -- 创建信号跟单持仓表（当前持仓快照）
 CREATE TABLE IF NOT EXISTS signal_follow_positions (
     id BIGINT PRIMARY KEY,
-    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    follow_order_id BIGINT NOT NULL,  -- 软关联
+    user_id BIGINT NOT NULL,  -- 软关联
     symbol VARCHAR(32) NOT NULL,                    -- 交易对
     side VARCHAR(8) NOT NULL,                       -- long/short
     amount DECIMAL(20, 8) NOT NULL,                 -- 持仓数量
@@ -640,7 +640,7 @@ CREATE INDEX IF NOT EXISTS idx_follow_positions_status ON signal_follow_position
 -- 信号交易记录表（信号历史信号/交易记录）
 CREATE TABLE IF NOT EXISTS signal_trade_record (
     id              BIGINT PRIMARY KEY,
-    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id       BIGINT NOT NULL,  -- 软关联
     original_order_id VARCHAR(64),                       -- 交易所原始订单ID，用于去重
     order_status    VARCHAR(24),                         -- 订单状态：NEW / PARTIALLY_FILLED / FILLED / CANCELED / SNAPSHOT / SNAPSHOT_HISTORY
     action          VARCHAR(8) NOT NULL,                 -- buy / sell
@@ -650,6 +650,7 @@ CREATE TABLE IF NOT EXISTS signal_trade_record (
     total           DECIMAL(18, 4),                      -- 成交额
     strength        VARCHAR(8),                          -- 信号强度：strong / medium / weak
     pnl             DECIMAL(14, 4),                      -- 盈亏金额（卖出时有值）
+    open_trade_id   BIGINT, -- 平仓时关联的开仓交易记录ID
     traded_at       TIMESTAMPTZ NOT NULL,                -- 成交时间
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -660,17 +661,18 @@ COMMENT ON COLUMN signal_trade_record.order_status IS '订单状态：NEW/PARTIA
 COMMENT ON COLUMN signal_trade_record.action IS '交易方向: buy/sell';
 COMMENT ON COLUMN signal_trade_record.strength IS '信号强度: strong/medium/weak';
 COMMENT ON COLUMN signal_trade_record.pnl IS '盈亏金额（卖出时有值）';
+COMMENT ON COLUMN signal_trade_record.open_trade_id IS '平仓时关联的开仓交易记录ID（自关联）';
 
 CREATE INDEX IF NOT EXISTS idx_signal_trade_signal ON signal_trade_record (signal_id, traded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signal_trade_order_id ON signal_trade_record (original_order_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_trade_dedup ON signal_trade_record (signal_id, original_order_id, order_status) WHERE original_order_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_trade_dedup ON signal_trade_record (signal_id, original_order_id, order_status);
 
 -- 创建信号跟单交易记录表（历史成交记录）
 CREATE TABLE IF NOT EXISTS signal_follow_trades (
     id BIGINT PRIMARY KEY,
-    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
-    position_id BIGINT REFERENCES signal_follow_positions(id),
+    follow_order_id BIGINT NOT NULL,  -- 软关联
+    user_id BIGINT NOT NULL,  -- 软关联
+    position_id BIGINT,  -- 软关联
     symbol VARCHAR(32) NOT NULL,                    -- 交易对
     side VARCHAR(8) NOT NULL,                       -- buy/sell
     price DECIMAL(20, 8) NOT NULL,                  -- 成交价格
@@ -678,7 +680,7 @@ CREATE TABLE IF NOT EXISTS signal_follow_trades (
     total DECIMAL(20, 8) NOT NULL,                  -- 成交额（USDT）
     pnl DECIMAL(20, 8),                             -- 盈亏金额（已平仓时有值）
     fee DECIMAL(20, 8) DEFAULT 0,                   -- 手续费
-    signal_record_id BIGINT REFERENCES signal_trade_record(id), -- 关联的信号交易记录
+    signal_record_id BIGINT,  -- 软关联, 关联的信号交易记录
     trade_time TIMESTAMPTZ DEFAULT NOW(),           -- 成交时间
     create_time TIMESTAMPTZ DEFAULT NOW()
 );
@@ -995,7 +997,7 @@ INSERT INTO public.preset_strategies (id,"name",description,detail,strategy_type
 -- 信号提供者表（信号源的创建者/交易员信息）
 CREATE TABLE IF NOT EXISTS signal_providers (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,  -- 软关联
     name VARCHAR(128) NOT NULL,                    -- 提供者昵称
     avatar VARCHAR(512),                           -- 头像URL
     verified BOOLEAN DEFAULT FALSE,                -- 是否认证交易员
@@ -1024,8 +1026,8 @@ CREATE INDEX IF NOT EXISTS idx_signal_providers_rating ON signal_providers (rati
 -- 用户评价表（信号评论与评分）
 CREATE TABLE IF NOT EXISTS signal_reviews (
     id BIGINT PRIMARY KEY,
-    signal_id BIGINT NOT NULL REFERENCES signal_trade_record(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    signal_id BIGINT NOT NULL,  -- 软关联
+    user_id BIGINT NOT NULL,  -- 软关联
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),   -- 评分 1~5
     content TEXT NOT NULL,                                          -- 评价内容
     likes INTEGER DEFAULT 0,                                        -- 点赞数
@@ -1047,8 +1049,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_reviews_unique ON signal_reviews (s
 -- 评价点赞表
 CREATE TABLE IF NOT EXISTS signal_review_likes (
     id BIGINT PRIMARY KEY,
-    review_id BIGINT NOT NULL REFERENCES signal_reviews(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    review_id BIGINT NOT NULL,  -- 软关联
+    user_id BIGINT NOT NULL,  -- 软关联
     create_time TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1060,8 +1062,8 @@ CREATE INDEX IF NOT EXISTS idx_review_likes_review_id ON signal_review_likes (re
 -- 信号跟单事件日志表（完整的跟单操作日志）
 CREATE TABLE IF NOT EXISTS signal_follow_events (
     id BIGINT PRIMARY KEY,
-    follow_order_id BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    follow_order_id BIGINT NOT NULL,  -- 软关联
+    user_id BIGINT NOT NULL,  -- 软关联
     event_type VARCHAR(16) NOT NULL,               -- trade/success/risk/error/system
     type_label VARCHAR(32) NOT NULL,               -- 类型中文标签
     message TEXT NOT NULL,                          -- 事件描述文本
@@ -1083,13 +1085,13 @@ CREATE INDEX IF NOT EXISTS idx_follow_events_time ON signal_follow_events (event
 -- 交易所跟单账户表（用于跟踪交易所真实账户的跟单）
 CREATE TABLE IF NOT EXISTS exchange_copy_accounts (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_info(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,  -- 软关联
     exchange VARCHAR(32) NOT NULL DEFAULT 'binance',    -- 交易所
     account_type VARCHAR(16) NOT NULL DEFAULT 'spot',   -- spot/futures
     target_account_id VARCHAR(256) NOT NULL,             -- 被跟单的交易所账户ID/交易员UID
     target_account_name VARCHAR(256),                    -- 被跟单账户名称
-    api_key_id BIGINT REFERENCES user_exchange_api(id),  -- 用户自己的API Key
-    follow_order_id BIGINT REFERENCES signal_follow_orders(id), -- 关联的跟单记录
+    api_key_id BIGINT,  -- 软关联, 用户自己的API Key
+    follow_order_id BIGINT,  -- 软关联, 关联的跟单记录
     sync_interval INTEGER DEFAULT 5,                     -- 同步间隔（秒）
     last_sync_time TIMESTAMPTZ,                          -- 最后同步时间
     last_sync_order_id VARCHAR(256),                     -- 最后同步的订单ID（用于增量同步）
@@ -1149,7 +1151,7 @@ CREATE TABLE IF NOT EXISTS signal (
     timeframe           VARCHAR(16),                                    -- 时间周期，如 15m、1H、4H、1D
     signal_frequency    VARCHAR(16),                                    -- 信号频率：high / medium / low
     description         TEXT,                                           -- 信号描述
-    provider_id         BIGINT REFERENCES signal_providers(id),         -- 信号提供者ID
+    provider_id         BIGINT,  -- 软关联         -- 信号提供者ID
     strategy_id         VARCHAR(128),                                   -- 关联的策略ID（可选，如果信号由策略生成）
 
     -- 订阅大佬账户时的 API 授权信息（signal_source='subscribe' 时必填）
@@ -1209,7 +1211,7 @@ CREATE INDEX IF NOT EXISTS idx_signal_auto_start ON signal (auto_start_stream) W
 -- 信号风险参数表（一对一关联signal表）
 CREATE TABLE IF NOT EXISTS signal_risk_parameters (
     id                      BIGINT PRIMARY KEY,
-    signal_id               BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id               BIGINT NOT NULL UNIQUE,  -- 软关联
     max_position_size       DECIMAL(8, 2),          -- 最大仓位(%)
     stop_loss_percentage    DECIMAL(8, 2),           -- 止损比例(%)
     take_profit_percentage  DECIMAL(8, 2),           -- 止盈比例(%)
@@ -1229,7 +1231,7 @@ COMMENT ON COLUMN signal_risk_parameters.volatility_filter IS '是否启用波�
 -- 信号绩效指标表（一对一关联signal表）
 CREATE TABLE IF NOT EXISTS signal_performance_metrics (
     id                          BIGINT PRIMARY KEY,
-    signal_id                   BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id                   BIGINT NOT NULL UNIQUE,  -- 软关联
     sharpe_ratio                DECIMAL(8, 4),          -- 夏普比率
     win_rate                    DECIMAL(8, 4),           -- 胜率(%)
     profit_factor               DECIMAL(8, 4),           -- 盈亏比
@@ -1253,7 +1255,7 @@ COMMENT ON COLUMN signal_performance_metrics.total_trades IS '总交易次数';
 -- 信号通知设置表（一对一关联signal表）
 CREATE TABLE IF NOT EXISTS signal_notification_settings (
     id                  BIGINT PRIMARY KEY,
-    signal_id           BIGINT NOT NULL UNIQUE REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id           BIGINT NOT NULL UNIQUE,  -- 软关联
     email_alerts        BOOLEAN DEFAULT TRUE,           -- 邮件提醒
     push_notifications  BOOLEAN DEFAULT TRUE,           -- 推送通知
     telegram_bot        BOOLEAN DEFAULT FALSE,          -- Telegram 机器人
@@ -1272,7 +1274,7 @@ COMMENT ON COLUMN signal_notification_settings.alert_threshold IS '提醒阈值�
 
 -- 信号收益曲线时序表（TimescaleDB超表）
 CREATE TABLE IF NOT EXISTS signal_return_curve (
-    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id       BIGINT NOT NULL,  -- 软关联
     time            TIMESTAMPTZ NOT NULL,               -- 日期
     return_value    DECIMAL(12, 4) NOT NULL,             -- 当日累计收益率(%)
     drawdown        DECIMAL(12, 4),                      -- 当日回撤(%)
@@ -1288,7 +1290,7 @@ CREATE INDEX IF NOT EXISTS idx_signal_return_curve_signal ON signal_return_curve
 
 -- 信号月度收益表
 CREATE TABLE IF NOT EXISTS signal_monthly_return (
-    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id       BIGINT NOT NULL,  -- 软关联
     month           DATE NOT NULL,                      -- 月份（取当月1日）
     return_value    DECIMAL(12, 4) NOT NULL,             -- 月度收益率(%)
     PRIMARY KEY (signal_id, month)
@@ -1303,7 +1305,7 @@ CREATE INDEX IF NOT EXISTS idx_signal_monthly_return ON signal_monthly_return (s
 -- 信号当前持仓表
 CREATE TABLE IF NOT EXISTS signal_position (
     id              BIGINT PRIMARY KEY,
-    signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    signal_id       BIGINT NOT NULL,  -- 软关联
     symbol          VARCHAR(32) NOT NULL,               -- 交易对
     side            VARCHAR(8) NOT NULL,                 -- 方向：long / short
     amount          DECIMAL(18, 8) NOT NULL,             -- 数量
@@ -1311,7 +1313,9 @@ CREATE TABLE IF NOT EXISTS signal_position (
     current_price   DECIMAL(18, 8),                      -- 当前价格（实时更新）
     pnl             DECIMAL(14, 4),                      -- 盈亏金额
     pnl_percent     DECIMAL(10, 4),                      -- 盈亏百分比(%)
+    status          VARCHAR(16) NOT NULL DEFAULT 'open', -- 状态：open / closed
     opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closed_at       TIMESTAMPTZ,                         -- 平仓时间
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -1319,12 +1323,14 @@ COMMENT ON TABLE signal_position IS '信号当前持仓表';
 COMMENT ON COLUMN signal_position.side IS '方向：long(做多) / short(做空)';
 COMMENT ON COLUMN signal_position.pnl IS '盈亏金额';
 COMMENT ON COLUMN signal_position.pnl_percent IS '盈亏百分比(%)';
+COMMENT ON COLUMN signal_position.status IS '状态：open(持仓中) / closed(已平仓)';
+COMMENT ON COLUMN signal_position.closed_at IS '平仓时间';
 
 CREATE INDEX IF NOT EXISTS idx_signal_position_signal ON signal_position (signal_id);
 
 -- 跟单收益曲线时序表（TimescaleDB超表，替代JSONB存储，便于大数据量查询）
 CREATE TABLE IF NOT EXISTS signal_follow_return_curve (
-    follow_id       BIGINT NOT NULL REFERENCES signal_follow_orders(id) ON DELETE CASCADE,
+    follow_id       BIGINT NOT NULL,  -- 软关联
     time            TIMESTAMPTZ NOT NULL,                -- 日期
     return_value    DECIMAL(12, 4) NOT NULL,              -- 跟单累计收益率(%)
     signal_return   DECIMAL(12, 4),                       -- 对应信号源的收益率(%)（用于收益对比）
@@ -1342,7 +1348,7 @@ CREATE INDEX IF NOT EXISTS idx_follow_return_curve ON signal_follow_return_curve
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_orders' AND column_name = 'signal_id') THEN
-        ALTER TABLE signal_follow_orders ADD COLUMN signal_id BIGINT REFERENCES signal(id);
+        ALTER TABLE signal_follow_orders ADD COLUMN signal_id BIGINT;  -- 软关联
         COMMENT ON COLUMN signal_follow_orders.signal_id IS '关联的信号广场主表ID';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'signal_follow_orders' AND column_name = 'follow_days') THEN

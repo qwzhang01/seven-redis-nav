@@ -460,6 +460,7 @@ class SignalService:
 
         records = db.query(SignalTradeRecord).filter(
             SignalTradeRecord.signal_id == signal_id,
+            SignalTradeRecord.order_status == "FILLED",
         ).order_by(
             SignalTradeRecord.traded_at.desc()
         ).offset((page - 1) * page_size).limit(page_size).all()

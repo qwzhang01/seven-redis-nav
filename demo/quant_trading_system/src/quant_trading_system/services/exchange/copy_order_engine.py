@@ -31,6 +31,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.models.database import (
     SignalFollowEvent,
@@ -79,6 +80,8 @@ class CopyOrderEngine:
         """
         获取或创建下单客户端（按 API Key + 账户类型 缓存）
 
+        开发环境自动使用 MockBinanceCopyTradeClient，不连接真实 Binance。
+
         Args:
             api_key: 跟单账户 API Key
             api_secret: 跟单账户 API Secret
@@ -86,16 +89,27 @@ class CopyOrderEngine:
             testnet: 是否测试网
 
         Returns:
-            BinanceCopyTradeClient 实例
+            BinanceCopyTradeClient 实例（或 Mock 实例）
         """
         cache_key = (api_key, account_type)
         if cache_key not in self._clients:
-            self._clients[cache_key] = BinanceCopyTradeClient(
-                api_key=api_key,
-                api_secret=api_secret,
-                account_type=account_type,
-                testnet=testnet,
-            )
+            if settings.is_development:
+                from quant_trading_system.services.exchange.mock_binance_copy_trade import (
+                    MockBinanceCopyTradeClient,
+                )
+                self._clients[cache_key] = MockBinanceCopyTradeClient(
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    account_type=account_type,
+                    testnet=testnet,
+                )
+            else:
+                self._clients[cache_key] = BinanceCopyTradeClient(
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    account_type=account_type,
+                    testnet=testnet,
+                )
         return self._clients[cache_key]
 
     async def execute_copy(
