@@ -11,6 +11,7 @@ WebSocket 连接管理器
 - depth/{symbol}            : 市场深度
 - strategy/{strategy_id}    : 策略信号
 - trading/{user_id}         : 交易事件（私有）
+- signal/{signal_id}        : 跟单信号订单事件（实时推送信号源的订单变化）
 """
 
 import asyncio

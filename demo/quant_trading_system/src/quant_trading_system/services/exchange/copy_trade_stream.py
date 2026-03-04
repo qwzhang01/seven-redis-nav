@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from quant_trading_system.core.snowflake import generate_snowflake_id
@@ -120,20 +121,6 @@ class SignalRecordSubscriber(SignalSubscriber):
         try:
             db: Session = next(get_db())
             try:
-                # 去重检查：同一信号源 + 同一原始订单ID + 同一状态，不重复写入
-                if original_order_id:
-                    existing = db.query(SignalTradeRecord.id).filter(
-                        SignalTradeRecord.signal_id == event.signal_id,
-                        SignalTradeRecord.original_order_id == original_order_id,
-                        SignalTradeRecord.order_status == order_status,
-                    ).first()
-                    if existing:
-                        logger.debug(
-                            f"⏭️ 跳过重复订单记录: signal_id={event.signal_id}, "
-                            f"order_id={original_order_id}, status={order_status}"
-                        )
-                        return
-
                 now = datetime.now(timezone.utc)
                 trade_time_ms = data.get("trade_time", 0)
                 traded_at = (
@@ -142,21 +129,36 @@ class SignalRecordSubscriber(SignalSubscriber):
                     else now
                 )
 
-                record = SignalTradeRecord(
-                    id=generate_snowflake_id(),
-                    signal_id=event.signal_id,
-                    original_order_id=original_order_id or None,
-                    order_status=order_status or None,
-                    action=data.get("side", "").lower(),
-                    symbol=data.get("symbol", ""),
-                    price=Decimal(str(round(data.get("price", 0), 8))),
-                    amount=Decimal(str(round(data.get("quantity", 0), 8))),
-                    total=Decimal(str(round(data.get("quote_quantity", 0), 4))),
-                    traded_at=traded_at,
-                    created_at=now,
+                values = {
+                    "id": generate_snowflake_id(),
+                    "signal_id": event.signal_id,
+                    "original_order_id": original_order_id or None,
+                    "order_status": order_status or None,
+                    "action": data.get("side", "").lower(),
+                    "symbol": data.get("symbol", ""),
+                    "price": Decimal(str(round(data.get("price", 0), 8))),
+                    "amount": Decimal(str(round(data.get("quantity", 0), 8))),
+                    "total": Decimal(str(round(data.get("quote_quantity", 0), 4))),
+                    "traded_at": traded_at,
+                    "created_at": now,
+                }
+
+                # 使用 PostgreSQL 原生 INSERT ... ON CONFLICT DO NOTHING
+                # 依赖唯一索引 idx_signal_trade_dedup (signal_id, original_order_id, order_status)
+                stmt = pg_insert(SignalTradeRecord).values(**values)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["signal_id", "original_order_id", "order_status"],
                 )
-                db.add(record)
+                result = db.execute(stmt)
                 db.commit()
+
+                # rowcount == 1 表示插入成功，== 0 表示冲突被跳过
+                if result.rowcount == 0:
+                    logger.debug(
+                        f"⏭️ 跳过重复订单记录: signal_id={event.signal_id}, "
+                        f"order_id={original_order_id}, status={order_status}"
+                    )
+                    return
 
                 status_label = event.type.name.replace("ORDER_", "")
                 logger.info(
@@ -165,6 +167,31 @@ class SignalRecordSubscriber(SignalSubscriber):
                     f"{data.get('symbol')} {data.get('side')} "
                     f"qty={data.get('quantity', 0):.6f} price={data.get('price', 0):.4f}"
                 )
+
+                # 通过 WebSocket 推送跟单信号到前端页面
+                try:
+                    from quant_trading_system.api.websocket.trading_ws import push_copy_trade_signal
+
+                    await push_copy_trade_signal(
+                        signal_id=event.signal_id,
+                        event_type=event.type.name,
+                        trade_data={
+                            "signal_id": event.signal_id,
+                            "original_order_id": original_order_id,
+                            "order_status": order_status,
+                            "symbol": data.get("symbol", ""),
+                            "side": data.get("side", ""),
+                            "price": float(data.get("price", 0)),
+                            "quantity": float(data.get("quantity", 0)),
+                            "quote_quantity": float(data.get("quote_quantity", 0)),
+                            "trade_time": data.get("trade_time", 0),
+                            "commission": float(data.get("commission", 0)),
+                            "commission_asset": data.get("commission_asset", ""),
+                        },
+                    )
+                except Exception as e:
+                    # WebSocket 推送失败不应影响主逻辑
+                    logger.debug(f"WebSocket 推送跟单信号失败: {e}")
             except Exception as e:
                 db.rollback()
                 logger.error(f"存储信号记录失败: {e}", exc_info=True)

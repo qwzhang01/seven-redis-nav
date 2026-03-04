@@ -129,3 +129,26 @@ async def push_position_update(user_id: str, position_data: dict) -> None:
         "type": "position",
         "data": position_data,
     })
+
+
+async def push_copy_trade_signal(signal_id: int, event_type: str, trade_data: dict) -> None:
+    """
+    推送跟单信号的订单事件到 WebSocket 前端
+
+    由信号记录订阅器在收到实时订单事件后调用，向订阅了 signal/{signal_id} 频道的
+    前端客户端推送跟单信号的订单变化（创建、成交、取消等）。
+
+    前端通过策略 WebSocket 订阅 signal/{signal_id} 频道即可接收。
+
+    参数：
+    - signal_id : 信号源 ID（signal 表的 id）
+    - event_type: 事件类型，如 ORDER_NEW / ORDER_FILLED / ORDER_PARTIALLY_FILLED / ORDER_CANCELED
+    - trade_data: 订单数据字典，包含 symbol / side / price / quantity 等
+    """
+    channel = f"signal/{signal_id}"
+    await ws_manager.broadcast_to_channel(channel, {
+        "type": "copy_trade_signal",
+        "channel": channel,
+        "event_type": event_type,
+        "data": trade_data,
+    })
