@@ -671,5 +671,3 @@ class BinanceRestClient(BinanceRestBase):
                 pos for pos in result
                 if float(pos.get("positionAmt", 0)) != 0
             ]
-
-    # close、__enter__、__exit__ 已由 BinanceRestBase 提供，无需重复定义
