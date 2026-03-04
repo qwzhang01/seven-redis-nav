@@ -227,7 +227,7 @@ export interface SignalHistoryResponse {
   total: number
   page: number
   pageSize: number
-  records: SignalHistoryRecord[]
+  items: SignalHistoryRecord[]
 }
 
 /** 月度收益项 */
