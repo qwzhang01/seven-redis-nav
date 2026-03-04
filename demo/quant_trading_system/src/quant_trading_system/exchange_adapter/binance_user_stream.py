@@ -28,6 +28,8 @@ from typing import Any, Callable, Coroutine, Optional
 
 from binance import AsyncClient, BinanceSocketManager
 
+from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+
 logger = logging.getLogger(__name__)
 
 # 回调函数类型：接收事件字典，返回协程
@@ -94,6 +96,14 @@ class BinanceUserStreamManager:
 
         # 快照回调：启动时拉取历史数据后触发，参数为 {"open_orders": [...], "positions": [...], "account": {...}, "recent_trades": [...]}
         self.on_snapshot_ready: Optional[EventCallback] = None
+
+        # REST 客户端（用于拉取历史数据，复用 BinanceRestClient 避免两套实现）
+        self._rest_client = BinanceRestClient(
+            api_key=api_key,
+            api_secret=api_secret,
+            market_type=account_type,
+            testnet=testnet,
+        )
 
         # 统计
         self._events_received = 0
@@ -284,31 +294,12 @@ class BinanceUserStreamManager:
         except Exception as e:
             logger.error(f"处理事件回调异常: {event_type}, 错误: {e}", exc_info=True)
 
-    # ── REST API 历史数据拉取 ─────────────────────────────────
+    # ── REST API 历史数据拉取（委托 BinanceRestClient） ─────────
 
     async def fetch_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
-        """
-        拉取当前挂单
-
-        Args:
-            symbol: 交易对（为 None 则查询所有交易对）
-
-        Returns:
-            挂单列表
-        """
-        client = await self._ensure_client()
+        """拉取当前挂单（委托 BinanceRestClient）"""
         try:
-            if self.account_type == "spot":
-                if symbol:
-                    orders = await client.get_open_orders(symbol=symbol)
-                else:
-                    orders = await client.get_open_orders()
-            else:
-                if symbol:
-                    orders = await client.futures_get_open_orders(symbol=symbol)
-                else:
-                    orders = await client.futures_get_open_orders()
-
+            orders = await self._rest_client.async_get_open_orders(symbol=symbol)
             logger.info(f"拉取当前挂单: account_type={self.account_type}, symbol={symbol or 'ALL'}, count={len(orders)}")
             return orders
         except Exception as e:
@@ -316,23 +307,9 @@ class BinanceUserStreamManager:
             raise
 
     async def fetch_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
-        """
-        拉取指定交易对的历史订单（含已取消、已成交）
-
-        Args:
-            symbol: 交易对（必填）
-            limit: 返回数量上限，默认50
-
-        Returns:
-            历史订单列表
-        """
-        client = await self._ensure_client()
+        """拉取指定交易对的历史订单（委托 BinanceRestClient）"""
         try:
-            if self.account_type == "spot":
-                orders = await client.get_all_orders(symbol=symbol, limit=limit)
-            else:
-                orders = await client.futures_get_all_orders(symbol=symbol, limit=limit)
-
+            orders = await self._rest_client.async_get_all_orders(symbol=symbol, limit=limit)
             logger.info(f"拉取历史订单: account_type={self.account_type}, symbol={symbol}, count={len(orders)}")
             return orders
         except Exception as e:
@@ -340,23 +317,9 @@ class BinanceUserStreamManager:
             raise
 
     async def fetch_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
-        """
-        拉取指定交易对的成交记录
-
-        Args:
-            symbol: 交易对（必填）
-            limit: 返回数量上限，默认50
-
-        Returns:
-            成交记录列表
-        """
-        client = await self._ensure_client()
+        """拉取指定交易对的成交记录（委托 BinanceRestClient）"""
         try:
-            if self.account_type == "spot":
-                trades = await client.get_my_trades(symbol=symbol, limit=limit)
-            else:
-                trades = await client.futures_account_trades(symbol=symbol, limit=limit)
-
+            trades = await self._rest_client.async_get_my_trades(symbol=symbol, limit=limit)
             logger.info(f"拉取成交记录: account_type={self.account_type}, symbol={symbol}, count={len(trades)}")
             return trades
         except Exception as e:
@@ -364,32 +327,9 @@ class BinanceUserStreamManager:
             raise
 
     async def fetch_positions(self) -> list[dict[str, Any]]:
-        """
-        拉取当前持仓信息
-
-        - 现货：从账户信息中提取非零余额的资产
-        - 合约：直接查询持仓信息
-
-        Returns:
-            持仓列表
-        """
-        client = await self._ensure_client()
+        """拉取当前持仓信息（委托 BinanceRestClient）"""
         try:
-            if self.account_type == "spot":
-                account = await client.get_account()
-                # 过滤出有余额的资产作为"持仓"
-                positions = [
-                    balance for balance in account.get("balances", [])
-                    if float(balance.get("free", 0)) > 0 or float(balance.get("locked", 0)) > 0
-                ]
-            else:
-                positions_raw = await client.futures_position_information()
-                # 过滤出有持仓量的仓位
-                positions = [
-                    pos for pos in positions_raw
-                    if float(pos.get("positionAmt", 0)) != 0
-                ]
-
+            positions = await self._rest_client.async_get_positions()
             logger.info(f"拉取持仓信息: account_type={self.account_type}, count={len(positions)}")
             return positions
         except Exception as e:
@@ -397,22 +337,9 @@ class BinanceUserStreamManager:
             raise
 
     async def fetch_account_info(self) -> dict[str, Any]:
-        """
-        拉取账户信息
-
-        - 现货：账户余额、权限等
-        - 合约：账户余额、保证金、未实现盈亏等
-
-        Returns:
-            账户信息字典
-        """
-        client = await self._ensure_client()
+        """拉取账户信息（委托 BinanceRestClient）"""
         try:
-            if self.account_type == "spot":
-                account = await client.get_account()
-            else:
-                account = await client.futures_account()
-
+            account = await self._rest_client.async_get_account_info()
             logger.info(f"拉取账户信息: account_type={self.account_type}")
             return account
         except Exception as e:

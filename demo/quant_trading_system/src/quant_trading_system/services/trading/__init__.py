@@ -5,7 +5,7 @@
 """
 
 from quant_trading_system.services.trading.trading_engine import TradingEngine
-from quant_trading_system.services.trading.gateway import ExchangeGateway, BinanceGateway
+from quant_trading_system.exchange_adapter.binance_gateway import ExchangeGateway, BinanceGateway
 from quant_trading_system.services.trading.orchestrator import TradingOrchestrator, run_live
 
 __all__ = [

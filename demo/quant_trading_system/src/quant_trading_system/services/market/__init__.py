@@ -16,11 +16,11 @@ from quant_trading_system.engines.market_event_bus import (
     MarketEventType,
     MarketSubscriber,
 )
-from quant_trading_system.services.market.exchange_connector import (
+from quant_trading_system.exchange_adapter.binance_connector import (
     BinanceConnector,
     ExchangeConnector,
-    WebSocketClient,
 )
+from quant_trading_system.exchange_adapter.ws_client import WebSocketClient
 from quant_trading_system.services.market.market_subscribers import (
     DatabaseSubscriber,
     TradingEngineSubscriber,

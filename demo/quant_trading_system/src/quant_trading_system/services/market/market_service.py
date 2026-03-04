@@ -40,7 +40,7 @@ from quant_trading_system.engines.market_event_bus import (
 )
 
 # 交易所连接器
-from quant_trading_system.services.market.exchange_connector import (
+from quant_trading_system.exchange_adapter.binance_connector import (
     BinanceConnector,
     ExchangeConnector,
 )
@@ -57,7 +57,7 @@ from quant_trading_system.services.market.historical_kline_syncer import (
     HistoricalKlineSyncer,
     SyncerConfig,
 )
-from quant_trading_system.services.market.binance_api import BinanceAPI
+from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
 
 # K线引擎（保持原有实现，负责内存缓冲和K线合成）
 from quant_trading_system.services.market.kline_engine import KLineEngine
@@ -129,7 +129,7 @@ class MarketService:
 
         # ── 历史数据同步器 ──
         self._historical_syncer = HistoricalKlineSyncer(
-            binance_api=BinanceAPI(
+            binance_api=BinanceRestClient(
                 api_key=settings.BINANCE_API_KEY,
                 api_secret=settings.BINANCE_SECRET_KEY,
             ),

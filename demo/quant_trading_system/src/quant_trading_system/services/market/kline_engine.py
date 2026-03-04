@@ -687,8 +687,8 @@ class KLineEngine:
 
         # 根据交易所选择 API 客户端
         if exchange == "binance":
-            from quant_trading_system.services.market.binance_api import BinanceAPI
-            api_class = BinanceAPI
+            from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
+            api_class = BinanceRestClient
         else:
             logger.error(f"Unsupported exchange for history loading: {exchange}")
             return stats

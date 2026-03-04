@@ -58,6 +58,7 @@ def backtest(
 ) -> None:
     """运行回测"""
     # 导入策略模块以触发注册
+    import quant_trading_system.strategy.strategies  # noqa: F401
 
     from quant_trading_system.core.enums import KlineInterval
     from quant_trading_system.services.backtest.backtest_engine import (
@@ -142,7 +143,7 @@ def backtest(
                 )
         else:
             click.echo(f"Fetching historical data from Binance...")
-            from quant_trading_system.services.market.binance_api import BinanceAPI
+            from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
 
             strategy_tfs = list(
                 strategy_class.timeframes) if strategy_class.timeframes else [tf]
@@ -150,7 +151,7 @@ def backtest(
                 click.echo(
                     f"Multi-timeframe strategy: {[t.value for t in strategy_tfs]}")
                 tf_bars = {}
-                with BinanceAPI(market_type="spot") as api:
+                with BinanceRestClient(market_type="spot") as api:
                     for stf in strategy_tfs:
                         click.echo(f"  Fetching {stf.value} data...")
                         tf_bars[stf] = api.fetch_klines(
@@ -167,7 +168,7 @@ def backtest(
                     symbol_formatted = f"{base_symbol}/{quote_symbol}"
                 bars = {symbol_formatted: tf_bars}
             else:
-                with BinanceAPI(market_type="spot") as api:
+                with BinanceRestClient(market_type="spot") as api:
                     bars = api.fetch_klines(
                         symbol=symbol,
                         timeframe=tf,

@@ -29,13 +29,13 @@ import structlog
 
 from quant_trading_system.core.enums import KlineInterval
 from quant_trading_system.models.market import Bar
-from quant_trading_system.services.market.binance_api import BinanceAPI
+from quant_trading_system.exchange_adapter.binance_rest_client import BinanceRestClient
 from quant_trading_system.engines.market_event_bus import (
     MarketEvent,
     MarketEventBus,
     MarketEventType,
 )
-from quant_trading_system.services.market.common_utils import TimeUtils
+from quant_trading_system.exchange_adapter.utils import TimeUtils
 
 logger = structlog.get_logger(__name__)
 
@@ -138,7 +138,7 @@ class HistoricalKlineSyncer:
 
     def __init__(
         self,
-        binance_api: BinanceAPI,
+        binance_api: BinanceRestClient,
         event_bus: MarketEventBus,
         config: SyncerConfig | None = None,
         batch_delay: float = DEFAULT_BATCH_DELAY,

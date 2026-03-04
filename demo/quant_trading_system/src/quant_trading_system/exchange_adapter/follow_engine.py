@@ -43,7 +43,7 @@ from quant_trading_system.engines.signal_event_bus import (
 )
 
 if TYPE_CHECKING:
-    from quant_trading_system.services.exchange.copy_order_engine import CopyOrderEngine
+    from quant_trading_system.exchange_adapter.copy_order_engine import CopyOrderEngine
 
 logger = logging.getLogger(__name__)
 

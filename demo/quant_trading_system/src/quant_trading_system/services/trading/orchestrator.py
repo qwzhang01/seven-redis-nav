@@ -355,7 +355,7 @@ class TradingOrchestrator:
             return
 
         if self.exchange == "binance":
-            from quant_trading_system.services.trading.gateway import BinanceGateway
+            from quant_trading_system.exchange_adapter.binance_gateway import BinanceGateway
 
             gateway = BinanceGateway(
                 api_key=self.api_key,
