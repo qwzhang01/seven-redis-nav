@@ -161,6 +161,7 @@ class _SignalStream:
         """启动信号流"""
         self._stream_manager.on_order_update = self._on_order_event
         self._stream_manager.on_account_update = self._on_account_event
+        self._stream_manager.on_snapshot_ready = self._on_snapshot_ready
         await self._stream_manager.start()
         logger.info(f"信号流已启动: signal_id={self.signal_id}, name={self.signal_name}")
 
@@ -252,6 +253,104 @@ class _SignalStream:
             raw_event=event,
         )
         await self._event_bus.publish(signal_event)
+
+    async def _on_snapshot_ready(self, snapshot: dict[str, Any]) -> None:
+        """
+        处理启动时的历史快照回调
+
+        将快照数据拆分为不同的事件类型发布到事件总线：
+        - SNAPSHOT_OPEN_ORDERS: 当前挂单
+        - SNAPSHOT_POSITIONS: 当前持仓
+        - SNAPSHOT_ACCOUNT: 账户信息
+        """
+        logger.info(
+            f"📸 收到初始快照: signal_id={self.signal_id}, "
+            f"open_orders={len(snapshot.get('open_orders', []))}, "
+            f"positions={len(snapshot.get('positions', []))}, "
+            f"has_account={'yes' if snapshot.get('account') else 'no'}"
+        )
+
+        # 发布挂单快照
+        if snapshot.get("open_orders"):
+            await self._event_bus.publish(SignalEvent(
+                type=SignalEventType.SNAPSHOT_OPEN_ORDERS,
+                signal_id=self.signal_id,
+                data={"open_orders": snapshot["open_orders"]},
+                exchange=self.exchange,
+            ))
+
+        # 发布持仓快照
+        if snapshot.get("positions"):
+            await self._event_bus.publish(SignalEvent(
+                type=SignalEventType.SNAPSHOT_POSITIONS,
+                signal_id=self.signal_id,
+                data={"positions": snapshot["positions"]},
+                exchange=self.exchange,
+            ))
+
+        # 发布账户信息快照
+        if snapshot.get("account"):
+            await self._event_bus.publish(SignalEvent(
+                type=SignalEventType.SNAPSHOT_ACCOUNT,
+                signal_id=self.signal_id,
+                data={"account": snapshot["account"]},
+                exchange=self.exchange,
+            ))
+
+    async def fetch_snapshot(self) -> dict[str, Any]:
+        """
+        手动拉取当前快照（挂单、持仓、账户信息）
+
+        可在运行时按需调用，拉取后同样通过事件总线发布。
+
+        Returns:
+            快照数据字典
+        """
+        snapshot = await self._stream_manager.fetch_initial_snapshot()
+        return snapshot
+
+    async def fetch_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+        """
+        手动拉取当前挂单
+
+        Args:
+            symbol: 交易对（为 None 则查询所有）
+
+        Returns:
+            挂单列表
+        """
+        return await self._stream_manager.fetch_open_orders(symbol=symbol)
+
+    async def fetch_positions(self) -> list[dict[str, Any]]:
+        """
+        手动拉取当前持仓
+
+        Returns:
+            持仓列表
+        """
+        return await self._stream_manager.fetch_positions()
+
+    async def fetch_account_info(self) -> dict[str, Any]:
+        """
+        手动拉取账户信息
+
+        Returns:
+            账户信息字典
+        """
+        return await self._stream_manager.fetch_account_info()
+
+    async def fetch_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        手动拉取指定交易对的成交记录
+
+        Args:
+            symbol: 交易对
+            limit: 返回数量上限
+
+        Returns:
+            成交记录列表
+        """
+        return await self._stream_manager.fetch_trade_history(symbol=symbol, limit=limit)
 
     def _parse_spot_execution_report(self, event: dict) -> Optional[dict[str, Any]]:
         """解析现货订单事件"""
@@ -514,6 +613,96 @@ class SignalStreamEngine:
                 "status": "stopped",
                 "signal_id": signal_id,
             }
+
+    # ── 手动查询历史数据 ────────────────────────────────────────
+
+    def _get_stream(self, signal_id: int) -> _SignalStream:
+        """
+        获取指定信号流实例，不存在则抛异常
+
+        Args:
+            signal_id: 信号源ID
+
+        Returns:
+            _SignalStream 实例
+
+        Raises:
+            ValueError: 指定的信号流不存在
+        """
+        stream = self._streams.get(signal_id)
+        if not stream:
+            raise ValueError(f"未找到运行中的信号流: signal_id={signal_id}")
+        return stream
+
+    async def fetch_snapshot(self, signal_id: int) -> dict[str, Any]:
+        """
+        手动拉取指定信号流的完整快照（挂单、持仓、账户信息）
+
+        拉取后会自动通过事件总线发布 SNAPSHOT_* 事件。
+
+        Args:
+            signal_id: 信号源ID
+
+        Returns:
+            快照数据字典: {"open_orders": [...], "positions": [...], "account": {...}}
+        """
+        stream = self._get_stream(signal_id)
+        return await stream.fetch_snapshot()
+
+    async def fetch_open_orders(self, signal_id: int, symbol: str | None = None) -> list[dict[str, Any]]:
+        """
+        手动拉取指定信号流的当前挂单
+
+        Args:
+            signal_id: 信号源ID
+            symbol: 交易对（为 None 则查询所有）
+
+        Returns:
+            挂单列表
+        """
+        stream = self._get_stream(signal_id)
+        return await stream.fetch_open_orders(symbol=symbol)
+
+    async def fetch_positions(self, signal_id: int) -> list[dict[str, Any]]:
+        """
+        手动拉取指定信号流的当前持仓
+
+        Args:
+            signal_id: 信号源ID
+
+        Returns:
+            持仓列表
+        """
+        stream = self._get_stream(signal_id)
+        return await stream.fetch_positions()
+
+    async def fetch_account_info(self, signal_id: int) -> dict[str, Any]:
+        """
+        手动拉取指定信号流的账户信息
+
+        Args:
+            signal_id: 信号源ID
+
+        Returns:
+            账户信息字典
+        """
+        stream = self._get_stream(signal_id)
+        return await stream.fetch_account_info()
+
+    async def fetch_trade_history(self, signal_id: int, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        手动拉取指定信号流的成交记录
+
+        Args:
+            signal_id: 信号源ID
+            symbol: 交易对（必填）
+            limit: 返回数量上限，默认50
+
+        Returns:
+            成交记录列表
+        """
+        stream = self._get_stream(signal_id)
+        return await stream.fetch_trade_history(symbol=symbol, limit=limit)
 
     # ── 状态查询 ──────────────────────────────────────────────
 

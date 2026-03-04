@@ -61,6 +61,12 @@ class SignalEventType(Enum):
     ACCOUNT_UPDATE = auto()       # 账户持仓变化
     BALANCE_UPDATE = auto()       # 余额变化
 
+    # ── 历史快照事件 ──
+    SNAPSHOT_OPEN_ORDERS = auto()   # 当前挂单快照（启动时拉取）
+    SNAPSHOT_POSITIONS = auto()     # 当前持仓快照（启动时拉取）
+    SNAPSHOT_ACCOUNT = auto()       # 账户信息快照（启动时拉取）
+    SNAPSHOT_TRADE_HISTORY = auto() # 最近成交历史快照（启动时拉取）
+
     # ── 系统事件 ──
     STREAM_CONNECTED = auto()     # 信号流已连接
     STREAM_DISCONNECTED = auto()  # 信号流已断开

@@ -92,6 +92,9 @@ class BinanceUserStreamManager:
         self.on_balance_update: Optional[EventCallback] = None
         self.on_any_event: Optional[EventCallback] = None
 
+        # 快照回调：启动时拉取历史数据后触发，参数为 {"open_orders": [...], "positions": [...], "account": {...}, "recent_trades": [...]}
+        self.on_snapshot_ready: Optional[EventCallback] = None
+
         # 统计
         self._events_received = 0
         self._last_event_time: Optional[float] = None
@@ -133,6 +136,23 @@ class BinanceUserStreamManager:
                 self._client = None
                 self._bm = None
 
+    # ── 确保客户端可用 ────────────────────────────────────────
+
+    async def _ensure_client(self) -> AsyncClient:
+        """
+        确保 AsyncClient 可用，若未创建则自动创建
+
+        Returns:
+            AsyncClient 实例
+
+        Raises:
+            RuntimeError: 如果无法创建客户端
+        """
+        if self._client is None:
+            self._client = await self._create_client()
+            self._bm = BinanceSocketManager(self._client)
+        return self._client
+
     # ── WebSocket 连接与事件处理 ──────────────────────────────
 
     async def _ws_loop(self) -> None:
@@ -167,6 +187,12 @@ class BinanceUserStreamManager:
                         f"account_type={self.account_type}, "
                         f"connected_at={self._connected_since}"
                     )
+
+                    # WebSocket 连接成功后，自动拉取一次历史快照
+                    try:
+                        await self.fetch_initial_snapshot()
+                    except Exception as e:
+                        logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
 
                     while self._running:
                         try:
@@ -257,6 +283,203 @@ class BinanceUserStreamManager:
 
         except Exception as e:
             logger.error(f"处理事件回调异常: {event_type}, 错误: {e}", exc_info=True)
+
+    # ── REST API 历史数据拉取 ─────────────────────────────────
+
+    async def fetch_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+        """
+        拉取当前挂单
+
+        Args:
+            symbol: 交易对（为 None 则查询所有交易对）
+
+        Returns:
+            挂单列表
+        """
+        client = await self._ensure_client()
+        try:
+            if self.account_type == "spot":
+                if symbol:
+                    orders = await client.get_open_orders(symbol=symbol)
+                else:
+                    orders = await client.get_open_orders()
+            else:
+                if symbol:
+                    orders = await client.futures_get_open_orders(symbol=symbol)
+                else:
+                    orders = await client.futures_get_open_orders()
+
+            logger.info(f"拉取当前挂单: account_type={self.account_type}, symbol={symbol or 'ALL'}, count={len(orders)}")
+            return orders
+        except Exception as e:
+            logger.error(f"拉取当前挂单失败: {e}", exc_info=True)
+            raise
+
+    async def fetch_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        拉取指定交易对的历史订单（含已取消、已成交）
+
+        Args:
+            symbol: 交易对（必填）
+            limit: 返回数量上限，默认50
+
+        Returns:
+            历史订单列表
+        """
+        client = await self._ensure_client()
+        try:
+            if self.account_type == "spot":
+                orders = await client.get_all_orders(symbol=symbol, limit=limit)
+            else:
+                orders = await client.futures_get_all_orders(symbol=symbol, limit=limit)
+
+            logger.info(f"拉取历史订单: account_type={self.account_type}, symbol={symbol}, count={len(orders)}")
+            return orders
+        except Exception as e:
+            logger.error(f"拉取历史订单失败: symbol={symbol}, error={e}", exc_info=True)
+            raise
+
+    async def fetch_trade_history(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        拉取指定交易对的成交记录
+
+        Args:
+            symbol: 交易对（必填）
+            limit: 返回数量上限，默认50
+
+        Returns:
+            成交记录列表
+        """
+        client = await self._ensure_client()
+        try:
+            if self.account_type == "spot":
+                trades = await client.get_my_trades(symbol=symbol, limit=limit)
+            else:
+                trades = await client.futures_account_trades(symbol=symbol, limit=limit)
+
+            logger.info(f"拉取成交记录: account_type={self.account_type}, symbol={symbol}, count={len(trades)}")
+            return trades
+        except Exception as e:
+            logger.error(f"拉取成交记录失败: symbol={symbol}, error={e}", exc_info=True)
+            raise
+
+    async def fetch_positions(self) -> list[dict[str, Any]]:
+        """
+        拉取当前持仓信息
+
+        - 现货：从账户信息中提取非零余额的资产
+        - 合约：直接查询持仓信息
+
+        Returns:
+            持仓列表
+        """
+        client = await self._ensure_client()
+        try:
+            if self.account_type == "spot":
+                account = await client.get_account()
+                # 过滤出有余额的资产作为"持仓"
+                positions = [
+                    balance for balance in account.get("balances", [])
+                    if float(balance.get("free", 0)) > 0 or float(balance.get("locked", 0)) > 0
+                ]
+            else:
+                positions_raw = await client.futures_position_information()
+                # 过滤出有持仓量的仓位
+                positions = [
+                    pos for pos in positions_raw
+                    if float(pos.get("positionAmt", 0)) != 0
+                ]
+
+            logger.info(f"拉取持仓信息: account_type={self.account_type}, count={len(positions)}")
+            return positions
+        except Exception as e:
+            logger.error(f"拉取持仓信息失败: {e}", exc_info=True)
+            raise
+
+    async def fetch_account_info(self) -> dict[str, Any]:
+        """
+        拉取账户信息
+
+        - 现货：账户余额、权限等
+        - 合约：账户余额、保证金、未实现盈亏等
+
+        Returns:
+            账户信息字典
+        """
+        client = await self._ensure_client()
+        try:
+            if self.account_type == "spot":
+                account = await client.get_account()
+            else:
+                account = await client.futures_account()
+
+            logger.info(f"拉取账户信息: account_type={self.account_type}")
+            return account
+        except Exception as e:
+            logger.error(f"拉取账户信息失败: {e}", exc_info=True)
+            raise
+
+    async def fetch_initial_snapshot(self) -> dict[str, Any]:
+        """
+        拉取启动时的初始快照
+
+        并发拉取当前挂单、持仓、账户信息，并通过 on_snapshot_ready 回调通知上层。
+
+        Returns:
+            快照数据字典:
+            {
+                "open_orders": [...],    # 当前挂单
+                "positions": [...],      # 当前持仓
+                "account": {...},        # 账户信息
+            }
+        """
+        logger.info(f"开始拉取初始快照: account_type={self.account_type}")
+
+        # 并发拉取各项数据
+        open_orders_task = asyncio.create_task(self._safe_fetch(self.fetch_open_orders, "open_orders"))
+        positions_task = asyncio.create_task(self._safe_fetch(self.fetch_positions, "positions"))
+        account_task = asyncio.create_task(self._safe_fetch(self.fetch_account_info, "account"))
+
+        results = await asyncio.gather(open_orders_task, positions_task, account_task)
+
+        snapshot = {
+            "open_orders": results[0] or [],
+            "positions": results[1] or [],
+            "account": results[2] or {},
+        }
+
+        logger.info(
+            f"📸 初始快照拉取完成: account_type={self.account_type}, "
+            f"open_orders={len(snapshot['open_orders'])}, "
+            f"positions={len(snapshot['positions'])}, "
+            f"has_account={'yes' if snapshot['account'] else 'no'}"
+        )
+
+        # 通知上层
+        if self.on_snapshot_ready:
+            try:
+                await self.on_snapshot_ready(snapshot)
+            except Exception as e:
+                logger.error(f"快照回调执行失败: {e}", exc_info=True)
+
+        return snapshot
+
+    async def _safe_fetch(self, fetch_func, name: str) -> Any:
+        """
+        安全执行拉取操作，异常时返回 None 而不中断其他拉取
+
+        Args:
+            fetch_func: 异步拉取函数
+            name: 数据名称（用于日志）
+
+        Returns:
+            拉取结果或 None
+        """
+        try:
+            return await fetch_func()
+        except Exception as e:
+            logger.error(f"拉取 {name} 失败（不影响其他数据）: {e}")
+            return None
 
     # ── 启动 / 停止 ──────────────────────────────────────────
 
