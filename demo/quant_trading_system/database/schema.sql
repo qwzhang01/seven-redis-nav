@@ -1298,6 +1298,8 @@ CREATE INDEX IF NOT EXISTS idx_signal_position_signal ON signal_position (signal
 CREATE TABLE IF NOT EXISTS signal_trade_record (
     id              BIGINT PRIMARY KEY,
     signal_id       BIGINT NOT NULL REFERENCES signal(id) ON DELETE CASCADE,
+    original_order_id VARCHAR(64),                       -- 交易所原始订单ID，用于去重
+    order_status    VARCHAR(24),                         -- 订单状态：NEW / PARTIALLY_FILLED / FILLED / CANCELED / SNAPSHOT / SNAPSHOT_HISTORY
     action          VARCHAR(8) NOT NULL,                 -- buy / sell
     symbol          VARCHAR(32) NOT NULL,                -- 交易对
     price           DECIMAL(18, 8) NOT NULL,             -- 成交价格
@@ -1310,11 +1312,15 @@ CREATE TABLE IF NOT EXISTS signal_trade_record (
 );
 
 COMMENT ON TABLE signal_trade_record IS '信号交易记录表';
+COMMENT ON COLUMN signal_trade_record.original_order_id IS '交易所原始订单ID，用于去重';
+COMMENT ON COLUMN signal_trade_record.order_status IS '订单状态：NEW/PARTIALLY_FILLED/FILLED/CANCELED/SNAPSHOT/SNAPSHOT_HISTORY';
 COMMENT ON COLUMN signal_trade_record.action IS '交易方向: buy/sell';
 COMMENT ON COLUMN signal_trade_record.strength IS '信号强度: strong/medium/weak';
 COMMENT ON COLUMN signal_trade_record.pnl IS '盈亏金额（卖出时有值）';
 
 CREATE INDEX IF NOT EXISTS idx_signal_trade_signal ON signal_trade_record (signal_id, traded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_trade_order_id ON signal_trade_record (original_order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signal_trade_dedup ON signal_trade_record (signal_id, original_order_id, order_status) WHERE original_order_id IS NOT NULL;
 
 -- 跟单收益曲线时序表（TimescaleDB超表，替代JSONB存储，便于大数据量查询）
 CREATE TABLE IF NOT EXISTS signal_follow_return_curve (

@@ -111,11 +111,29 @@ class SignalRecordSubscriber(SignalSubscriber):
         将实时订单事件存储到 signal_trade_record 表
 
         处理所有订单状态变化：NEW / PARTIALLY_FILLED / FILLED / CANCELED
+        通过 signal_id + original_order_id + order_status 去重，避免重复写入。
         """
         data = event.data
+        original_order_id = data.get("original_order_id", "")
+        order_status = data.get("status", "")
+
         try:
             db: Session = next(get_db())
             try:
+                # 去重检查：同一信号源 + 同一原始订单ID + 同一状态，不重复写入
+                if original_order_id:
+                    existing = db.query(SignalTradeRecord.id).filter(
+                        SignalTradeRecord.signal_id == event.signal_id,
+                        SignalTradeRecord.original_order_id == original_order_id,
+                        SignalTradeRecord.order_status == order_status,
+                    ).first()
+                    if existing:
+                        logger.debug(
+                            f"⏭️ 跳过重复订单记录: signal_id={event.signal_id}, "
+                            f"order_id={original_order_id}, status={order_status}"
+                        )
+                        return
+
                 now = datetime.now(timezone.utc)
                 trade_time_ms = data.get("trade_time", 0)
                 traded_at = (
@@ -127,6 +145,8 @@ class SignalRecordSubscriber(SignalSubscriber):
                 record = SignalTradeRecord(
                     id=generate_snowflake_id(),
                     signal_id=event.signal_id,
+                    original_order_id=original_order_id or None,
+                    order_status=order_status or None,
                     action=data.get("side", "").lower(),
                     symbol=data.get("symbol", ""),
                     price=Decimal(str(round(data.get("price", 0), 8))),
@@ -141,6 +161,7 @@ class SignalRecordSubscriber(SignalSubscriber):
                 status_label = event.type.name.replace("ORDER_", "")
                 logger.info(
                     f"📝 信号记录已存储 [{status_label}]: signal_id={event.signal_id}, "
+                    f"order_id={original_order_id}, "
                     f"{data.get('symbol')} {data.get('side')} "
                     f"qty={data.get('quantity', 0):.6f} price={data.get('price', 0):.4f}"
                 )
@@ -159,6 +180,7 @@ class SignalRecordSubscriber(SignalSubscriber):
         将挂单快照存储到 signal_trade_record 表
 
         启动时拉取的当前挂单，记录到交易记录中。
+        通过 signal_id + original_order_id + order_status 去重。
         """
         open_orders = event.data.get("open_orders", [])
         if not open_orders:
@@ -169,6 +191,7 @@ class SignalRecordSubscriber(SignalSubscriber):
             try:
                 now = datetime.now(timezone.utc)
                 saved_count = 0
+                skipped_count = 0
 
                 for order in open_orders:
                     # 解析挂单数据（兼容现货和合约的 API 返回格式）
@@ -178,6 +201,18 @@ class SignalRecordSubscriber(SignalSubscriber):
                     orig_qty = float(order.get("origQty", 0))
                     executed_qty = float(order.get("executedQty", 0))
                     order_time_ms = order.get("time", 0)
+                    original_order_id = str(order.get("orderId", ""))
+
+                    # 去重检查
+                    if original_order_id:
+                        existing = db.query(SignalTradeRecord.id).filter(
+                            SignalTradeRecord.signal_id == event.signal_id,
+                            SignalTradeRecord.original_order_id == original_order_id,
+                            SignalTradeRecord.order_status == "SNAPSHOT",
+                        ).first()
+                        if existing:
+                            skipped_count += 1
+                            continue
 
                     traded_at = (
                         datetime.fromtimestamp(order_time_ms / 1000, tz=timezone.utc)
@@ -188,6 +223,8 @@ class SignalRecordSubscriber(SignalSubscriber):
                     record = SignalTradeRecord(
                         id=generate_snowflake_id(),
                         signal_id=event.signal_id,
+                        original_order_id=original_order_id or None,
+                        order_status="SNAPSHOT",
                         action=side,
                         symbol=symbol,
                         price=Decimal(str(round(price, 8))),
@@ -202,7 +239,7 @@ class SignalRecordSubscriber(SignalSubscriber):
                 db.commit()
                 logger.info(
                     f"📝 挂单快照已存储: signal_id={event.signal_id}, "
-                    f"保存 {saved_count} 条挂单记录"
+                    f"保存 {saved_count} 条, 跳过重复 {skipped_count} 条"
                 )
             except Exception as e:
                 db.rollback()
@@ -318,7 +355,7 @@ class SignalRecordSubscriber(SignalSubscriber):
         """
         将成交历史快照存储到 signal_trade_record 表
 
-        通过 original_order_id 去重，避免与实时事件重复写入。
+        通过 signal_id + original_order_id + order_status 去重，避免与实时事件重复写入。
         """
         trades = event.data.get("trades", [])
         if not trades:
@@ -329,9 +366,11 @@ class SignalRecordSubscriber(SignalSubscriber):
             try:
                 now = datetime.now(timezone.utc)
                 saved_count = 0
+                skipped_count = 0
 
                 for trade in trades:
                     symbol = trade.get("symbol", "")
+                    original_order_id = str(trade.get("orderId", "") or trade.get("id", ""))
                     side = trade.get("side", "BUY") if trade.get("isBuyer") is None else (
                         "buy" if trade.get("isBuyer") else "sell"
                     )
@@ -342,6 +381,17 @@ class SignalRecordSubscriber(SignalSubscriber):
                     quote_qty = float(trade.get("quoteQty", price * qty))
                     trade_time_ms = trade.get("time", 0)
 
+                    # 去重检查：避免与实时事件或多次快照拉取重复
+                    if original_order_id:
+                        existing = db.query(SignalTradeRecord.id).filter(
+                            SignalTradeRecord.signal_id == event.signal_id,
+                            SignalTradeRecord.original_order_id == original_order_id,
+                            SignalTradeRecord.order_status == "SNAPSHOT_HISTORY",
+                        ).first()
+                        if existing:
+                            skipped_count += 1
+                            continue
+
                     traded_at = (
                         datetime.fromtimestamp(trade_time_ms / 1000, tz=timezone.utc)
                         if trade_time_ms
@@ -351,6 +401,8 @@ class SignalRecordSubscriber(SignalSubscriber):
                     record = SignalTradeRecord(
                         id=generate_snowflake_id(),
                         signal_id=event.signal_id,
+                        original_order_id=original_order_id or None,
+                        order_status="SNAPSHOT_HISTORY",
                         action=side,
                         symbol=symbol,
                         price=Decimal(str(round(price, 8))),
@@ -365,7 +417,7 @@ class SignalRecordSubscriber(SignalSubscriber):
                 db.commit()
                 logger.info(
                     f"📝 成交历史快照已存储: signal_id={event.signal_id}, "
-                    f"保存 {saved_count} 条成交记录"
+                    f"保存 {saved_count} 条, 跳过重复 {skipped_count} 条"
                 )
             except Exception as e:
                 db.rollback()

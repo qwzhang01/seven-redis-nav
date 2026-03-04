@@ -541,6 +541,8 @@ class SignalTradeRecord(Base):
 
     id = Column(BigInteger, primary_key=True, default=generate_snowflake_id)
     signal_id = Column(BigInteger, ForeignKey("signal.id", ondelete="CASCADE"), nullable=False)
+    original_order_id = Column(String(64), nullable=True, index=True)  # 交易所原始订单ID，用于去重
+    order_status = Column(String(24), nullable=True)     # NEW / PARTIALLY_FILLED / FILLED / CANCELED / SNAPSHOT
     action = Column(String(8), nullable=False)           # buy / sell
     symbol = Column(String(32), nullable=False)
     price = Column(Numeric(18, 8), nullable=False)
