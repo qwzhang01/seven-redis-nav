@@ -28,7 +28,8 @@ from typing import Any, Callable, Coroutine, Optional
 import structlog
 from binance import AsyncClient, BinanceSocketManager
 
-from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.binance.binance_rest_client import \
+    BinanceRestClient
 
 logger = structlog.get_logger(__name__)
 
@@ -54,9 +55,9 @@ class BinanceUserStreamManager:
     """
 
     # WebSocket 重连参数
-    RECONNECT_BASE_DELAY = 1.0   # 初始重连延迟（秒）
-    RECONNECT_MAX_DELAY = 60.0   # 最大重连延迟（秒）
-    RECONNECT_MAX_RETRIES = 50   # 最大重连次数（0=无限）
+    RECONNECT_BASE_DELAY = 1.0  # 初始重连延迟（秒）
+    RECONNECT_MAX_DELAY = 60.0  # 最大重连延迟（秒）
+    RECONNECT_MAX_RETRIES = 50  # 最大重连次数（0=无限）
 
     def __init__(
         self,
@@ -220,7 +221,8 @@ class BinanceUserStreamManager:
                     try:
                         await self._rest_client.async_sync_server_time()
                     except Exception as e:
-                        logger.warning(f"REST 客户端同步服务器时间失败（将使用本地时间）: {e}")
+                        logger.warning(
+                            f"REST 客户端同步服务器时间失败（将使用本地时间）: {e}")
 
                     while self._running:
                         try:
@@ -401,11 +403,18 @@ class BinanceUserStreamManager:
 
         try:
             await self.fetch_initial_snapshot()
+
+            trade = self._rest_client.get_my_trades()
+            logger.info(f"trade: {trade}")
+            orders = self._rest_client.get_all_orders()
+            logger.info(f"orders: {orders}")
+            
         except Exception as e:
             logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
 
         # 启动 WebSocket 连接协程
-        self._ws_task = asyncio.create_task(self._ws_loop(), name="binance_user_stream_ws")
+        self._ws_task = asyncio.create_task(self._ws_loop(),
+                                            name="binance_user_stream_ws")
 
         logger.info("币安 User Data Stream 管理器已启动")
 
