@@ -20,7 +20,59 @@ from quant_trading_system.engines.signal_event_bus import (
 logger = logging.getLogger(__name__)
 
 
-class SignalStream:
+def _parse_spot_execution_report(event: dict) -> Optional[dict[str, Any]]:
+    """解析现货订单事件"""
+    try:
+        executed_qty = float(event.get("z", 0))
+        cum_quote = float(event.get("Z", 0))
+        avg_price = (cum_quote / executed_qty) if executed_qty > 0 else 0
+        commission = float(event.get("n", 0))
+        commission_asset = event.get("N", "")
+
+        return {
+            "symbol": event.get("s", ""),
+            "side": event.get("S", ""),
+            "order_type": event.get("o", "MARKET"),
+            "status": event.get("X", ""),
+            "quantity": executed_qty,
+            "price": avg_price,
+            "quote_quantity": cum_quote,
+            "original_order_id": str(event.get("i", "")),
+            "trade_time": event.get("T", 0),
+            "commission": commission,
+            "commission_asset": commission_asset,
+        }
+    except (ValueError, TypeError) as e:
+        logger.error(f"解析现货订单事件失败: {e}")
+        return None
+
+
+def _parse_futures_order_update(event: dict) -> Optional[dict[str, Any]]:
+    """解析合约订单事件"""
+    try:
+        order = event.get("o", {})
+        qty = float(order.get("z", 0))
+        avg_price = float(order.get("ap", 0))
+
+        return {
+            "symbol": order.get("s", ""),
+            "side": order.get("S", ""),
+            "order_type": order.get("o", "MARKET"),
+            "status": order.get("X", ""),
+            "quantity": qty,
+            "price": avg_price,
+            "quote_quantity": qty * avg_price,
+            "original_order_id": str(order.get("i", "")),
+            "trade_time": order.get("T", 0),
+            "commission": float(order.get("n", 0)),
+            "commission_asset": order.get("N", ""),
+        }
+    except (ValueError, TypeError) as e:
+        logger.error(f"解析合约订单事件失败: {e}")
+        return None
+
+
+class FlowSignalStream:
     """
     单个信号流实例
 
@@ -101,9 +153,9 @@ class SignalStream:
 
         # 解析事件
         if event_type == "executionReport":
-            order_data = self._parse_spot_execution_report(event)
+            order_data = _parse_spot_execution_report(event)
         elif event_type == "ORDER_TRADE_UPDATE":
-            order_data = self._parse_futures_order_update(event)
+            order_data = _parse_futures_order_update(event)
         else:
             return
 
@@ -201,53 +253,3 @@ class SignalStream:
                 data={"account": snapshot["account"]},
                 exchange=self.exchange,
             ))
-
-    def _parse_spot_execution_report(self, event: dict) -> Optional[dict[str, Any]]:
-        """解析现货订单事件"""
-        try:
-            executed_qty = float(event.get("z", 0))
-            cum_quote = float(event.get("Z", 0))
-            avg_price = (cum_quote / executed_qty) if executed_qty > 0 else 0
-            commission = float(event.get("n", 0))
-            commission_asset = event.get("N", "")
-
-            return {
-                "symbol": event.get("s", ""),
-                "side": event.get("S", ""),
-                "order_type": event.get("o", "MARKET"),
-                "status": event.get("X", ""),
-                "quantity": executed_qty,
-                "price": avg_price,
-                "quote_quantity": cum_quote,
-                "original_order_id": str(event.get("i", "")),
-                "trade_time": event.get("T", 0),
-                "commission": commission,
-                "commission_asset": commission_asset,
-            }
-        except (ValueError, TypeError) as e:
-            logger.error(f"解析现货订单事件失败: {e}")
-            return None
-
-    def _parse_futures_order_update(self, event: dict) -> Optional[dict[str, Any]]:
-        """解析合约订单事件"""
-        try:
-            order = event.get("o", {})
-            qty = float(order.get("z", 0))
-            avg_price = float(order.get("ap", 0))
-
-            return {
-                "symbol": order.get("s", ""),
-                "side": order.get("S", ""),
-                "order_type": order.get("o", "MARKET"),
-                "status": order.get("X", ""),
-                "quantity": qty,
-                "price": avg_price,
-                "quote_quantity": qty * avg_price,
-                "original_order_id": str(order.get("i", "")),
-                "trade_time": order.get("T", 0),
-                "commission": float(order.get("n", 0)),
-                "commission_asset": order.get("N", ""),
-            }
-        except (ValueError, TypeError) as e:
-            logger.error(f"解析合约订单事件失败: {e}")
-            return None

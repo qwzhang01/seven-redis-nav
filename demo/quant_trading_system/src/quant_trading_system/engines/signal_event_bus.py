@@ -362,46 +362,6 @@ class SignalEventBus:
             )
             raise
 
-    # ── 生命周期管理 ──────────────────────────────────────────
-
-    async def start_all_subscribers(self) -> None:
-        """启动所有已注册的订阅器"""
-        seen: set[str] = set()
-        all_subscribers: list[SignalSubscriber] = []
-
-        for subscribers in self._global_subscribers.values():
-            all_subscribers.extend(subscribers)
-        for subscribers in self._signal_subscribers.values():
-            all_subscribers.extend(subscribers)
-
-        for subscriber in all_subscribers:
-            if subscriber.name not in seen:
-                seen.add(subscriber.name)
-                try:
-                    await subscriber.start()
-                    logger.info(f"信号订阅器已启动: {subscriber.name}")
-                except Exception as e:
-                    logger.error(f"信号订阅器启动失败: {subscriber.name}, error={e}")
-
-    async def stop_all_subscribers(self) -> None:
-        """停止所有已注册的订阅器"""
-        seen: set[str] = set()
-        all_subscribers: list[SignalSubscriber] = []
-
-        for subscribers in self._global_subscribers.values():
-            all_subscribers.extend(subscribers)
-        for subscribers in self._signal_subscribers.values():
-            all_subscribers.extend(subscribers)
-
-        for subscriber in all_subscribers:
-            if subscriber.name not in seen:
-                seen.add(subscriber.name)
-                try:
-                    await subscriber.stop()
-                    logger.info(f"信号订阅器已停止: {subscriber.name}")
-                except Exception as e:
-                    logger.error(f"信号订阅器停止失败: {subscriber.name}, error={e}")
-
     # ── 状态查询 ──────────────────────────────────────────────
 
     @property
@@ -433,6 +393,3 @@ class SignalEventBus:
         }
 
 
-# ── 全局单例 ──────────────────────────────────────────────────
-
-signal_event_bus = SignalEventBus()

@@ -271,7 +271,7 @@ async def stop_follow(
     body: StopFollowRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    follow_engine=Depends(get_follow_engine_dep),
+    signal_engine=Depends(get_follow_engine_dep),
 ) -> dict[str, Any]:
     """
     停止跟单
@@ -281,7 +281,7 @@ async def stop_follow(
     """
     try:
         # 从跟单引擎内存中移除
-        await follow_engine.remove_follow(follow_id)
+        await signal_engine.remove_follow(follow_id)
         logger.info(f"已从跟单引擎移除: follow_id={follow_id}")
 
         result = FollowService.stop_follow(

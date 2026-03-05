@@ -223,31 +223,6 @@ class SignalRecordSubscriber(SignalSubscriber):
                     f"{data.get('symbol')} {data.get('side')} "
                     f"qty={data.get('quantity', 0):.6f} price={data.get('price', 0):.4f}"
                 )
-
-                # 通过 WebSocket 推送跟单信号到前端页面
-                try:
-                    from quant_trading_system.api.websocket.trading_ws import push_copy_trade_signal
-
-                    await push_copy_trade_signal(
-                        signal_id=event.signal_id,
-                        event_type=event.type.name,
-                        trade_data={
-                            "signal_id": event.signal_id,
-                            "original_order_id": original_order_id,
-                            "order_status": order_status,
-                            "symbol": data.get("symbol", ""),
-                            "side": data.get("side", ""),
-                            "price": float(data.get("price", 0)),
-                            "quantity": float(data.get("quantity", 0)),
-                            "quote_quantity": float(data.get("quote_quantity", 0)),
-                            "trade_time": data.get("trade_time", 0),
-                            "commission": float(data.get("commission", 0)),
-                            "commission_asset": data.get("commission_asset", ""),
-                        },
-                    )
-                except Exception as e:
-                    # WebSocket 推送失败不应影响主逻辑
-                    logger.debug(f"WebSocket 推送跟单信号失败: {e}")
             except Exception as e:
                 db.rollback()
                 logger.error(f"存储信号记录失败: {e}", exc_info=True)

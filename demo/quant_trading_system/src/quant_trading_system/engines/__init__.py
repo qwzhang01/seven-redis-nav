@@ -30,13 +30,12 @@ from quant_trading_system.engines.signal_event_bus import (  # noqa: F401
     SignalEventBus,
     SignalEventType,
     SignalEvent,
-    signal_event_bus,
 )
 
-
-def get_signal_event_bus() -> SignalEventBus:
-    """获取信号事件总线单例"""
-    return signal_event_bus
+# ── 4. 信号监听引擎 ──
+from quant_trading_system.engines.signal_stream_engine import (  # noqa: F401
+    SignalStreamEngine,
+)
 
 
 __all__ = [
@@ -57,6 +56,6 @@ __all__ = [
     "SignalEventBus",
     "SignalEventType",
     "SignalEvent",
-    "signal_event_bus",
-    "get_signal_event_bus",
+    # 信号监听引擎
+    "SignalStreamEngine",
 ]

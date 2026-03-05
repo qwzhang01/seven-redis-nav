@@ -109,16 +109,17 @@ async def get_signal_stream_engine_dep(request: Request):
 
 async def get_follow_engine_dep(request: Request):
     """
-    FastAPI 依赖注入：获取跟单引擎实例
+    FastAPI 依赖注入：获取信号监听引擎实例（跟单操作代理）
 
     用法：
         @router.get("/xxx")
         async def handler(engine = Depends(get_follow_engine_dep)):
             ...
 
-    若跟单引擎未就绪，自动返回 503 错误。
+    返回 SignalStreamEngine 实例，其内部代理了跟单相关操作。
+    若信号引擎未就绪，自动返回 503 错误。
     """
-    engine = getattr(request.app.state, "follow_engine", None)
+    engine = getattr(request.app.state, "signal_stream_engine", None)
     if engine is None:
-        raise HTTPException(status_code=503, detail="跟单引擎未就绪")
+        raise HTTPException(status_code=503, detail="信号引擎未就绪")
     return engine
