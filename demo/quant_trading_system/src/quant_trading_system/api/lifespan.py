@@ -130,7 +130,7 @@ async def _subscribe_default_symbols() -> None:
         logger.warning("⚠️ 自动订阅默认交易对失败（不影响系统启动）", exc_info=True)
 
 
-def _preload_history() -> None:
+async def _preload_history() -> None:
     """
     自动拉取历史K线数据，预加载到内存缓冲区。
     """
@@ -140,7 +140,7 @@ def _preload_history() -> None:
 
         if settings.is_production:
             logger.info("📡 生产环境：从交易所拉取历史K线数据...")
-            stats = container.market_service.load_history(
+            stats = await container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
                 exchange=settings.exchange.data_provider,
@@ -152,7 +152,7 @@ def _preload_history() -> None:
                         stats=stats)
         else:
             logger.info("💾 开发环境：从数据库加载历史K线数据...")
-            stats = container.market_service.load_history(
+            stats = await container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
                 exchange=settings.exchange.data_provider,
@@ -256,7 +256,7 @@ async def lifespan(app: FastAPI):
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
     await _startup_flow_engines(app)
-    _preload_history()
+    await _preload_history()
 
     yield
 
