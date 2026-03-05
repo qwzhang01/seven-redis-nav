@@ -11,7 +11,7 @@ Web 中间件模块
 
 import time
 import uuid
-import logging
+import structlog
 import jwt
 from collections import defaultdict, deque
 from typing import Deque
@@ -24,7 +24,7 @@ from starlette.types import ASGIApp
 from quant_trading_system.core.config import settings
 from quant_trading_system.core.jwt_utils import JWTUtils
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ──────────────────────────────────────────────
 # 认证中间件白名单（这些路径不需要 Token）
@@ -131,16 +131,24 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
         elapsed = (time.perf_counter() - start) * 1000
-        level = logging.WARNING if response.status_code >= 400 else logging.INFO
-        logger.log(
-            level,
-            "← 请求完成  [%s] %s %s  status=%d  耗时=%.2fms",
-            request_id,
-            request.method,
-            request.url.path,
-            response.status_code,
-            elapsed,
-        )
+        if response.status_code >= 400:
+            logger.warning(
+                "← 请求完成",
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                status=response.status_code,
+                elapsed_ms=round(elapsed, 2),
+            )
+        else:
+            logger.info(
+                "← 请求完成",
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                status=response.status_code,
+                elapsed_ms=round(elapsed, 2),
+            )
         return response
 
 

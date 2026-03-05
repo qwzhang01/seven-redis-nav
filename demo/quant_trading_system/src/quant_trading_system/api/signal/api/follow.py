@@ -16,7 +16,7 @@ C 端接口（需登录）：
 - POST /{follow_id}/stop         : 停止跟单
 """
 
-import logging
+import structlog
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
@@ -28,7 +28,7 @@ from quant_trading_system.core.database import get_db
 from quant_trading_system.api.signal.services.follow_service import FollowService
 from quant_trading_system.api.deps import get_follow_engine_dep
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 

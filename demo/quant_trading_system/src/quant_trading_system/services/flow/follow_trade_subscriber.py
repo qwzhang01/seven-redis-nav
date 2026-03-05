@@ -27,7 +27,7 @@
 """
 
 import asyncio
-import logging
+import structlog
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -53,7 +53,7 @@ from quant_trading_system.engines.signal_event_bus import (
     SignalSubscriber,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # 跟单订阅器需要监听的事件类型

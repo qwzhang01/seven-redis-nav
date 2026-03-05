@@ -4,7 +4,7 @@
 处理所有与用户相关的业务逻辑，包括用户管理、认证、API密钥管理等。
 """
 
-import logging
+import structlog
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from quant_trading_system.api.users.repositories.user_repository import (
     UserRepository, ExchangeRepository, APIKeyRepository
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class UserService:

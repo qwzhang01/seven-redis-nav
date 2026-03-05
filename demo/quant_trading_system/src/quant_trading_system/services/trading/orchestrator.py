@@ -186,16 +186,8 @@ class TradingOrchestrator:
         # 6. 启动策略评价器（注册事件监听）
         await self.evaluator.start()
 
-        # 7. 添加行情数据源
-        await self.market_service.add_exchange(
-            exchange=self.exchange,
-            market_type=self.market_type,
-            api_key=self.api_key,
-            api_secret=self.api_secret,
-        )
-
         # 8. 启动各引擎
-# 注：K线 → EventEngine BAR 的桥接由 MarketDataDispatcher 自动完成
+        # 注：K线 → EventEngine BAR 的桥接由 MarketDataDispatcher 自动完成
         await self.strategy_engine.start()
         await self.trading_engine.start()
         await self.market_service.start()

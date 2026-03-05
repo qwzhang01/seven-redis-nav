@@ -9,7 +9,7 @@
 - 不涉及交易所对接，纯业务逻辑
 """
 
-import logging
+import structlog
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -25,7 +25,7 @@ from quant_trading_system.engines.signal_event_bus import (
     SignalSubscriber,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # 需要存储到 signal_trade_record 的订单事件类型集合

@@ -226,7 +226,7 @@ class ExchangeSettings(BaseSettings):
 
     # 数据源
     data_provider: str = "binance"
-    historical_data_path: str = "./data/historical"
+    market_type: str = "spot"
 
     # 行情数据同步开关（控制是否订阅和同步对应类型的行情数据）
     sync_kline: bool = True    # 是否同步K线数据

@@ -16,14 +16,14 @@ WebSocket 连接管理器
 
 import asyncio
 import json
-import logging
+import structlog
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional, Set
 
 from fastapi import WebSocket
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ---- 资源限制常量 ----
 MAX_CONNECTIONS = 1000              # 最大连接数

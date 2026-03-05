@@ -24,7 +24,7 @@
     {"type": "error",     "message": "..."}
 """
 
-import logging
+import structlog
 import re
 from datetime import datetime, timezone
 
@@ -33,7 +33,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from .manager import ws_manager
 from quant_trading_system.core.jwt_utils import JWTUtils
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

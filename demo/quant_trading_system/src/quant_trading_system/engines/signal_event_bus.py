@@ -25,7 +25,7 @@
 """
 
 import asyncio
-import logging
+import structlog
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════

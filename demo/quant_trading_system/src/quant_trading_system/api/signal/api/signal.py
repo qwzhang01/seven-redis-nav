@@ -21,7 +21,7 @@ C 端接口（普通用户）：
 - DELETE /subscriptions/{id}           : 取消订阅
 """
 
-import logging
+import structlog
 from datetime import datetime
 from typing import Any, Optional
 
@@ -40,7 +40,7 @@ from quant_trading_system.core.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.api.signal.services.signal_service import SignalService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
 

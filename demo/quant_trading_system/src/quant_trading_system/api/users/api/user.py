@@ -29,7 +29,7 @@ C 端用户路由模块
 - 数据验证使用models层的Pydantic模型
 """
 
-import logging
+import structlog
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
@@ -45,7 +45,7 @@ from quant_trading_system.api.users.models.user_models import (
     UpdateAPIKeyRequest, RefreshTokenRequest, RefreshTokenResponse
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)

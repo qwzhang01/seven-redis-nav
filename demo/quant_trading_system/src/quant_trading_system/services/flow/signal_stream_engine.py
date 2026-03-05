@@ -22,7 +22,7 @@
 """
 
 import asyncio
-import logging
+import structlog
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -45,7 +45,7 @@ from quant_trading_system.services.flow.follow_trade_subscriber import (
 from quant_trading_system.services.flow.flow_signal_stream import FlowSignalStream
 from quant_trading_system.engines.signal_event_bus import SignalEventBus
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SignalStreamEngine:

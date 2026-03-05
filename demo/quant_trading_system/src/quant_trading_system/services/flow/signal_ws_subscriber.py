@@ -10,7 +10,7 @@
 - 不涉及数据库操作
 """
 
-import logging
+import structlog
 from typing import Any
 
 from quant_trading_system.engines.signal_event_bus import (
@@ -19,7 +19,7 @@ from quant_trading_system.engines.signal_event_bus import (
     SignalSubscriber,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # 需要推送到前端的订单事件类型
 _WS_ORDER_EVENTS = {

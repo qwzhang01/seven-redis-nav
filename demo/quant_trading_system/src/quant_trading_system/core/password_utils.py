@@ -6,11 +6,11 @@
 """
 
 import bcrypt
-import logging
+import structlog
 
 from quant_trading_system.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class PasswordUtils:

@@ -5,7 +5,7 @@
 提供跟单详情、收益对比、仓位分布、事件日志、配置管理等核心业务逻辑。
 """
 
-import logging
+import structlog
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
@@ -23,7 +23,7 @@ from quant_trading_system.models.signal import SignalTradeRecord
 from quant_trading_system.models.user import User
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class FollowService:

@@ -12,7 +12,7 @@
     {"type": "strategy_status", "data": {...}}  # 策略状态变化
 """
 
-import logging
+import structlog
 from datetime import datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -20,7 +20,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from .manager import ws_manager
 from quant_trading_system.core.jwt_utils import JWTUtils
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

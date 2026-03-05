@@ -6,7 +6,7 @@
 收到订单事件后解析并发布到事件总线。
 """
 
-import logging
+import structlog
 from typing import Any, Optional
 
 from quant_trading_system.exchange_adapter.factory import create_user_stream
@@ -16,7 +16,7 @@ from quant_trading_system.engines.signal_event_bus import (
     SignalEventType,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _parse_spot_execution_report(event: dict) -> Optional[dict[str, Any]]:

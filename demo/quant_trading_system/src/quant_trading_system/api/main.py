@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
 load_dotenv(env_path)
 
-import logging
+import structlog
 from typing import Dict, Any
 
 from fastapi import FastAPI, Request
@@ -50,7 +50,7 @@ from .websocket.strategy_ws import router as strategy_ws_router
 
 # 设置日志
 setup_logging()
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # 创建FastAPI应用实例

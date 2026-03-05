@@ -4,7 +4,7 @@
 处理所有与用户相关的数据库操作，包括用户管理、API密钥管理等。
 """
 
-import logging
+import structlog
 from datetime import datetime
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from quant_trading_system.models.user import User, Exchange, UserExchangeAPI
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class UserRepository:
