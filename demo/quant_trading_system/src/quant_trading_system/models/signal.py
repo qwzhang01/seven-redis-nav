@@ -260,8 +260,8 @@ class SignalTradeRecord(Base):
     strength = Column(String(8))
     pnl = Column(Numeric(14, 4))
     open_trade_id = Column(BigInteger, nullable=True)
-    traded_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    traded_at = Column(DateTime, nullable=False, timezone=True)
+    created_at = Column(DateTime, nullable=False, timezone=True, default=datetime.utcnow)
 
     signal = relationship("Signal", back_populates="trade_records",
                           foreign_keys=[signal_id],

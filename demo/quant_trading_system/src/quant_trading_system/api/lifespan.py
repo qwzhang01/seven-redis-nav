@@ -31,7 +31,7 @@ async def _startup_database() -> None:
     """初始化数据库连接和表结构"""
     try:
         await init_database()
-        logger.info("✅ 数据库初始化完成（同步引擎 + 异步引擎）")
+        logger.info("✅ 数据库初始化成功")
     except Exception as e:
         logger.error("❌ 数据库初始化失败", error=str(e))
         raise

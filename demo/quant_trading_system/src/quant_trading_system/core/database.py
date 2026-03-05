@@ -49,7 +49,7 @@ class AsyncTimescaleDB:
 
     async def connect(self) -> None:
         """建立异步数据库连接池"""
-        if self._engine is not None and not self._engine.disposed:
+        if self._engine is not None and not self._engine.pool.status() == "closed":
             logger.debug("异步引擎已连接，跳过重复连接")
             return
 
@@ -195,7 +195,7 @@ class AsyncTimescaleDB:
     @property
     def is_connected(self) -> bool:
         """检查是否已连接"""
-        return self._engine is not None and not self._engine.disposed
+        return self._engine is not None
 
 
 # ═══════════════════════════════════════════════════════════════════
