@@ -255,7 +255,7 @@ class HistoricalKlineSyncer:
                         logger.exception("进度回调异常", error=str(e))
 
                 # 更新起始位置：最后一条时间戳 + 1 个周期，避免重复
-                current_start_ms = last_ts + interval_ms
+                current_start_ms = last_ts + interval_ms.seconds
 
                 # 如果返回条数少于请求的 batch_size，说明已到末尾
                 if batch_count < self._batch_size:
