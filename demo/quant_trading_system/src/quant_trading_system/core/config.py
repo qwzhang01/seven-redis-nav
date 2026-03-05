@@ -43,6 +43,8 @@ class DatabaseSettings(BaseSettings):
     database_max_overflow: int = 30
     database_pool_recycle: int = 3600
 
+    init_table: bool = False
+
     @property
     def timescale_url(self) -> str:
         """优先使用DATABASE_URL环境变量，否则使用配置参数构建URL"""

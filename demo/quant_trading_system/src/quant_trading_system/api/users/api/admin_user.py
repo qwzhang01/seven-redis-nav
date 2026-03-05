@@ -14,21 +14,21 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.models.user import User
 from quant_trading_system.models.user_schema import UserType, UserStatus
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 
 router = APIRouter()
 
 
 # ── 权限校验 ──────────────────────────────────────────────────────────────────
 
-def _require_admin(
+async def _require_admin(
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     校验当前请求用户是否为管理员。
@@ -37,7 +37,10 @@ def _require_admin(
     username = getattr(request.state, "username", None)
     if not username:
         raise HTTPException(status_code=401, detail="未提供认证凭据")
-    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    result = await db.execute(
+        select(User).where(User.username == username, User.enable_flag == True)
+    )
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在")
     if user.user_type != "admin":
@@ -91,7 +94,7 @@ async def list_users(
     user_type: Optional[str] = Query(None, description="类型筛选：customer/admin"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
@@ -100,44 +103,45 @@ async def list_users(
     支持按用户名/邮箱/昵称搜索，按状态和类型筛选，分页返回。
     同时返回顶部统计数据：总用户数、活跃用户数、今日新增、已锁定数。
     """
-    query = db.query(User).filter(User.enable_flag == True)
+    stmt = select(User).where(User.enable_flag == True)
+    count_stmt = select(func.count()).select_from(User).where(User.enable_flag == True)
 
     # 模糊搜索
     if search:
         like_pattern = f"%{search}%"
-        query = query.filter(
-            or_(
-                User.username.ilike(like_pattern),
-                User.email.ilike(like_pattern),
-                User.nickname.ilike(like_pattern),
-            )
+        search_filter = or_(
+            User.username.ilike(like_pattern),
+            User.email.ilike(like_pattern),
+            User.nickname.ilike(like_pattern),
         )
+        stmt = stmt.where(search_filter)
+        count_stmt = count_stmt.where(search_filter)
 
     # 状态筛选
     if user_status:
-        query = query.filter(User.status == user_status)
+        stmt = stmt.where(User.status == user_status)
+        count_stmt = count_stmt.where(User.status == user_status)
 
     # 类型筛选
     if user_type:
-        query = query.filter(User.user_type == user_type)
+        stmt = stmt.where(User.user_type == user_type)
+        count_stmt = count_stmt.where(User.user_type == user_type)
 
-    total = query.count()
-    users = (
-        query.order_by(User.create_time.desc())
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(User.create_time))
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .all()
     )
+    users = result.scalars().all()
 
     # 统计数据（不受筛选条件影响，基于全量数据）
-    base_query = db.query(User).filter(User.enable_flag == True)
-    total_users = base_query.count()
-    active_users = base_query.filter(User.status == "active").count()
-    locked_users = base_query.filter(User.status == "locked").count()
+    base_where = User.enable_flag == True
+    total_users = (await db.execute(select(func.count()).select_from(User).where(base_where))).scalar() or 0
+    active_users = (await db.execute(select(func.count()).select_from(User).where(base_where, User.status == "active"))).scalar() or 0
+    locked_users = (await db.execute(select(func.count()).select_from(User).where(base_where, User.status == "locked"))).scalar() or 0
     today = date.today()
-    today_new = base_query.filter(
-        func.date(User.registration_time) == today
-    ).count()
+    today_new = (await db.execute(select(func.count()).select_from(User).where(base_where, func.date(User.registration_time) == today))).scalar() or 0
 
     return {
         "success": True,
@@ -159,7 +163,7 @@ async def list_users(
 @router.get("/{user_id}")
 async def get_user(
     user_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
@@ -167,7 +171,10 @@ async def get_user(
 
     根据用户 ID 返回用户的完整信息。
     """
-    user = db.query(User).filter(User.id == user_id, User.enable_flag == True).first()
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.enable_flag == True)
+    )
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -178,7 +185,7 @@ async def get_user(
 async def update_user(
     user_id: int,
     body: AdminUserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
@@ -186,17 +193,23 @@ async def update_user(
 
     管理员可修改用户的昵称、邮箱、手机号和用户类型。
     """
-    user = db.query(User).filter(User.id == user_id, User.enable_flag == True).first()
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.enable_flag == True)
+    )
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # 邮箱唯一性校验
     if body.email is not None and body.email != user.email:
-        conflict = db.query(User).filter(
-            User.email == body.email,
-            User.id != user_id,
-            User.enable_flag == True,
-        ).first()
+        conflict_result = await db.execute(
+            select(User).where(
+                User.email == body.email,
+                User.id != user_id,
+                User.enable_flag == True,
+            )
+        )
+        conflict = conflict_result.scalars().first()
         if conflict:
             raise HTTPException(status_code=400, detail="邮箱地址已被其他用户使用")
         user.email = body.email
@@ -209,8 +222,8 @@ async def update_user(
         user.user_type = body.user_type.value
 
     user.update_time = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
 
     return {"success": True, "data": _user_to_response(user), "message": "用户信息更新成功"}
 
@@ -219,7 +232,7 @@ async def update_user(
 async def update_user_status(
     user_id: int,
     body: UserStatusUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     admin: User = Depends(_require_admin),
 ) -> dict[str, Any]:
     """
@@ -228,7 +241,10 @@ async def update_user_status(
     管理员可将用户状态设置为 active（解锁）、inactive 或 locked（锁定）。
     不允许管理员锁定自己。
     """
-    user = db.query(User).filter(User.id == user_id, User.enable_flag == True).first()
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.enable_flag == True)
+    )
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -238,8 +254,8 @@ async def update_user_status(
 
     user.status = body.status.value
     user.update_time = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
 
     action = "锁定" if body.status == UserStatus.LOCKED else "解锁" if body.status == UserStatus.ACTIVE else "更新"
     return {

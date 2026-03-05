@@ -28,7 +28,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.models.signal import (
     Signal,
@@ -36,7 +36,7 @@ from quant_trading_system.models.signal import (
     SignalSubscription,
 )
 from quant_trading_system.models.user import User
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.api.signal.services.signal_service import SignalService
 
@@ -47,23 +47,25 @@ security = HTTPBearer(auto_error=False)
 
 # ── 权限校验 ──────────────────────────────────────────────────────────────────
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> (
+    User):
     """从拦截器验证后的request.state中获取当前用户"""
     username = getattr(request.state, 'username', None)
     if not username:
         raise HTTPException(status_code=401, detail="未认证的用户")
-    user = db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    user = await db.run_sync(lambda s: s.query(User).filter(User.username == username, User.enable_flag == True).first())
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在或已被禁用")
     return user
 
 
-def get_optional_user(request: Request, db: Session = Depends(get_db)) -> Optional[User]:
+async def get_optional_user(request: Request, db: AsyncSession = Depends(get_db)) -> (
+    Optional)[User]:
     """可选获取当前用户（未登录返回None）"""
     username = getattr(request.state, 'username', None)
     if not username:
         return None
-    return db.query(User).filter(User.username == username, User.enable_flag == True).first()
+    return await db.run_sync(lambda s: s.query(User).filter(User.username == username, User.enable_flag == True).first())
 
 
 # ── 请求模型 ──────────────────────────────────────────────────────────────────
@@ -117,31 +119,31 @@ async def list_signals(
     sort_by: str = Query("return_desc", description="排序: return_desc/return_asc/drawdown_asc/followers"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(9, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取信号列表（信号广场）
 
     支持按平台、类型、运行天数筛选，支持关键词搜索和多种排序方式。
     """
-    result = SignalService.list_signals(
-        db, platform=platform, signal_type=type,
+    result = await db.run_sync(lambda s: SignalService.list_signals(
+        s, platform=platform, signal_type=type,
         min_days=min_days, search=search,
         sort_by=sort_by, page=page, page_size=page_size,
-    )
+    ))
     return {"code": 0, "message": "success", "data": result}
 
 
 @router.get("/platforms")
 async def get_platforms(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取平台列表（筛选项）
 
     返回当前系统中所有信号源的平台名称列表。
     """
-    platforms = SignalService.get_platforms(db)
+    platforms = await db.run_sync(lambda s: SignalService.get_platforms(s))
     return {"code": 0, "message": "success", "data": platforms}
 
 
@@ -151,13 +153,13 @@ async def get_platforms(
 @router.get("/subscriptions")
 async def get_my_subscriptions(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """获取我的信号订阅列表"""
-    subs = db.query(SignalSubscription).filter(
+    subs = await db.run_sync(lambda s: s.query(SignalSubscription).filter(
         SignalSubscription.user_id == current_user.id,
         SignalSubscription.is_active == True,
-    ).all()
+    ).all())
 
     items = [
         {
@@ -177,11 +179,11 @@ async def get_strategy_signal_history(
     strategy_id: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """获取策略历史信号"""
     # 通过 signal 表找到该策略关联的 signal_id
-    signal = db.query(Signal).filter(Signal.strategy_id == strategy_id, Signal.enable_flag == True).first()
+    signal = await db.run_sync(lambda s: s.query(Signal).filter(Signal.strategy_id == strategy_id, Signal.enable_flag == True).first())
     if not signal:
         return {
             "code": 0,
@@ -189,11 +191,15 @@ async def get_strategy_signal_history(
             "data": {"strategy_id": strategy_id, "items": [], "total": 0, "page": page, "pages": 0},
         }
 
-    query = db.query(SignalTradeRecord).filter(SignalTradeRecord.signal_id == signal.id)
-    total = query.count()
-    items = query.order_by(SignalTradeRecord.traded_at.desc()).offset(
-        (page - 1) * page_size
-    ).limit(page_size).all()
+    def _get_records(s):
+        query = s.query(SignalTradeRecord).filter(SignalTradeRecord.signal_id == signal.id)
+        total = query.count()
+        items = query.order_by(SignalTradeRecord.traded_at.desc()).offset(
+            (page - 1) * page_size
+        ).limit(page_size).all()
+        return items, total
+
+    items, total = await db.run_sync(lambda s: _get_records(s))
 
     return {
         "code": 0,
@@ -211,7 +217,7 @@ async def get_strategy_signal_history(
 @router.get("/{signal_id}")
 async def get_signal_detail(
     signal_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ) -> dict[str, Any]:
     """
@@ -220,7 +226,7 @@ async def get_signal_detail(
     获取信号的完整详情信息，包括基本信息、风险参数、绩效指标、持仓等。
     """
     user_id = current_user.id if current_user else None
-    result = SignalService.get_signal_detail_v2(db, signal_id, user_id)
+    result = await db.run_sync(lambda s: SignalService.get_signal_detail_v2(s, signal_id, user_id))
     if not result:
         raise HTTPException(status_code=404, detail="信号不存在")
     return {"code": 0, "message": "success", "data": result}
@@ -230,14 +236,14 @@ async def get_signal_detail(
 async def get_signal_return_curve(
     signal_id: int,
     period: str = Query("all", description="时间范围: 7d/30d/90d/180d/all"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取信号收益曲线
 
     返回信号的每日累计收益率和回撤曲线数据，支持时间范围筛选。
     """
-    result = SignalService.get_signal_return_curve(db, signal_id, period)
+    result = await db.run_sync(lambda s: SignalService.get_signal_return_curve(s, signal_id, period))
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -246,32 +252,32 @@ async def get_signal_history(
     signal_id: int,
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取信号历史记录
 
     获取信号发出的交易信号历史列表，支持分页。
     """
-    signal = db.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first()
+    signal = await db.run_sync(lambda s: s.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first())
     if not signal:
         raise HTTPException(status_code=404, detail="信号不存在")
 
-    result = SignalService.get_signal_history(db, signal_id, page, page_size)
+    result = await db.run_sync(lambda s: SignalService.get_signal_history(s, signal_id, page, page_size))
     return {"code": 0, "message": "success", "data": result}
 
 
 @router.get("/{signal_id}/provider")
 async def get_signal_provider(
     signal_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取信号提供者信息
 
     获取信号创建者/提供者的详细资料。
     """
-    result = SignalService.get_signal_provider(db, signal_id)
+    result = await db.run_sync(lambda s: SignalService.get_signal_provider(s, signal_id))
     if not result:
         raise HTTPException(status_code=404, detail="信号不存在")
     return {"code": 0, "message": "success", "data": result}
@@ -281,28 +287,28 @@ async def get_signal_provider(
 async def get_monthly_returns(
     signal_id: int,
     months: int = Query(12, ge=1, le=60, description="返回月份数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取月度收益分布
 
     按月汇总信号的收益分布数据。优先从signal_monthly_return表获取。
     """
-    result = SignalService.get_signal_monthly_returns(db, signal_id, months)
+    result = await db.run_sync(lambda s: SignalService.get_signal_monthly_returns(s, signal_id, months))
     return {"code": 0, "message": "success", "data": result}
 
 
 @router.get("/{signal_id}/drawdown")
 async def get_drawdown_analysis(
     signal_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取回撤分析数据
 
     获取信号的回撤曲线和统计信息。优先从signal_return_curve时序表获取。
     """
-    result = SignalService.get_signal_drawdown(db, signal_id)
+    result = await db.run_sync(lambda s: SignalService.get_signal_drawdown(s, signal_id))
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -312,7 +318,7 @@ async def get_reviews(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=50, description="每页数量"),
     sort: str = Query("latest", description="排序: latest/highest/lowest/most_liked"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ) -> dict[str, Any]:
     """
@@ -320,12 +326,12 @@ async def get_reviews(
 
     获取信号的用户评价，包括评分分布和评价详情。
     """
-    signal = db.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first()
+    signal = await db.run_sync(lambda s: s.query(Signal).filter(Signal.id == signal_id, Signal.enable_flag == True).first())
     if not signal:
         raise HTTPException(status_code=404, detail="信号不存在")
 
     user_id = current_user.id if current_user else None
-    result = SignalService.get_reviews(db, signal_id, page, page_size, sort, user_id)
+    result = await db.run_sync(lambda s: SignalService.get_reviews(s, signal_id, page, page_size, sort, user_id))
     return {"code": 0, "message": "success", "data": result}
 
 
@@ -333,7 +339,7 @@ async def get_reviews(
 async def submit_review(
     signal_id: int,
     body: SubmitReviewRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
@@ -342,9 +348,9 @@ async def submit_review(
     为信号提交评价和评分，每个用户只能评价一次。
     """
     try:
-        result = SignalService.submit_review(
-            db, signal_id, current_user.id, body.rating, body.content
-        )
+        result = await db.run_sync(lambda s: SignalService.submit_review(
+            s, signal_id, current_user.id, body.rating, body.content
+        ))
         return {"code": 0, "message": "评价提交成功", "data": result}
     except ValueError as e:
         error_msg = str(e)
@@ -360,7 +366,7 @@ async def submit_review(
 async def toggle_review_like(
     signal_id: int,
     review_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
@@ -369,7 +375,7 @@ async def toggle_review_like(
     对评价进行点赞，重复点赞则取消。
     """
     try:
-        result = SignalService.toggle_review_like(db, signal_id, review_id, current_user.id)
+        result = await db.run_sync(lambda s: SignalService.toggle_review_like(s, signal_id, review_id, current_user.id))
         return {"code": 0, "message": "success", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -379,7 +385,7 @@ async def toggle_review_like(
 async def create_follow(
     signal_id: int,
     body: CreateFollowRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
@@ -388,10 +394,10 @@ async def create_follow(
     为当前用户创建信号跟单，设置跟单资金、比例和止损。
     """
     try:
-        result = SignalService.create_follow(
-            db, signal_id, current_user.id,
+        result = await db.run_sync(lambda s: SignalService.create_follow(
+            s, signal_id, current_user.id,
             body.amount, body.ratio, body.stopLoss,
-        )
+        ))
         return {"code": 0, "message": "跟单创建成功", "data": result}
     except ValueError as e:
         error_msg = str(e)
@@ -417,58 +423,66 @@ async def create_follow(
 async def subscribe_signal(
     request: SubscribeSignalRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """订阅策略信号通知"""
-    existing = db.query(SignalSubscription).filter(
-        SignalSubscription.user_id == current_user.id,
-        SignalSubscription.strategy_id == request.strategy_id,
-    ).first()
+    def _subscribe(s):
+        existing = s.query(SignalSubscription).filter(
+            SignalSubscription.user_id == current_user.id,
+            SignalSubscription.strategy_id == request.strategy_id,
+        ).first()
 
-    if existing:
-        if not existing.is_active:
-            existing.is_active = True
-            existing.notify_type = request.notify_type
-            existing.updated_at = datetime.utcnow()
-            db.commit()
-        return {
-            "code": 0,
-            "message": "已更新订阅",
-            "data": {
+        if existing:
+            if not existing.is_active:
+                existing.is_active = True
+                existing.notify_type = request.notify_type
+                existing.updated_at = datetime.utcnow()
+                s.commit()
+            return {
                 "id": existing.id,
                 "strategy_id": existing.strategy_id,
                 "notify_type": existing.notify_type,
                 "is_active": existing.is_active,
-            },
-        }
+                "is_update": True,
+            }
 
-    sub = SignalSubscription(
-        id=generate_snowflake_id(),
-        user_id=current_user.id,
-        strategy_id=request.strategy_id,
-        notify_type=request.notify_type,
-        is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
-    db.add(sub)
+        sub = SignalSubscription(
+            id=generate_snowflake_id(),
+            user_id=current_user.id,
+            strategy_id=request.strategy_id,
+            notify_type=request.notify_type,
+            is_active=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        s.add(sub)
 
-    db.query(Signal).filter(
-        Signal.strategy_id == request.strategy_id,
-        Signal.enable_flag == True,
-    ).update({"followers_count": Signal.followers_count + 1})
+        s.query(Signal).filter(
+            Signal.strategy_id == request.strategy_id,
+            Signal.enable_flag == True,
+        ).update({"followers_count": Signal.followers_count + 1})
 
-    db.commit()
-    db.refresh(sub)
+        s.commit()
+        s.refresh(sub)
 
-    return {
-        "code": 0,
-        "message": "订阅成功",
-        "data": {
+        return {
             "id": sub.id,
             "strategy_id": sub.strategy_id,
             "notify_type": sub.notify_type,
             "is_active": sub.is_active,
+            "is_update": False,
+        }
+
+    result = await db.run_sync(_subscribe)
+
+    return {
+        "code": 0,
+        "message": "已更新订阅" if result.get("is_update") else "订阅成功",
+        "data": {
+            "id": result["id"],
+            "strategy_id": result["strategy_id"],
+            "notify_type": result["notify_type"],
+            "is_active": result["is_active"],
         },
     }
 
@@ -477,17 +491,23 @@ async def subscribe_signal(
 async def cancel_subscription(
     subscription_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """取消信号订阅"""
-    sub = db.query(SignalSubscription).filter(SignalSubscription.id == subscription_id).first()
-    if not sub:
-        raise HTTPException(status_code=404, detail="订阅不存在")
-    if sub.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="无权操作此订阅")
+    def _cancel(s):
+        sub = s.query(SignalSubscription).filter(SignalSubscription.id == subscription_id).first()
+        if not sub:
+            return {"error": 404, "detail": "订阅不存在"}
+        if sub.user_id != current_user.id:
+            return {"error": 403, "detail": "无权操作此订阅"}
+        sub.is_active = False
+        sub.updated_at = datetime.utcnow()
+        s.commit()
+        return {"success": True}
 
-    sub.is_active = False
-    sub.updated_at = datetime.utcnow()
-    db.commit()
+    result = await db.run_sync(_cancel)
+
+    if "error" in result:
+        raise HTTPException(status_code=result["error"], detail=result["detail"])
 
     return {"code": 0, "message": "已取消订阅", "data": {"success": True}}

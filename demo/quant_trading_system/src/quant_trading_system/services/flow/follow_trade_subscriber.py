@@ -33,7 +33,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.models.follow import (
@@ -44,7 +45,7 @@ from quant_trading_system.models.follow import (
     SignalFollowTrade,
 )
 from quant_trading_system.models.user import UserExchangeAPI
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.exchange_adapter.factory import create_rest_client
 from quant_trading_system.engines.signal_event_bus import (
     SignalEvent,
@@ -372,104 +373,106 @@ class FollowTradeSubscriber(SignalSubscriber):
         4. signal_follow_orders — 更新统计字段
         """
         try:
-            db: Session = next(get_db())
-            try:
-                now = datetime.now(timezone.utc)
+            async for db in get_db():
+                try:
+                    now = datetime.now(timezone.utc)
 
-                # 提取实际成交数据
-                exec_qty = float(result.get("executedQty", quantity))
-                cum_quote = float(result.get("cummulativeQuoteQty", 0))
-                exec_price = (cum_quote / exec_qty) if exec_qty > 0 else signal_price
-                total = cum_quote if cum_quote > 0 else exec_price * exec_qty
+                    # 提取实际成交数据
+                    exec_qty = float(result.get("executedQty", quantity))
+                    cum_quote = float(result.get("cummulativeQuoteQty", 0))
+                    exec_price = (cum_quote / exec_qty) if exec_qty > 0 else signal_price
+                    total = cum_quote if cum_quote > 0 else exec_price * exec_qty
 
-                # 计算滑点
-                slippage = 0.0
-                if signal_price > 0 and exec_price > 0:
-                    slippage = abs(exec_price - signal_price) / signal_price * 100
+                    # 计算滑点
+                    slippage = 0.0
+                    if signal_price > 0 and exec_price > 0:
+                        slippage = abs(exec_price - signal_price) / signal_price * 100
 
-                # 信号时间
-                signal_dt = (
-                    datetime.fromtimestamp(signal_time / 1000, tz=timezone.utc)
-                    if signal_time
-                    else now
-                )
+                    # 信号时间
+                    signal_dt = (
+                        datetime.fromtimestamp(signal_time / 1000, tz=timezone.utc)
+                        if signal_time
+                        else now
+                    )
 
-                side_lower = side.lower()
+                    side_lower = side.lower()
 
-                # 1. 写入交易流水
-                trade = SignalFollowTrade(
-                    id=generate_snowflake_id(),
-                    follow_order_id=ctx.follow_order_id,
-                    user_id=ctx.user_id,
-                    symbol=symbol,
-                    side=side_lower,
-                    price=Decimal(str(round(exec_price, 8))),
-                    amount=Decimal(str(round(exec_qty, 8))),
-                    total=Decimal(str(round(total, 8))),
-                    fee=Decimal("0"),
-                    signal_time=signal_dt,
-                    slippage=Decimal(str(round(slippage, 6))),
-                    trade_time=now,
-                    create_time=now,
-                )
-                db.add(trade)
+                    # 1. 写入交易流水
+                    trade = SignalFollowTrade(
+                        id=generate_snowflake_id(),
+                        follow_order_id=ctx.follow_order_id,
+                        user_id=ctx.user_id,
+                        symbol=symbol,
+                        side=side_lower,
+                        price=Decimal(str(round(exec_price, 8))),
+                        amount=Decimal(str(round(exec_qty, 8))),
+                        total=Decimal(str(round(total, 8))),
+                        fee=Decimal("0"),
+                        signal_time=signal_dt,
+                        slippage=Decimal(str(round(slippage, 6))),
+                        trade_time=now,
+                        create_time=now,
+                    )
+                    db.add(trade)
 
-                # 2. 更新持仓
-                self._update_position(
-                    db, ctx.follow_order_id, ctx.user_id,
-                    symbol, side_lower, exec_qty, exec_price, now,
-                )
+                    # 2. 更新持仓
+                    await self._update_position(
+                        db, ctx.follow_order_id, ctx.user_id,
+                        symbol, side_lower, exec_qty, exec_price, now,
+                    )
 
-                # 3. 更新跟单订单统计
-                follow_order = db.query(SignalFollowOrder).filter(
-                    SignalFollowOrder.id == ctx.follow_order_id,
-                ).first()
-                if follow_order:
-                    follow_order.total_trades = (follow_order.total_trades or 0) + 1
-                    follow_order.update_time = now
+                    # 3. 更新跟单订单统计
+                    result_order = await db.execute(
+                        select(SignalFollowOrder).where(
+                            SignalFollowOrder.id == ctx.follow_order_id,
+                        )
+                    )
+                    follow_order = result_order.scalars().first()
+                    if follow_order:
+                        follow_order.total_trades = (follow_order.total_trades or 0) + 1
+                        follow_order.update_time = now
 
-                # 4. 记录成功事件
-                event = SignalFollowEvent(
-                    id=generate_snowflake_id(),
-                    follow_order_id=ctx.follow_order_id,
-                    user_id=ctx.user_id,
-                    event_type="success",
-                    type_label="成交",
-                    message=(
-                        f"跟单成交: {symbol} {side.upper()} "
-                        f"数量={exec_qty:.6f} 价格={exec_price:.4f} "
-                        f"滑点={slippage:.4f}%"
-                    ),
-                    event_meta={
-                        "action": "copy_trade_executed",
-                        "symbol": symbol,
-                        "side": side_lower,
-                        "quantity": exec_qty,
-                        "price": exec_price,
-                        "total": total,
-                        "slippage": slippage,
-                        "signal_price": signal_price,
-                        "original_order_id": original_order_id,
-                        "copy_order_id": str(result.get("orderId", "")),
-                    },
-                    event_time=now,
-                    create_time=now,
-                )
-                db.add(event)
+                    # 4. 记录成功事件
+                    event = SignalFollowEvent(
+                        id=generate_snowflake_id(),
+                        follow_order_id=ctx.follow_order_id,
+                        user_id=ctx.user_id,
+                        event_type="success",
+                        type_label="成交",
+                        message=(
+                            f"跟单成交: {symbol} {side.upper()} "
+                            f"数量={exec_qty:.6f} 价格={exec_price:.4f} "
+                            f"滑点={slippage:.4f}%"
+                        ),
+                        event_meta={
+                            "action": "copy_trade_executed",
+                            "symbol": symbol,
+                            "side": side_lower,
+                            "quantity": exec_qty,
+                            "price": exec_price,
+                            "total": total,
+                            "slippage": slippage,
+                            "signal_price": signal_price,
+                            "original_order_id": original_order_id,
+                            "copy_order_id": str(result.get("orderId", "")),
+                        },
+                        event_time=now,
+                        create_time=now,
+                    )
+                    db.add(event)
 
-                db.commit()
+                    await db.commit()
 
-            except Exception as e:
-                db.rollback()
-                logger.error(f"记录跟单成功到数据库失败: {e}", exc_info=True)
-            finally:
-                db.close()
+                except Exception as e:
+                    await db.rollback()
+                    logger.error(f"记录跟单成功到数据库失败: {e}", exc_info=True)
+                break
         except Exception as e:
             logger.error(f"获取数据库会话失败: {e}")
 
-    def _update_position(
+    async def _update_position(
         self,
-        db: Session,
+        db: AsyncSession,
         follow_order_id: int,
         user_id: int,
         symbol: str,
@@ -484,11 +487,14 @@ class FollowTradeSubscriber(SignalSubscriber):
         - BUY: 新增或增加持仓（加权平均成本）
         - SELL: 减少持仓，计算已实现盈亏
         """
-        position = db.query(SignalFollowPosition).filter(
-            SignalFollowPosition.follow_order_id == follow_order_id,
-            SignalFollowPosition.symbol == symbol,
-            SignalFollowPosition.status == "open",
-        ).first()
+        result = await db.execute(
+            select(SignalFollowPosition).where(
+                SignalFollowPosition.follow_order_id == follow_order_id,
+                SignalFollowPosition.symbol == symbol,
+                SignalFollowPosition.status == "open",
+            )
+        )
+        position = result.scalars().first()
 
         if side == "buy":
             if position:
@@ -563,10 +569,10 @@ class FollowTradeSubscriber(SignalSubscriber):
     ) -> None:
         """记录失败的跟单事件到数据库"""
         try:
-            db: Session = next(get_db())
-            try:
-                now = datetime.now(timezone.utc)
-                event = SignalFollowEvent(
+            async for db in get_db():
+                try:
+                    now = datetime.now(timezone.utc)
+                    event = SignalFollowEvent(
                     id=generate_snowflake_id(),
                     follow_order_id=ctx.follow_order_id,
                     user_id=ctx.user_id,
@@ -587,13 +593,12 @@ class FollowTradeSubscriber(SignalSubscriber):
                     event_time=now,
                     create_time=now,
                 )
-                db.add(event)
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                logger.error(f"记录跟单失败事件到数据库失败: {e}", exc_info=True)
-            finally:
-                db.close()
+                    db.add(event)
+                    await db.commit()
+                except Exception as e:
+                    await db.rollback()
+                    logger.error(f"记录跟单失败事件到数据库失败: {e}", exc_info=True)
+                break
         except Exception as e:
             logger.error(f"获取数据库会话失败: {e}")
 
@@ -602,50 +607,136 @@ class FollowTradeSubscriber(SignalSubscriber):
     async def _scan_and_load_follows(self) -> None:
         """扫描 signal_follow_orders 表，加载活跃跟单到内存"""
         try:
-            db: Session = next(get_db())
-            try:
-                orders = db.query(SignalFollowOrder).filter(
-                    SignalFollowOrder.status == "following",
-                    SignalFollowOrder.enable_flag == True,
-                ).all()
+            async for db in get_db():
+                try:
+                    result = await db.execute(
+                        select(SignalFollowOrder).where(
+                            SignalFollowOrder.status == "following",
+                            SignalFollowOrder.enable_flag == True,
+                        )
+                    )
+                    orders = result.scalars().all()
 
-                logger.info(f"扫描到 {len(orders)} 个活跃跟单订单")
+                    logger.info(f"扫描到 {len(orders)} 个活跃跟单订单")
 
-                for order in orders:
+                    for order in orders:
+                        signal_id = int(order.strategy_id) if order.strategy_id else 0
+                        if signal_id == 0:
+                            logger.warning(
+                                f"跟单订单缺少 strategy_id，跳过: "
+                                f"follow_order_id={order.id}"
+                            )
+                            continue
+
+                        # 查询跟单账户配置
+                        result_ca = await db.execute(
+                            select(ExchangeCopyAccount).where(
+                                ExchangeCopyAccount.follow_order_id == order.id,
+                                ExchangeCopyAccount.status == "active",
+                                ExchangeCopyAccount.enable_flag == True,
+                            )
+                        )
+                        copy_account = result_ca.scalars().first()
+
+                        if not copy_account:
+                            logger.warning(
+                                f"跟单订单无跟单账户配置，跳过: "
+                                f"follow_order_id={order.id}"
+                            )
+                            continue
+
+                        # 获取跟单账户 API
+                        result_api = await db.execute(
+                            select(UserExchangeAPI).where(
+                                UserExchangeAPI.id == copy_account.api_key_id,
+                                UserExchangeAPI.enable_flag == True,
+                            )
+                        )
+                        follower_api = result_api.scalars().first()
+
+                        if not follower_api:
+                            logger.warning(
+                                f"跟单账户 API 不存在，跳过: "
+                                f"follow_order_id={order.id}"
+                            )
+                            continue
+
+                        config = copy_account.config or {}
+
+                        ctx = FollowContext(
+                            follow_order_id=order.id,
+                            user_id=order.user_id,
+                            signal_id=signal_id,
+                            signal_name=order.signal_name or "",
+                            follow_amount=float(order.follow_amount) if order.follow_amount else 0,
+                            follow_ratio=float(order.follow_ratio) if order.follow_ratio else 1.0,
+                            stop_loss=float(order.stop_loss) if order.stop_loss else None,
+                            exchange=order.exchange or "binance",
+                            follower_api_key=follower_api.api_key,
+                            follower_api_secret=follower_api.secret_key,
+                            account_type=copy_account.account_type or "spot",
+                            testnet=config.get("testnet", False),
+                        )
+
+                        if signal_id not in self._follow_map:
+                            self._follow_map[signal_id] = []
+                        self._follow_map[signal_id].append(ctx)
+
+                        logger.debug(
+                            f"加载跟单: follow_order_id={order.id} → signal_id={signal_id}"
+                        )
+                except Exception as e:
+                    logger.error(f"扫描跟单订单表查询失败: {e}", exc_info=True)
+                break
+        except Exception as e:
+            logger.error(f"扫描跟单订单表失败: {e}", exc_info=True)
+
+    # ── 动态管理 ──────────────────────────────────────────────
+
+    async def add_follow(self, follow_order_id: int) -> bool:
+        """
+        动态添加一个跟单到内存（用户通过 API 创建跟单后调用）
+        """
+        try:
+            async for db in get_db():
+                try:
+                    result = await db.execute(
+                        select(SignalFollowOrder).where(
+                            SignalFollowOrder.id == follow_order_id,
+                            SignalFollowOrder.status == "following",
+                            SignalFollowOrder.enable_flag == True,
+                        )
+                    )
+                    order = result.scalars().first()
+
+                    if not order:
+                        logger.warning(f"跟单订单不存在或不活跃: {follow_order_id}")
+                        break
+
                     signal_id = int(order.strategy_id) if order.strategy_id else 0
                     if signal_id == 0:
-                        logger.warning(
-                            f"跟单订单缺少 strategy_id，跳过: "
-                            f"follow_order_id={order.id}"
+                        break
+
+                    result_ca = await db.execute(
+                        select(ExchangeCopyAccount).where(
+                            ExchangeCopyAccount.follow_order_id == follow_order_id,
+                            ExchangeCopyAccount.status == "active",
+                            ExchangeCopyAccount.enable_flag == True,
                         )
-                        continue
-
-                    # 查询跟单账户配置
-                    copy_account = db.query(ExchangeCopyAccount).filter(
-                        ExchangeCopyAccount.follow_order_id == order.id,
-                        ExchangeCopyAccount.status == "active",
-                        ExchangeCopyAccount.enable_flag == True,
-                    ).first()
-
+                    )
+                    copy_account = result_ca.scalars().first()
                     if not copy_account:
-                        logger.warning(
-                            f"跟单订单无跟单账户配置，跳过: "
-                            f"follow_order_id={order.id}"
+                        break
+
+                    result_api = await db.execute(
+                        select(UserExchangeAPI).where(
+                            UserExchangeAPI.id == copy_account.api_key_id,
+                            UserExchangeAPI.enable_flag == True,
                         )
-                        continue
-
-                    # 获取跟单账户 API
-                    follower_api = db.query(UserExchangeAPI).filter(
-                        UserExchangeAPI.id == copy_account.api_key_id,
-                        UserExchangeAPI.enable_flag == True,
-                    ).first()
-
+                    )
+                    follower_api = result_api.scalars().first()
                     if not follower_api:
-                        logger.warning(
-                            f"跟单账户 API 不存在，跳过: "
-                            f"follow_order_id={order.id}"
-                        )
-                        continue
+                        break
 
                     config = copy_account.config or {}
 
@@ -664,83 +755,17 @@ class FollowTradeSubscriber(SignalSubscriber):
                         testnet=config.get("testnet", False),
                     )
 
-                    if signal_id not in self._follow_map:
-                        self._follow_map[signal_id] = []
-                    self._follow_map[signal_id].append(ctx)
+                    async with self._lock:
+                        if signal_id not in self._follow_map:
+                            self._follow_map[signal_id] = []
+                        if not any(c.follow_order_id == follow_order_id for c in self._follow_map[signal_id]):
+                            self._follow_map[signal_id].append(ctx)
 
-                    logger.debug(
-                        f"加载跟单: follow_order_id={order.id} → signal_id={signal_id}"
-                    )
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"扫描跟单订单表失败: {e}", exc_info=True)
-
-    # ── 动态管理 ──────────────────────────────────────────────
-
-    async def add_follow(self, follow_order_id: int) -> bool:
-        """
-        动态添加一个跟单到内存（用户通过 API 创建跟单后调用）
-        """
-        try:
-            db: Session = next(get_db())
-            try:
-                order = db.query(SignalFollowOrder).filter(
-                    SignalFollowOrder.id == follow_order_id,
-                    SignalFollowOrder.status == "following",
-                    SignalFollowOrder.enable_flag == True,
-                ).first()
-
-                if not order:
-                    logger.warning(f"跟单订单不存在或不活跃: {follow_order_id}")
-                    return False
-
-                signal_id = int(order.strategy_id) if order.strategy_id else 0
-                if signal_id == 0:
-                    return False
-
-                copy_account = db.query(ExchangeCopyAccount).filter(
-                    ExchangeCopyAccount.follow_order_id == follow_order_id,
-                    ExchangeCopyAccount.status == "active",
-                    ExchangeCopyAccount.enable_flag == True,
-                ).first()
-                if not copy_account:
-                    return False
-
-                follower_api = db.query(UserExchangeAPI).filter(
-                    UserExchangeAPI.id == copy_account.api_key_id,
-                    UserExchangeAPI.enable_flag == True,
-                ).first()
-                if not follower_api:
-                    return False
-
-                config = copy_account.config or {}
-
-                ctx = FollowContext(
-                    follow_order_id=order.id,
-                    user_id=order.user_id,
-                    signal_id=signal_id,
-                    signal_name=order.signal_name or "",
-                    follow_amount=float(order.follow_amount) if order.follow_amount else 0,
-                    follow_ratio=float(order.follow_ratio) if order.follow_ratio else 1.0,
-                    stop_loss=float(order.stop_loss) if order.stop_loss else None,
-                    exchange=order.exchange or "binance",
-                    follower_api_key=follower_api.api_key,
-                    follower_api_secret=follower_api.secret_key,
-                    account_type=copy_account.account_type or "spot",
-                    testnet=config.get("testnet", False),
-                )
-
-                async with self._lock:
-                    if signal_id not in self._follow_map:
-                        self._follow_map[signal_id] = []
-                    if not any(c.follow_order_id == follow_order_id for c in self._follow_map[signal_id]):
-                        self._follow_map[signal_id].append(ctx)
-
-                logger.info(f"动态添加跟单成功: follow_order_id={follow_order_id} → signal_id={signal_id}")
-                return True
-            finally:
-                db.close()
+                    logger.info(f"动态添加跟单成功: follow_order_id={follow_order_id} → signal_id={signal_id}")
+                    return True
+                except Exception as e:
+                    logger.error(f"动态添加跟单查询失败: {e}", exc_info=True)
+                break
         except Exception as e:
             logger.error(f"动态添加跟单失败: {e}", exc_info=True)
             return False

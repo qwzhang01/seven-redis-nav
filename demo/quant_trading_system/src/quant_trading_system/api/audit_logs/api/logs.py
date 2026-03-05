@@ -18,11 +18,11 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import desc, select, func
 
 from quant_trading_system.models.audit import AuditLog, RiskAlert
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 
 router = APIRouter()
 
@@ -71,8 +71,8 @@ def _alert_to_dict(alert: RiskAlert) -> dict:
     }
 
 
-def _query_audit_logs(
-    db: Session,
+async def _query_audit_logs(
+    db: AsyncSession,
     category: Optional[str],
     level: Optional[str],
     username: Optional[str],
@@ -82,20 +82,30 @@ def _query_audit_logs(
     page_size: int,
 ) -> tuple[list, int]:
     """通用审计日志查询"""
-    query = db.query(AuditLog)
-    if category:
-        query = query.filter(AuditLog.log_category == category)
-    if level:
-        query = query.filter(AuditLog.log_level == level.upper())
-    if username:
-        query = query.filter(AuditLog.username == username)
-    if start_time:
-        query = query.filter(AuditLog.log_time >= start_time)
-    if end_time:
-        query = query.filter(AuditLog.log_time <= end_time)
+    stmt = select(AuditLog)
+    count_stmt = select(func.count()).select_from(AuditLog)
 
-    total = query.count()
-    items = query.order_by(desc(AuditLog.log_time)).offset((page - 1) * page_size).limit(page_size).all()
+    if category:
+        stmt = stmt.where(AuditLog.log_category == category)
+        count_stmt = count_stmt.where(AuditLog.log_category == category)
+    if level:
+        stmt = stmt.where(AuditLog.log_level == level.upper())
+        count_stmt = count_stmt.where(AuditLog.log_level == level.upper())
+    if username:
+        stmt = stmt.where(AuditLog.username == username)
+        count_stmt = count_stmt.where(AuditLog.username == username)
+    if start_time:
+        stmt = stmt.where(AuditLog.log_time >= start_time)
+        count_stmt = count_stmt.where(AuditLog.log_time >= start_time)
+    if end_time:
+        stmt = stmt.where(AuditLog.log_time <= end_time)
+        count_stmt = count_stmt.where(AuditLog.log_time <= end_time)
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(AuditLog.log_time)).offset((page - 1) * page_size).limit(page_size)
+    )
+    items = result.scalars().all()
     return items, total
 
 
@@ -107,7 +117,7 @@ async def get_system_logs(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     系统操作日志
@@ -126,7 +136,7 @@ async def get_system_logs(
     - items : 日志列表
     - total : 总数量
     """
-    items, total = _query_audit_logs(
+    items, total = await _query_audit_logs(
         db, category="system", level=level, username=username,
         start_time=start_time, end_time=end_time, page=page, page_size=page_size,
     )
@@ -146,7 +156,7 @@ async def get_trading_logs(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     交易日志
@@ -165,7 +175,7 @@ async def get_trading_logs(
     - items : 日志列表
     - total : 总数量
     """
-    items, total = _query_audit_logs(
+    items, total = await _query_audit_logs(
         db, category="trading", level=level, username=username,
         start_time=start_time, end_time=end_time, page=page, page_size=page_size,
     )
@@ -184,7 +194,7 @@ async def get_risk_logs(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     风控日志
@@ -202,7 +212,7 @@ async def get_risk_logs(
     - items : 日志列表
     - total : 总数量
     """
-    items, total = _query_audit_logs(
+    items, total = await _query_audit_logs(
         db, category="risk", level=level, username=None,
         start_time=start_time, end_time=end_time, page=page, page_size=page_size,
     )
@@ -224,7 +234,7 @@ async def get_audit_logs(
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     审计日志（全量）
@@ -245,22 +255,33 @@ async def get_audit_logs(
     - items : 日志列表
     - total : 总数量
     """
-    query = db.query(AuditLog)
-    if category:
-        query = query.filter(AuditLog.log_category == category)
-    if level:
-        query = query.filter(AuditLog.log_level == level.upper())
-    if username:
-        query = query.filter(AuditLog.username == username)
-    if action:
-        query = query.filter(AuditLog.action.ilike(f"%{action}%"))
-    if start_time:
-        query = query.filter(AuditLog.log_time >= start_time)
-    if end_time:
-        query = query.filter(AuditLog.log_time <= end_time)
+    stmt = select(AuditLog)
+    count_stmt = select(func.count()).select_from(AuditLog)
 
-    total = query.count()
-    items = query.order_by(desc(AuditLog.log_time)).offset((page - 1) * page_size).limit(page_size).all()
+    if category:
+        stmt = stmt.where(AuditLog.log_category == category)
+        count_stmt = count_stmt.where(AuditLog.log_category == category)
+    if level:
+        stmt = stmt.where(AuditLog.log_level == level.upper())
+        count_stmt = count_stmt.where(AuditLog.log_level == level.upper())
+    if username:
+        stmt = stmt.where(AuditLog.username == username)
+        count_stmt = count_stmt.where(AuditLog.username == username)
+    if action:
+        stmt = stmt.where(AuditLog.action.ilike(f"%{action}%"))
+        count_stmt = count_stmt.where(AuditLog.action.ilike(f"%{action}%"))
+    if start_time:
+        stmt = stmt.where(AuditLog.log_time >= start_time)
+        count_stmt = count_stmt.where(AuditLog.log_time >= start_time)
+    if end_time:
+        stmt = stmt.where(AuditLog.log_time <= end_time)
+        count_stmt = count_stmt.where(AuditLog.log_time <= end_time)
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(AuditLog.log_time)).offset((page - 1) * page_size).limit(page_size)
+    )
+    items = result.scalars().all()
 
     return {
         "items": [_audit_to_dict(log) for log in items],
@@ -282,7 +303,7 @@ async def get_risk_alerts(
     strategy_id: Optional[str] = Query(None, description="策略ID过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     风控告警列表
@@ -301,18 +322,27 @@ async def get_risk_alerts(
     - items : 告警列表
     - total : 总数量
     """
-    query = db.query(RiskAlert)
-    if severity:
-        query = query.filter(RiskAlert.severity == severity.lower())
-    if alert_type:
-        query = query.filter(RiskAlert.alert_type == alert_type.lower())
-    if is_resolved is not None:
-        query = query.filter(RiskAlert.is_resolved == is_resolved)
-    if strategy_id:
-        query = query.filter(RiskAlert.strategy_id == strategy_id)
+    stmt = select(RiskAlert)
+    count_stmt = select(func.count()).select_from(RiskAlert)
 
-    total = query.count()
-    items = query.order_by(desc(RiskAlert.alert_time)).offset((page - 1) * page_size).limit(page_size).all()
+    if severity:
+        stmt = stmt.where(RiskAlert.severity == severity.lower())
+        count_stmt = count_stmt.where(RiskAlert.severity == severity.lower())
+    if alert_type:
+        stmt = stmt.where(RiskAlert.alert_type == alert_type.lower())
+        count_stmt = count_stmt.where(RiskAlert.alert_type == alert_type.lower())
+    if is_resolved is not None:
+        stmt = stmt.where(RiskAlert.is_resolved == is_resolved)
+        count_stmt = count_stmt.where(RiskAlert.is_resolved == is_resolved)
+    if strategy_id:
+        stmt = stmt.where(RiskAlert.strategy_id == strategy_id)
+        count_stmt = count_stmt.where(RiskAlert.strategy_id == strategy_id)
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(RiskAlert.alert_time)).offset((page - 1) * page_size).limit(page_size)
+    )
+    items = result.scalars().all()
 
     return {
         "items": [_alert_to_dict(a) for a in items],
@@ -332,7 +362,7 @@ class ResolveAlertRequest(BaseModel):
 async def resolve_risk_alert(
     alert_id: int,
     request: ResolveAlertRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     标记风控告警已处理
@@ -351,7 +381,8 @@ async def resolve_risk_alert(
     - 404: 告警不存在
     - 400: 告警已处理
     """
-    alert = db.query(RiskAlert).filter(RiskAlert.id == alert_id).first()
+    result = await db.execute(select(RiskAlert).where(RiskAlert.id == alert_id))
+    alert = result.scalars().first()
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
     if alert.is_resolved:
@@ -362,7 +393,7 @@ async def resolve_risk_alert(
     alert.resolved_by = request.resolved_by
     if request.note:
         alert.extra_data = {**(alert.extra_data or {}), "resolve_note": request.note}
-    db.commit()
+    await db.commit()
 
     return {
         "success": True,

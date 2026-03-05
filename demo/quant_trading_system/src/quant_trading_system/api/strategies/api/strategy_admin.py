@@ -15,9 +15,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.api.strategies.services import PresetStrategyService
 from quant_trading_system.core.enums import StrategyType
 
@@ -86,14 +86,14 @@ async def list_strategies(
     is_published: Optional[bool] = Query(None, description="是否已上架"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略列表（管理端）
 
     支持按关键词、市场类型、策略类型、风险等级、状态和上架状态筛选。
     """
-    return PresetStrategyService.list_strategies(
+    return await PresetStrategyService.list_strategies(
         db,
         keyword=keyword,
         market_type=market_type,
@@ -119,7 +119,7 @@ async def get_strategy_types() -> dict[str, Any]:
 @router.post("/create")
 async def create_strategy(
     body: CreatePresetStrategyRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     新增预设策略
@@ -127,7 +127,7 @@ async def create_strategy(
     管理员创建系统预设策略模板。
     """
     data = body.model_dump()
-    result = PresetStrategyService.create(db, data, operator="admin")
+    result = await PresetStrategyService.create(db, data, operator="admin")
     return {
         "success": True,
         "strategy_id": result["id"],
@@ -138,14 +138,14 @@ async def create_strategy(
 @router.get("/{strategy_id}")
 async def get_strategy_detail(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略详情
 
     管理端查看预设策略完整信息。
     """
-    detail = PresetStrategyService.get_detail(db, strategy_id)
+    detail = await PresetStrategyService.get_detail(db, strategy_id)
     if not detail:
         raise HTTPException(status_code=404, detail="策略不存在")
     return detail
@@ -155,7 +155,7 @@ async def get_strategy_detail(
 async def update_strategy(
     strategy_id: int,
     body: UpdatePresetStrategyRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     编辑策略
@@ -163,7 +163,7 @@ async def update_strategy(
     更新预设策略的基本信息和配置。
     """
     data = {k: v for k, v in body.model_dump().items() if v is not None}
-    result = PresetStrategyService.update(db, strategy_id, data, operator="admin")
+    result = await PresetStrategyService.update(db, strategy_id, data, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略更新成功"}
@@ -172,14 +172,14 @@ async def update_strategy(
 @router.delete("/{strategy_id}")
 async def delete_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     删除策略
 
     逻辑删除预设策略。
     """
-    success = PresetStrategyService.delete(db, strategy_id)
+    success = await PresetStrategyService.delete(db, strategy_id)
     if not success:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": str(strategy_id), "message": "策略删除成功"}
@@ -188,14 +188,14 @@ async def delete_strategy(
 @router.post("/{strategy_id}/publish")
 async def publish_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     上架策略
 
     将策略设为已发布状态，对 C 端用户可见。
     """
-    result = PresetStrategyService.publish(db, strategy_id, operator="admin")
+    result = await PresetStrategyService.publish(db, strategy_id, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略上架成功"}
@@ -204,14 +204,14 @@ async def publish_strategy(
 @router.post("/{strategy_id}/unpublish")
 async def unpublish_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     下架策略
 
     将策略设为未发布状态，从 C 端隐藏。
     """
-    result = PresetStrategyService.unpublish(db, strategy_id, operator="admin")
+    result = await PresetStrategyService.unpublish(db, strategy_id, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略下架成功"}
@@ -220,14 +220,14 @@ async def unpublish_strategy(
 @router.post("/{strategy_id}/start")
 async def start_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     启动策略（管理端）
 
     管理员启动预设策略的运行。
     """
-    result = PresetStrategyService.update(db, strategy_id, {"status": "running"}, operator="admin")
+    result = await PresetStrategyService.update(db, strategy_id, {"status": "running"}, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略启动成功"}
@@ -236,14 +236,14 @@ async def start_strategy(
 @router.post("/{strategy_id}/stop")
 async def stop_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     停止策略（管理端）
 
     管理员停止预设策略的运行。
     """
-    result = PresetStrategyService.update(db, strategy_id, {"status": "stopped"}, operator="admin")
+    result = await PresetStrategyService.update(db, strategy_id, {"status": "stopped"}, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略停止成功"}
@@ -252,12 +252,12 @@ async def stop_strategy(
 @router.post("/{strategy_id}/pause")
 async def pause_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     暂停策略（管理端）
     """
-    result = PresetStrategyService.update(db, strategy_id, {"status": "paused"}, operator="admin")
+    result = await PresetStrategyService.update(db, strategy_id, {"status": "paused"}, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略暂停成功"}
@@ -266,12 +266,12 @@ async def pause_strategy(
 @router.post("/{strategy_id}/resume")
 async def resume_strategy(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     恢复策略（管理端）
     """
-    result = PresetStrategyService.update(db, strategy_id, {"status": "running"}, operator="admin")
+    result = await PresetStrategyService.update(db, strategy_id, {"status": "running"}, operator="admin")
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {"success": True, "strategy_id": result["id"], "message": "策略恢复成功"}
@@ -280,12 +280,12 @@ async def resume_strategy(
 @router.get("/{strategy_id}/performance")
 async def get_strategy_performance(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略表现（管理端）
     """
-    detail = PresetStrategyService.get_detail(db, strategy_id)
+    detail = await PresetStrategyService.get_detail(db, strategy_id)
     if not detail:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {
@@ -304,12 +304,12 @@ async def get_strategy_performance(
 async def get_strategy_signals(
     strategy_id: int,
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略信号历史（管理端）
     """
-    detail = PresetStrategyService.get_detail(db, strategy_id)
+    detail = await PresetStrategyService.get_detail(db, strategy_id)
     if not detail:
         raise HTTPException(status_code=404, detail="策略不存在")
     return {

@@ -7,7 +7,8 @@ from typing import Any, Optional
 
 import numpy as np
 import structlog
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.api.strategies.repositories import (
     SimulationTradeRepository,
@@ -78,8 +79,8 @@ class SimulationService:
     """模拟交易服务"""
 
     @staticmethod
-    def get_indicators(
-        db: Session,
+    async def get_indicators(
+        db: AsyncSession,
         user_strategy_id: int,
         *,
         start_time: Optional[int] = None,
@@ -103,15 +104,18 @@ class SimulationService:
             包含指标数据的字典
         """
         # 1. 查询用户策略及其关联的预设策略
-        strategy = db.query(UserStrategy).filter(
-            UserStrategy.id == user_strategy_id,
-            UserStrategy.enable_flag == True,
-        ).first()
+        result = await db.execute(
+            select(UserStrategy).where(
+                UserStrategy.id == user_strategy_id,
+                UserStrategy.enable_flag == True,
+            )
+        )
+        strategy = result.scalars().first()
 
         if not strategy:
             return {"strategy_id": str(user_strategy_id), "indicators": []}
 
-        preset = PresetStrategyRepository.get_by_id(db, strategy.preset_strategy_id)
+        preset = await PresetStrategyRepository.get_by_id(db, strategy.preset_strategy_id)
         if not preset:
             return {"strategy_id": str(user_strategy_id), "indicators": []}
 
@@ -251,7 +255,7 @@ class SimulationService:
         直接调用 DataQueryService 的同步方法，
         避免在同步/异步上下文中混用 asyncio.run 导致的事件循环冲突。
         """
-        from quant_trading_system.services.database.data_query import get_data_query_service
+        from quant_trading_system.services.market.data_query import get_data_query_service
 
         query_service = get_data_query_service()
 
@@ -270,9 +274,9 @@ class SimulationService:
         return query_service.get_kline_data_sync(symbol, timeframe, start_dt, end_dt, limit)
 
     @staticmethod
-    def get_trades(db: Session, user_strategy_id: int, page: int = 1, page_size: int = 20) -> dict[str, Any]:
+    async def get_trades(db: AsyncSession, user_strategy_id: int, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         """获取模拟交易记录"""
-        trades, total = SimulationTradeRepository.list_by_strategy(
+        trades, total = await SimulationTradeRepository.list_by_strategy(
             db, user_strategy_id, page=page, page_size=page_size,
         )
         return {
@@ -297,9 +301,9 @@ class SimulationService:
         }
 
     @staticmethod
-    def get_positions(db: Session, user_strategy_id: int) -> dict[str, Any]:
+    async def get_positions(db: AsyncSession, user_strategy_id: int) -> dict[str, Any]:
         """获取模拟持仓"""
-        positions = SimulationPositionRepository.list_by_strategy(
+        positions = await SimulationPositionRepository.list_by_strategy(
             db, user_strategy_id, status="open",
         )
         total_value = sum(
@@ -326,14 +330,14 @@ class SimulationService:
         }
 
     @staticmethod
-    def get_logs(
-        db: Session,
+    async def get_logs(
+        db: AsyncSession,
         user_strategy_id: int,
         level: Optional[str] = None,
         limit: int = 50,
     ) -> dict[str, Any]:
         """获取模拟运行日志"""
-        logs = SimulationLogRepository.list_by_strategy(
+        logs = await SimulationLogRepository.list_by_strategy(
             db, user_strategy_id, level=level, limit=limit,
         )
         return {
@@ -349,8 +353,8 @@ class SimulationService:
         }
 
     @staticmethod
-    def get_trade_marks(
-        db: Session,
+    async def get_trade_marks(
+        db: AsyncSession,
         user_strategy_id: int,
         *,
         start_time: Optional[int] = None,
@@ -358,7 +362,7 @@ class SimulationService:
         limit: int = 100,
     ) -> dict[str, Any]:
         """获取模拟交易点标记（用于K线图标注买卖点）"""
-        trades, _ = SimulationTradeRepository.list_by_strategy(
+        trades, _ = await SimulationTradeRepository.list_by_strategy(
             db, user_strategy_id, page=1, page_size=limit,
         )
         marks = []

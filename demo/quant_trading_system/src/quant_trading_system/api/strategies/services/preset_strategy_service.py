@@ -4,7 +4,7 @@
 
 from typing import Any, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.api.strategies.repositories import PresetStrategyRepository
 
@@ -13,23 +13,23 @@ class PresetStrategyService:
     """系统预设策略服务"""
 
     @staticmethod
-    def create(db: Session, data: dict[str, Any], operator: str = "system") -> dict[str, Any]:
+    async def create(db: AsyncSession, data: dict[str, Any], operator: str = "system") -> dict[str, Any]:
         """创建预设策略"""
         data["create_by"] = operator
-        strategy = PresetStrategyRepository.create(db, data)
+        strategy = await PresetStrategyRepository.create(db, data)
         return PresetStrategyService._to_dict(strategy)
 
     @staticmethod
-    def get_detail(db: Session, strategy_id: int) -> Optional[dict[str, Any]]:
+    async def get_detail(db: AsyncSession, strategy_id: int) -> Optional[dict[str, Any]]:
         """获取预设策略详情"""
-        strategy = PresetStrategyRepository.get_by_id(db, strategy_id)
+        strategy = await PresetStrategyRepository.get_by_id(db, strategy_id)
         if not strategy:
             return None
         return PresetStrategyService._to_detail_dict(strategy)
 
     @staticmethod
-    def list_strategies(
-        db: Session,
+    async def list_strategies(
+        db: AsyncSession,
         *,
         keyword: Optional[str] = None,
         market_type: Optional[str] = None,
@@ -41,7 +41,7 @@ class PresetStrategyService:
         page_size: int = 20,
     ) -> dict[str, Any]:
         """查询预设策略列表"""
-        strategies, total = PresetStrategyRepository.list_all(
+        strategies, total = await PresetStrategyRepository.list_all(
             db,
             keyword=keyword,
             market_type=market_type,
@@ -60,29 +60,29 @@ class PresetStrategyService:
         }
 
     @staticmethod
-    def get_featured(db: Session, limit: int = 10) -> list[dict[str, Any]]:
+    async def get_featured(db: AsyncSession, limit: int = 10) -> list[dict[str, Any]]:
         """获取推荐策略"""
-        strategies = PresetStrategyRepository.list_featured(db, limit)
+        strategies = await PresetStrategyRepository.list_featured(db, limit)
         return [PresetStrategyService._to_dict(s) for s in strategies]
 
     @staticmethod
-    def update(db: Session, strategy_id: int, data: dict[str, Any], operator: str = "system") -> Optional[dict[str, Any]]:
+    async def update(db: AsyncSession, strategy_id: int, data: dict[str, Any], operator: str = "system") -> Optional[dict[str, Any]]:
         """更新预设策略"""
         data["update_by"] = operator
-        strategy = PresetStrategyRepository.update(db, strategy_id, data)
+        strategy = await PresetStrategyRepository.update(db, strategy_id, data)
         if not strategy:
             return None
         return PresetStrategyService._to_dict(strategy)
 
     @staticmethod
-    def delete(db: Session, strategy_id: int) -> bool:
+    async def delete(db: AsyncSession, strategy_id: int) -> bool:
         """删除预设策略"""
-        return PresetStrategyRepository.delete(db, strategy_id)
+        return await PresetStrategyRepository.delete(db, strategy_id)
 
     @staticmethod
-    def publish(db: Session, strategy_id: int, operator: str = "system") -> Optional[dict[str, Any]]:
+    async def publish(db: AsyncSession, strategy_id: int, operator: str = "system") -> Optional[dict[str, Any]]:
         """上架策略"""
-        strategy = PresetStrategyRepository.update(db, strategy_id, {
+        strategy = await PresetStrategyRepository.update(db, strategy_id, {
             "is_published": True,
             "update_by": operator,
         })
@@ -91,9 +91,9 @@ class PresetStrategyService:
         return PresetStrategyService._to_dict(strategy)
 
     @staticmethod
-    def unpublish(db: Session, strategy_id: int, operator: str = "system") -> Optional[dict[str, Any]]:
+    async def unpublish(db: AsyncSession, strategy_id: int, operator: str = "system") -> Optional[dict[str, Any]]:
         """下架策略"""
-        strategy = PresetStrategyRepository.update(db, strategy_id, {
+        strategy = await PresetStrategyRepository.update(db, strategy_id, {
             "is_published": False,
             "update_by": operator,
         })

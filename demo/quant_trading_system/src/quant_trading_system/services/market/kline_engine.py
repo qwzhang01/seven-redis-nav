@@ -578,7 +578,7 @@ class KLineEngine:
             各交易对加载的K线数量统计
         """
         from datetime import datetime, timedelta
-        from quant_trading_system.services.database.data_query import get_data_query_service
+        from quant_trading_system.services.market.data_query import get_data_query_service
 
         stats: dict[str, int] = {}
         query_service = get_data_query_service()
@@ -696,7 +696,7 @@ class KLineEngine:
         data_store = None
         if save_to_db:
             try:
-                from quant_trading_system.services.database.data_store import get_data_store
+                from quant_trading_system.services.market.data_store import get_data_store
                 data_store = get_data_store()
                 logger.info("Will save fetched kline data to database for gap filling")
             except Exception as e:

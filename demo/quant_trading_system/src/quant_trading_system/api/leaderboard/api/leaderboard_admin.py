@@ -5,17 +5,16 @@
 提供管理员刷新排行榜快照的功能。
 """
 
-import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, cast, Integer
 
 from quant_trading_system.models.leaderboard import LeaderboardSnapshot
 from quant_trading_system.models.signal import SignalTradeRecord, Signal
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
@@ -26,7 +25,7 @@ PERIOD_DAYS = {"daily": 1, "weekly": 7, "monthly": 30, "all_time": 3650}
 
 @router.post("/refresh")
 async def refresh_leaderboard(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     手动刷新排行榜快照（管理员）
@@ -40,8 +39,8 @@ async def refresh_leaderboard(
     - snapshot_time: 快照时间
     """
     snapshot_time = datetime.utcnow()
-    _compute_and_save_snapshots(db, snapshot_time)
-    db.commit()
+    await _compute_and_save_snapshots(db, snapshot_time)
+    await db.commit()
 
     return {
         "success": True,
@@ -50,7 +49,7 @@ async def refresh_leaderboard(
     }
 
 
-def _compute_and_save_snapshots(db: Session, snapshot_time: datetime) -> None:
+async def _compute_and_save_snapshots(db: AsyncSession, snapshot_time: datetime) -> None:
     """
     计算并保存排行榜快照
 
@@ -62,25 +61,30 @@ def _compute_and_save_snapshots(db: Session, snapshot_time: datetime) -> None:
         start_time = snapshot_time - timedelta(days=days)
 
         # 按信号源聚合交易统计
-        rows = db.query(
-            SignalTradeRecord.signal_id,
-            Signal.name.label("signal_name"),
-            func.count(SignalTradeRecord.id).label("total_trades"),
-            func.sum(
-                (SignalTradeRecord.pnl > 0).cast("integer")
-            ).label("win_count"),
-            func.sum(SignalTradeRecord.pnl).label("total_pnl"),
-        ).join(
-            Signal, Signal.id == SignalTradeRecord.signal_id
-        ).filter(
-            SignalTradeRecord.traded_at >= start_time,
-            SignalTradeRecord.traded_at <= snapshot_time,
-        ).group_by(
-            SignalTradeRecord.signal_id,
-            Signal.name,
-        ).order_by(
-            func.count(SignalTradeRecord.id).desc()
-        ).limit(100).all()
+        stmt = (
+            select(
+                SignalTradeRecord.signal_id,
+                Signal.name.label("signal_name"),
+                func.count(SignalTradeRecord.id).label("total_trades"),
+                func.sum(
+                    cast((SignalTradeRecord.pnl > 0), Integer)
+                ).label("win_count"),
+                func.sum(SignalTradeRecord.pnl).label("total_pnl"),
+            )
+            .join(Signal, Signal.id == SignalTradeRecord.signal_id)
+            .where(
+                SignalTradeRecord.traded_at >= start_time,
+                SignalTradeRecord.traded_at <= snapshot_time,
+            )
+            .group_by(
+                SignalTradeRecord.signal_id,
+                Signal.name,
+            )
+            .order_by(func.count(SignalTradeRecord.id).desc())
+            .limit(100)
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
 
         for rank, row in enumerate(rows, start=1):
             total = row.total_trades or 0

@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from quant_trading_system.core.config import settings
 from quant_trading_system.api.deps import set_app_ref, clear_app_ref
 from quant_trading_system.api.websocket.manager import ws_manager
-from quant_trading_system.services.database.database import init_database
+from quant_trading_system.core.database import init_database, close_database
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,22 @@ logger = logging.getLogger(__name__)
 
 
 async def _startup_database() -> None:
-    """初始化数据库表"""
+    """初始化数据库连接和表结构"""
     try:
         await init_database()
-        print("✅ 数据库表初始化完成")
+        print("✅ 数据库初始化完成（同步引擎 + 异步引擎）")
     except Exception as e:
         print(f"❌ 数据库初始化失败: {e}")
         raise
+
+
+async def _shutdown_database() -> None:
+    """关闭数据库连接"""
+    try:
+        await close_database()
+        print("✅ 数据库连接已关闭")
+    except Exception as e:
+        print(f"❌ 数据库关闭失败: {e}")
 
 
 async def _startup_orchestrator(app: FastAPI) -> None:
@@ -243,4 +252,5 @@ async def lifespan(app: FastAPI):
     await _shutdown_flow_engines(app)
     await _shutdown_websocket_heartbeat()
     await _shutdown_orchestrator(app)
+    await _shutdown_database()
     clear_app_ref()

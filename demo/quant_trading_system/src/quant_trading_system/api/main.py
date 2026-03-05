@@ -99,7 +99,6 @@ app.add_middleware(RequestIDMiddleware)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理器"""
     from fastapi import HTTPException
 
     if isinstance(exc, HTTPException):
@@ -139,8 +138,6 @@ app.include_router(strategy_ws_router, prefix=f"{settings.API_PREFIX}/ws", tags=
 
 
 # ── 辅助路由 ──────────────────────────────────────────────────────
-
-
 @app.get("/", include_in_schema=False)
 async def root() -> Dict[str, Any]:
     """根路径"""
@@ -170,8 +167,6 @@ async def custom_docs():
 
 
 # ── OpenAPI 配置 ──────────────────────────────────────────────────
-
-
 def custom_openapi():
     """自定义OpenAPI配置"""
     if app.openapi_schema:
@@ -199,11 +194,9 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-
 def create_app() -> FastAPI:
     """创建FastAPI应用实例（用于在其他模块中导入使用）"""
     return app
-
 
 if __name__ == "__main__":
     import uvicorn

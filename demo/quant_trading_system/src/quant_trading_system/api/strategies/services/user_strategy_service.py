@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from quant_trading_system.api.strategies.repositories import UserStrategyRepository
 from quant_trading_system.core.enums import StrategyStatus, StrategyMode
@@ -15,17 +15,17 @@ class UserStrategyService:
     """用户策略实例服务"""
 
     @staticmethod
-    def create_live(db: Session, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
+    async def create_live(db: AsyncSession, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """创建实盘策略"""
         data["user_id"] = user_id
         data["mode"] = StrategyMode.LIVE.value
         data["status"] = StrategyStatus.STOPPED.value
         data["create_by"] = str(user_id)
-        strategy = UserStrategyRepository.create(db, data)
+        strategy = await UserStrategyRepository.create(db, data)
         return UserStrategyService._to_dict(strategy)
 
     @staticmethod
-    def create_simulation(db: Session, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
+    async def create_simulation(db: AsyncSession, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """创建模拟策略"""
         data["user_id"] = user_id
         data["mode"] = StrategyMode.SIMULATE.value
@@ -34,20 +34,20 @@ class UserStrategyService:
         if "initial_capital" not in data:
             data["initial_capital"] = 10000
         data["current_value"] = data.get("initial_capital", 10000)
-        strategy = UserStrategyRepository.create(db, data)
+        strategy = await UserStrategyRepository.create(db, data)
         return UserStrategyService._to_dict(strategy)
 
     @staticmethod
-    def get_detail(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def get_detail(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """获取用户策略详情"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
         return UserStrategyService._to_detail_dict(strategy)
 
     @staticmethod
-    def list_strategies(
-        db: Session,
+    async def list_strategies(
+        db: AsyncSession,
         user_id: int,
         *,
         mode: Optional[str] = None,
@@ -56,7 +56,7 @@ class UserStrategyService:
         page_size: int = 20,
     ) -> dict[str, Any]:
         """查询用户策略列表"""
-        strategies, total = UserStrategyRepository.list_by_user(
+        strategies, total = await UserStrategyRepository.list_by_user(
             db, user_id, mode=mode, status=status, page=page, page_size=page_size,
         )
         return {
@@ -67,73 +67,73 @@ class UserStrategyService:
         }
 
     @staticmethod
-    def update(db: Session, strategy_id: int, user_id: int, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def update(db: AsyncSession, strategy_id: int, user_id: int, data: dict[str, Any]) -> Optional[dict[str, Any]]:
         """更新用户策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
         data["update_by"] = str(user_id)
-        result = UserStrategyRepository.update(db, strategy_id, data)
+        result = await UserStrategyRepository.update(db, strategy_id, data)
         return UserStrategyService._to_dict(result) if result else None
 
     @staticmethod
-    def delete(db: Session, strategy_id: int, user_id: int) -> bool:
+    async def delete(db: AsyncSession, strategy_id: int, user_id: int) -> bool:
         """删除用户策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return False
-        return UserStrategyRepository.delete(db, strategy_id)
+        return await UserStrategyRepository.delete(db, strategy_id)
 
     @staticmethod
-    def start(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def start(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """启动策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
-        result = UserStrategyRepository.update(db, strategy_id, {
+        result = await UserStrategyRepository.update(db, strategy_id, {
             "status": StrategyStatus.RUNNING.value,
             "started_at": datetime.utcnow(),
         })
         return UserStrategyService._to_dict(result) if result else None
 
     @staticmethod
-    def stop(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def stop(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """停止策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
-        result = UserStrategyRepository.update(db, strategy_id, {
+        result = await UserStrategyRepository.update(db, strategy_id, {
             "status": StrategyStatus.STOPPED.value,
             "stopped_at": datetime.utcnow(),
         })
         return UserStrategyService._to_dict(result) if result else None
 
     @staticmethod
-    def pause(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def pause(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """暂停策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
-        result = UserStrategyRepository.update(db, strategy_id, {
+        result = await UserStrategyRepository.update(db, strategy_id, {
             "status": StrategyStatus.PAUSED.value,
         })
         return UserStrategyService._to_dict(result) if result else None
 
     @staticmethod
-    def resume(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def resume(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """恢复策略"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
-        result = UserStrategyRepository.update(db, strategy_id, {
+        result = await UserStrategyRepository.update(db, strategy_id, {
             "status": StrategyStatus.RUNNING.value,
         })
         return UserStrategyService._to_dict(result) if result else None
 
     @staticmethod
-    def get_performance(db: Session, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
+    async def get_performance(db: AsyncSession, strategy_id: int, user_id: int) -> Optional[dict[str, Any]]:
         """获取策略表现"""
-        strategy = UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
+        strategy = await UserStrategyRepository.get_by_id_and_user(db, strategy_id, user_id)
         if not strategy:
             return None
         return {

@@ -17,11 +17,11 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, desc, select
 
 from quant_trading_system.models.leaderboard import LeaderboardSnapshot
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 
 router = APIRouter()
 
@@ -51,13 +51,14 @@ def _snapshot_to_dict(s: LeaderboardSnapshot) -> dict:
     }
 
 
-def _get_latest_snapshot_time(db: Session, rank_type: str, period: str) -> Optional[datetime]:
+async def _get_latest_snapshot_time(db: AsyncSession, rank_type: str, period: str) -> Optional[datetime]:
     """获取最新快照时间"""
-    result = db.query(func.max(LeaderboardSnapshot.snapshot_time)).filter(
+    stmt = select(func.max(LeaderboardSnapshot.snapshot_time)).where(
         LeaderboardSnapshot.rank_type == rank_type,
         LeaderboardSnapshot.period == period,
-    ).scalar()
-    return result
+    )
+    result = await db.execute(stmt)
+    return result.scalar()
 
 
 # ─────────────────────────────────────────────
@@ -68,7 +69,7 @@ def _get_latest_snapshot_time(db: Session, rank_type: str, period: str) -> Optio
 async def get_leaderboard(
     period: str = Query("weekly", description="统计周期: daily/weekly/monthly/all_time"),
     limit: int = Query(20, ge=1, le=100, description="返回数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取综合排行榜
@@ -85,10 +86,10 @@ async def get_leaderboard(
     - period          : 统计周期
     - snapshot_time   : 快照时间
     """
-    strategy_items = _query_leaderboard(db, "strategy", period, limit)
-    signal_items = _query_leaderboard(db, "signal", period, limit)
+    strategy_items = await _query_leaderboard(db, "strategy", period, limit)
+    signal_items = await _query_leaderboard(db, "signal", period, limit)
 
-    snapshot_time = _get_latest_snapshot_time(db, "strategy", period)
+    snapshot_time = await _get_latest_snapshot_time(db, "strategy", period)
 
     return {
         "period": period,
@@ -103,7 +104,7 @@ async def get_strategy_leaderboard(
     period: str = Query("weekly", description="统计周期: daily/weekly/monthly/all_time"),
     sort_by: str = Query("total_return", description="排序字段: total_return/sharpe_ratio/win_rate"),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     策略收益排行榜
@@ -122,8 +123,8 @@ async def get_strategy_leaderboard(
     - sort_by     : 排序字段
     - snapshot_time: 快照时间
     """
-    items = _query_leaderboard(db, "strategy", period, limit, sort_by=sort_by)
-    snapshot_time = _get_latest_snapshot_time(db, "strategy", period)
+    items = await _query_leaderboard(db, "strategy", period, limit, sort_by=sort_by)
+    snapshot_time = await _get_latest_snapshot_time(db, "strategy", period)
 
     return {
         "items": items,
@@ -138,7 +139,7 @@ async def get_strategy_leaderboard(
 async def get_signal_leaderboard(
     period: str = Query("weekly", description="统计周期: daily/weekly/monthly/all_time"),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     信号准确率排行榜
@@ -155,8 +156,8 @@ async def get_signal_leaderboard(
     - period      : 统计周期
     - snapshot_time: 快照时间
     """
-    items = _query_leaderboard(db, "signal", period, limit, sort_by="win_rate")
-    snapshot_time = _get_latest_snapshot_time(db, "signal", period)
+    items = await _query_leaderboard(db, "signal", period, limit, sort_by="win_rate")
+    snapshot_time = await _get_latest_snapshot_time(db, "signal", period)
 
     return {
         "items": items,
@@ -166,15 +167,15 @@ async def get_signal_leaderboard(
     }
 
 
-def _query_leaderboard(
-    db: Session,
+async def _query_leaderboard(
+    db: AsyncSession,
     rank_type: str,
     period: str,
     limit: int,
     sort_by: str = "total_return",
 ) -> list[dict]:
     """查询排行榜快照数据"""
-    snapshot_time = _get_latest_snapshot_time(db, rank_type, period)
+    snapshot_time = await _get_latest_snapshot_time(db, rank_type, period)
     if not snapshot_time:
         return []
 
@@ -187,10 +188,13 @@ def _query_leaderboard(
     }
     order_col = sort_field_map.get(sort_by, LeaderboardSnapshot.total_return)
 
-    items = db.query(LeaderboardSnapshot).filter(
+    stmt = select(LeaderboardSnapshot).where(
         LeaderboardSnapshot.rank_type == rank_type,
         LeaderboardSnapshot.period == period,
         LeaderboardSnapshot.snapshot_time == snapshot_time,
-    ).order_by(desc(order_col)).limit(limit).all()
+    ).order_by(desc(order_col)).limit(limit)
+
+    result = await db.execute(stmt)
+    items = result.scalars().all()
 
     return [_snapshot_to_dict(s) for s in items]

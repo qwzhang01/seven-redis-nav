@@ -15,15 +15,14 @@ M 端接口（管理员）：
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Request, Query, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Request, Query, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
 
 from quant_trading_system.models.signal import SignalTradeRecord, Signal
 from quant_trading_system.models.user import User
 from quant_trading_system.models.subscription import Subscription
-from quant_trading_system.services.database.database import get_db
-from quant_trading_system.api.deps import get_orchestrator_dep
+from quant_trading_system.core.database import get_db
 
 router = APIRouter()
 
@@ -40,7 +39,7 @@ async def _get_optional_orchestrator(request: Request):
 
 @router.get("/overview")
 async def get_system_overview(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
@@ -64,16 +63,31 @@ async def get_system_overview(
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 用户统计
-    total_users = db.query(func.count(User.id)).filter(User.enable_flag == True).scalar() or 0
-    new_users_today = db.query(func.count(User.id)).filter(
-        User.create_time >= today_start,
-        User.enable_flag == True,
-    ).scalar() or 0
-    active_users_today = db.query(func.count(User.id)).filter(
-        User.last_login_time >= today_start,
-        User.enable_flag == True,
-    ).scalar() or 0
+    def _overview_stats(s):
+        total_users = s.query(func.count(User.id)).filter(User.enable_flag == True).scalar() or 0
+        new_users_today = s.query(func.count(User.id)).filter(
+            User.create_time >= today_start,
+            User.enable_flag == True,
+        ).scalar() or 0
+        active_users_today = s.query(func.count(User.id)).filter(
+            User.last_login_time >= today_start,
+            User.enable_flag == True,
+        ).scalar() or 0
+        total_signals = s.query(func.count(SignalTradeRecord.id)).scalar() or 0
+        signals_today = s.query(func.count(SignalTradeRecord.id)).filter(
+            SignalTradeRecord.created_at >= today_start,
+        ).scalar() or 0
+        total_subscriptions = s.query(func.count(Subscription.id)).scalar() or 0
+        return {
+            "total_users": total_users,
+            "active_users_today": active_users_today,
+            "new_users_today": new_users_today,
+            "total_signals": total_signals,
+            "signals_today": signals_today,
+            "subscriptions": total_subscriptions,
+        }
+
+    db_stats = await db.run_sync(_overview_stats)
 
     # 策略统计（从编排器获取）
     total_strategies = 0
@@ -89,24 +103,10 @@ async def get_system_overview(
     except Exception:
         pass
 
-    # 信号统计
-    total_signals = db.query(func.count(SignalTradeRecord.id)).scalar() or 0
-    signals_today = db.query(func.count(SignalTradeRecord.id)).filter(
-        SignalTradeRecord.created_at >= today_start,
-    ).scalar() or 0
-
-    # 订阅配置统计
-    total_subscriptions = db.query(func.count(Subscription.id)).scalar() or 0
-
     return {
-        "total_users": total_users,
-        "active_users_today": active_users_today,
-        "new_users_today": new_users_today,
+        **db_stats,
         "total_strategies": total_strategies,
         "running_strategies": running_strategies,
-        "total_signals": total_signals,
-        "signals_today": signals_today,
-        "subscriptions": total_subscriptions,
         "ws_connections": ws_manager.connection_count,
         "ws_channel_stats": ws_manager.channel_stats,
         "timestamp": datetime.utcnow().isoformat(),
@@ -116,7 +116,7 @@ async def get_system_overview(
 @router.get("/users")
 async def get_user_stats(
     days: int = Query(7, ge=1, le=90, description="统计天数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     用户统计数据
@@ -133,45 +133,44 @@ async def get_user_stats(
     - daily_new_users: 每日新增用户趋势
     - days           : 统计天数
     """
-    # 总用户数
-    total_users = db.query(func.count(User.id)).filter(User.enable_flag == True).scalar() or 0
+    def _user_stats(s):
+        total_users = s.query(func.count(User.id)).filter(User.enable_flag == True).scalar() or 0
 
-    # 用户类型分布
-    type_rows = db.query(User.user_type, func.count(User.id)).filter(
-        User.enable_flag == True
-    ).group_by(User.user_type).all()
-    user_type_dist = {row[0]: row[1] for row in type_rows}
+        type_rows = s.query(User.user_type, func.count(User.id)).filter(
+            User.enable_flag == True
+        ).group_by(User.user_type).all()
+        user_type_dist = {row[0]: row[1] for row in type_rows}
 
-    # 用户状态分布
-    status_rows = db.query(User.status, func.count(User.id)).filter(
-        User.enable_flag == True
-    ).group_by(User.status).all()
-    status_dist = {row[0]: row[1] for row in status_rows}
+        status_rows = s.query(User.status, func.count(User.id)).filter(
+            User.enable_flag == True
+        ).group_by(User.status).all()
+        status_dist = {row[0]: row[1] for row in status_rows}
 
-    # 每日新增用户趋势
-    daily_new = []
-    for i in range(days - 1, -1, -1):
-        day_start = (datetime.utcnow() - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
-        count = db.query(func.count(User.id)).filter(
-            User.create_time >= day_start,
-            User.create_time < day_end,
-            User.enable_flag == True,
-        ).scalar() or 0
-        daily_new.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
+        daily_new = []
+        for i in range(days - 1, -1, -1):
+            day_start = (datetime.utcnow() - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+            day_end = day_start + timedelta(days=1)
+            count = s.query(func.count(User.id)).filter(
+                User.create_time >= day_start,
+                User.create_time < day_end,
+                User.enable_flag == True,
+            ).scalar() or 0
+            daily_new.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
 
-    return {
-        "total_users": total_users,
-        "user_type_dist": user_type_dist,
-        "status_dist": status_dist,
-        "daily_new_users": daily_new,
-        "days": days,
-    }
+        return {
+            "total_users": total_users,
+            "user_type_dist": user_type_dist,
+            "status_dist": status_dist,
+            "daily_new_users": daily_new,
+            "days": days,
+        }
+
+    return await db.run_sync(_user_stats)
 
 
 @router.get("/strategies")
 async def get_strategy_stats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
@@ -203,33 +202,36 @@ async def get_strategy_stats(
     except Exception:
         pass
 
-    # 各信号源交易数量（从数据库）
-    signal_rows = db.query(
-        SignalTradeRecord.signal_id,
-        Signal.name.label("signal_name"),
-        func.count(SignalTradeRecord.id).label("signal_count"),
-    ).join(
-        Signal, SignalTradeRecord.signal_id == Signal.id,
-    ).group_by(
-        SignalTradeRecord.signal_id,
-        Signal.name,
-    ).order_by(func.count(SignalTradeRecord.id).desc()).limit(20).all()
+    def _strategy_db_stats(s):
+        signal_rows = s.query(
+            SignalTradeRecord.signal_id,
+            Signal.name.label("signal_name"),
+            func.count(SignalTradeRecord.id).label("signal_count"),
+        ).join(
+            Signal, SignalTradeRecord.signal_id == Signal.id,
+        ).group_by(
+            SignalTradeRecord.signal_id,
+            Signal.name,
+        ).order_by(func.count(SignalTradeRecord.id).desc()).limit(20).all()
 
-    signal_by_strategy = [
-        {
-            "signal_id": row.signal_id,
-            "signal_name": row.signal_name or str(row.signal_id),
-            "signal_count": row.signal_count,
-        }
-        for row in signal_rows
-    ]
+        signal_by_strategy = [
+            {
+                "signal_id": row.signal_id,
+                "signal_name": row.signal_name or str(row.signal_id),
+                "signal_count": row.signal_count,
+            }
+            for row in signal_rows
+        ]
 
-    # 交易类型分布（buy/sell）
-    type_rows = db.query(
-        SignalTradeRecord.action,
-        func.count(SignalTradeRecord.id),
-    ).group_by(SignalTradeRecord.action).all()
-    signal_type_dist = {row[0]: row[1] for row in type_rows}
+        type_rows = s.query(
+            SignalTradeRecord.action,
+            func.count(SignalTradeRecord.id),
+        ).group_by(SignalTradeRecord.action).all()
+        signal_type_dist = {row[0]: row[1] for row in type_rows}
+
+        return signal_by_strategy, signal_type_dist
+
+    signal_by_strategy, signal_type_dist = await db.run_sync(_strategy_db_stats)
 
     return {
         "total_strategies": len(strategy_list),
@@ -242,7 +244,7 @@ async def get_strategy_stats(
 
 @router.get("/trading")
 async def get_trading_stats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
@@ -263,7 +265,6 @@ async def get_trading_stats(
 
     try:
         if orch:
-            # 通过 OrderProcessor 获取订单和持仓信息
             op = orch.order_processor
             if op:
                 from quant_trading_system.core.enums import OrderStatus
@@ -273,7 +274,6 @@ async def get_trading_stats(
                 )
                 total_positions = len(op.position_manager.positions)
 
-            # 通过 AccountManager 获取账户信息
             acc = orch.account_manager.account
             if acc:
                 total_equity = float(acc.total_balance)
@@ -285,11 +285,12 @@ async def get_trading_stats(
     except Exception:
         pass
 
-    # 今日交易统计
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    signals_executed_today = db.query(func.count(SignalTradeRecord.id)).filter(
-        SignalTradeRecord.traded_at >= today_start,
-    ).scalar() or 0
+    signals_executed_today = await db.run_sync(
+        lambda s: s.query(func.count(SignalTradeRecord.id)).filter(
+            SignalTradeRecord.traded_at >= today_start,
+        ).scalar() or 0
+    )
 
     return {
         "active_orders": active_orders,
@@ -303,7 +304,7 @@ async def get_trading_stats(
 
 @router.get("/market")
 async def get_market_stats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     orch=Depends(_get_optional_orchestrator),
 ) -> dict[str, Any]:
     """
@@ -318,22 +319,23 @@ async def get_market_stats(
     - kline_records_total: K线记录总数
     - market_service_stats: 行情服务统计
     """
-    # 订阅统计
-    total_subs = db.query(func.count(Subscription.id)).scalar() or 0
-    running_subs = db.query(func.count(Subscription.id)).filter(
-        Subscription.status == "running"
-    ).scalar() or 0
+    def _market_db_stats(s):
+        total_subs = s.query(func.count(Subscription.id)).scalar() or 0
+        running_subs = s.query(func.count(Subscription.id)).filter(
+            Subscription.status == "running"
+        ).scalar() or 0
+        return total_subs, running_subs
 
-    # K线记录总数（从 TimescaleDB 查询）
+    total_subs, running_subs = await db.run_sync(_market_db_stats)
+
+    # K线记录总数（异步查询）
     kline_total = 0
     try:
-        from quant_trading_system.services.database.database import get_database
-        tsdb = get_database()
+        from quant_trading_system.core.database import get_async_database
+        tsdb = get_async_database()
         if tsdb.is_connected:
-            with tsdb._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM kline_data;")
-                kline_total = cursor.fetchone()[0]
+            rows = await tsdb.execute_raw("SELECT COUNT(*) FROM kline_data;")
+            kline_total = rows[0][0] if rows else 0
     except Exception:
         pass
 

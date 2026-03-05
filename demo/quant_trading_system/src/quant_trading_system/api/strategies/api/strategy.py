@@ -15,14 +15,13 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.api.strategies.services import (
     PresetStrategyService,
     UserStrategyService,
 )
-from quant_trading_system.core.enums import StrategyType
 
 # 创建 C 端策略路由实例
 router = APIRouter()
@@ -100,14 +99,14 @@ class UpdateStrategyRequest(BaseModel):
 @router.get("/featured")
 async def get_featured_strategies(
     limit: int = Query(10, ge=1, le=50, description="返回数量限制"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取首页推荐策略
 
     返回系统推荐的优质预设策略列表，用于首页展示。
     """
-    strategies = PresetStrategyService.get_featured(db, limit)
+    strategies = await PresetStrategyService.get_featured(db, limit)
     return {"strategies": strategies, "total": len(strategies)}
 
 @router.get("/list")
@@ -118,14 +117,14 @@ async def list_preset_strategies(
     risk_level: Optional[str] = Query(None, description="风险等级: low/medium/high"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取系统预设策略列表（C端只看已上架的）
 
     支持按市场类型、策略类型、风险等级筛选，支持关键词搜索和分页。
     """
-    return PresetStrategyService.list_strategies(
+    return await PresetStrategyService.list_strategies(
         db,
         keyword=keyword,
         market_type=market_type,
@@ -140,14 +139,14 @@ async def list_preset_strategies(
 @router.get("/preset/{strategy_id}")
 async def get_preset_strategy_detail(
     strategy_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取系统预设策略详情
 
     包含策略介绍、逻辑说明、参数配置、风险提示等完整信息。
     """
-    detail = PresetStrategyService.get_detail(db, strategy_id)
+    detail = await PresetStrategyService.get_detail(db, strategy_id)
     if not detail:
         raise HTTPException(status_code=404, detail="策略不存在")
     if not detail.get("is_published"):
@@ -164,7 +163,7 @@ async def list_my_strategies(
     status: Optional[str] = Query(None, description="策略状态"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取当前用户的策略实例列表
@@ -172,7 +171,7 @@ async def list_my_strategies(
     支持按运行模式和状态筛选。
     """
     user_id = _get_current_user_id(request)
-    return UserStrategyService.list_strategies(
+    return await UserStrategyService.list_strategies(
         db, user_id, mode=mode, status=status, page=page, page_size=page_size,
     )
 
@@ -181,7 +180,7 @@ async def list_my_strategies(
 async def create_live_strategy(
     request: Request,
     body: CreateLiveStrategyRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     创建实盘策略
@@ -191,7 +190,7 @@ async def create_live_strategy(
     user_id = _get_current_user_id(request)
     data = body.model_dump()
     data["preset_strategy_id"] = int(data["preset_strategy_id"])
-    result = UserStrategyService.create_live(db, user_id, data)
+    result = await UserStrategyService.create_live(db, user_id, data)
     return {
         "success": True,
         "strategy_id": result["id"],
@@ -204,7 +203,7 @@ async def create_live_strategy(
 async def create_simulate_strategy(
     request: Request,
     body: CreateSimulateStrategyRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     创建模拟策略
@@ -216,7 +215,7 @@ async def create_simulate_strategy(
     data["preset_strategy_id"] = int(data["preset_strategy_id"])
     if not data.get("name"):
         data["name"] = f"模拟策略_{data['preset_strategy_id']}"
-    result = UserStrategyService.create_simulation(db, user_id, data)
+    result = await UserStrategyService.create_simulation(db, user_id, data)
     return {
         "success": True,
         "strategy_id": result["id"],
@@ -230,7 +229,7 @@ async def create_simulate_strategy(
 async def get_strategy_performance(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略性能指标
@@ -238,7 +237,7 @@ async def get_strategy_performance(
     返回策略运行的各项性能统计指标。
     """
     user_id = _get_current_user_id(request)
-    result = UserStrategyService.get_performance(db, strategy_id, user_id)
+    result = await UserStrategyService.get_performance(db, strategy_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权访问")
     return result
@@ -249,7 +248,7 @@ async def get_strategy_signals(
     strategy_id: int,
     request: Request,
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略信号历史
@@ -257,7 +256,7 @@ async def get_strategy_signals(
     查询指定策略生成的交易信号历史记录。
     """
     user_id = _get_current_user_id(request)
-    strategy = UserStrategyService.get_detail(db, strategy_id, user_id)
+    strategy = await UserStrategyService.get_detail(db, strategy_id, user_id)
     if not strategy:
         raise HTTPException(status_code=404, detail="策略不存在或无权访问")
     return {
@@ -271,7 +270,7 @@ async def get_strategy_signals(
 async def get_strategy_detail(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取用户策略实例详情
@@ -279,7 +278,7 @@ async def get_strategy_detail(
     包含策略配置、运行状态和统计信息。
     """
     user_id = _get_current_user_id(request)
-    detail = UserStrategyService.get_detail(db, strategy_id, user_id)
+    detail = await UserStrategyService.get_detail(db, strategy_id, user_id)
     if not detail:
         raise HTTPException(status_code=404, detail="策略不存在或无权访问")
     return detail
@@ -290,14 +289,14 @@ async def update_strategy(
     strategy_id: int,
     request: Request,
     body: UpdateStrategyRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     更新策略参数
     """
     user_id = _get_current_user_id(request)
     data = {k: v for k, v in body.model_dump().items() if v is not None}
-    result = UserStrategyService.update(db, strategy_id, user_id, data)
+    result = await UserStrategyService.update(db, strategy_id, user_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": result["id"], "message": "策略更新成功"}
@@ -307,13 +306,13 @@ async def update_strategy(
 async def delete_strategy(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     删除策略
     """
     user_id = _get_current_user_id(request)
-    success = UserStrategyService.delete(db, strategy_id, user_id)
+    success = await UserStrategyService.delete(db, strategy_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": str(strategy_id), "message": "策略删除成功"}
@@ -323,13 +322,13 @@ async def delete_strategy(
 async def start_strategy(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     启动策略
     """
     user_id = _get_current_user_id(request)
-    result = UserStrategyService.start(db, strategy_id, user_id)
+    result = await UserStrategyService.start(db, strategy_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": result["id"], "message": "策略启动成功"}
@@ -339,13 +338,13 @@ async def start_strategy(
 async def stop_strategy(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     停止策略
     """
     user_id = _get_current_user_id(request)
-    result = UserStrategyService.stop(db, strategy_id, user_id)
+    result = await UserStrategyService.stop(db, strategy_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": result["id"], "message": "策略停止成功"}
@@ -355,13 +354,13 @@ async def stop_strategy(
 async def pause_strategy(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     暂停策略
     """
     user_id = _get_current_user_id(request)
-    result = UserStrategyService.pause(db, strategy_id, user_id)
+    result = await UserStrategyService.pause(db, strategy_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": result["id"], "message": "策略暂停成功"}
@@ -371,13 +370,13 @@ async def pause_strategy(
 async def resume_strategy(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     恢复策略
     """
     user_id = _get_current_user_id(request)
-    result = UserStrategyService.resume(db, strategy_id, user_id)
+    result = await UserStrategyService.resume(db, strategy_id, user_id)
     if not result:
         raise HTTPException(status_code=404, detail="策略不存在或无权操作")
     return {"success": True, "strategy_id": result["id"], "message": "策略恢复成功"}

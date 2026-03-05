@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 import structlog
 
 from quant_trading_system.models.market import Bar, Tick, Depth
-from .database import get_async_database
+from quant_trading_system.core.database import get_async_database
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 logger = structlog.get_logger(__name__)

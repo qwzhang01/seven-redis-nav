@@ -9,9 +9,9 @@ C 端模拟交易专用接口
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.api.strategies.services import (
     UserStrategyService,
     SimulationService,
@@ -31,9 +31,9 @@ def _get_current_user_id(request: Request) -> int:
     return int(user_id)
 
 
-def _check_strategy_access(db: Session, strategy_id: int, user_id: int):
+async def _check_strategy_access(db: AsyncSession, strategy_id: int, user_id: int):
     """检查策略访问权限"""
-    strategy = UserStrategyService.get_detail(db, strategy_id, user_id)
+    strategy = await UserStrategyService.get_detail(db, strategy_id, user_id)
     if not strategy:
         raise HTTPException(status_code=404, detail="策略不存在或无权访问")
     return strategy
@@ -47,7 +47,7 @@ async def get_simulation_klines(
     start_time: Optional[int] = Query(None, description="开始时间戳(ms)"),
     end_time: Optional[int] = Query(None, description="结束时间戳(ms)"),
     limit: int = Query(500, ge=1, le=2000, description="返回条数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取模拟交易的K线历史数据
@@ -56,7 +56,7 @@ async def get_simulation_klines(
     返回数据按时间升序排列，time 为 Unix 秒级时间戳。
     """
     user_id = _get_current_user_id(request)
-    strategy = _check_strategy_access(db, strategy_id, user_id)
+    strategy = await _check_strategy_access(db, strategy_id, user_id)
 
     # 使用策略配置的交易对和交易所查询K线数据
     symbol = (strategy.get("symbols") or ["BTC/USDT"])[0]
@@ -80,7 +80,7 @@ async def get_simulation_indicators(
     start_time: Optional[int] = Query(None, description="开始时间戳(ms)"),
     end_time: Optional[int] = Query(None, description="结束时间戳(ms)"),
     limit: int = Query(500, ge=1, le=2000, description="返回条数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取策略指标历史数据
@@ -91,9 +91,9 @@ async def get_simulation_indicators(
     - type 字段指示绘制类型：line(线图)、histogram(柱状图)、area(面积图)
     """
     user_id = _get_current_user_id(request)
-    _check_strategy_access(db, strategy_id, user_id)
+    await _check_strategy_access(db, strategy_id, user_id)
 
-    return SimulationService.get_indicators(
+    return await SimulationService.get_indicators(
         db, strategy_id,
         start_time=start_time,
         end_time=end_time,
@@ -108,7 +108,7 @@ async def get_simulation_trade_marks(
     start_time: Optional[int] = Query(None, description="开始时间戳(ms)"),
     end_time: Optional[int] = Query(None, description="结束时间戳(ms)"),
     limit: int = Query(100, ge=1, le=500, description="返回条数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取交易买卖点标记
@@ -117,9 +117,9 @@ async def get_simulation_trade_marks(
     买入标记使用绿色位于K线下方，卖出标记使用红色位于K线上方。
     """
     user_id = _get_current_user_id(request)
-    _check_strategy_access(db, strategy_id, user_id)
+    await _check_strategy_access(db, strategy_id, user_id)
 
-    return SimulationService.get_trade_marks(
+    return await SimulationService.get_trade_marks(
         db, strategy_id, start_time=start_time, end_time=end_time, limit=limit,
     )
 
@@ -128,7 +128,7 @@ async def get_simulation_trade_marks(
 async def get_simulation_positions(
     strategy_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取当前模拟持仓
@@ -136,9 +136,9 @@ async def get_simulation_positions(
     返回策略当前持仓列表和汇总信息。
     """
     user_id = _get_current_user_id(request)
-    _check_strategy_access(db, strategy_id, user_id)
+    await _check_strategy_access(db, strategy_id, user_id)
 
-    return SimulationService.get_positions(db, strategy_id)
+    return await SimulationService.get_positions(db, strategy_id)
 
 
 @router.get("/{strategy_id}/trades")
@@ -147,7 +147,7 @@ async def get_simulation_trades(
     request: Request,
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页条数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取模拟交易记录
@@ -155,9 +155,9 @@ async def get_simulation_trades(
     分页查询策略的模拟交易历史记录。
     """
     user_id = _get_current_user_id(request)
-    _check_strategy_access(db, strategy_id, user_id)
+    await _check_strategy_access(db, strategy_id, user_id)
 
-    return SimulationService.get_trades(db, strategy_id, page=page, page_size=page_size)
+    return await SimulationService.get_trades(db, strategy_id, page=page, page_size=page_size)
 
 
 @router.get("/{strategy_id}/logs")
@@ -166,7 +166,7 @@ async def get_simulation_logs(
     request: Request,
     level: Optional[str] = Query(None, description="日志级别: info/warn/error/trade"),
     limit: int = Query(50, ge=1, le=200, description="返回条数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取模拟运行日志
@@ -174,6 +174,6 @@ async def get_simulation_logs(
     查询策略模拟运行产生的日志记录。
     """
     user_id = _get_current_user_id(request)
-    _check_strategy_access(db, strategy_id, user_id)
+    await _check_strategy_access(db, strategy_id, user_id)
 
-    return SimulationService.get_logs(db, strategy_id, level=level, limit=limit)
+    return await SimulationService.get_logs(db, strategy_id, level=level, limit=limit)

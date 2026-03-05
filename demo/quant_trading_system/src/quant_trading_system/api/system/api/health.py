@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from quant_trading_system.services.database.database import get_database
+from quant_trading_system.core.database import get_async_database
 from quant_trading_system.core.config import settings
 
 
@@ -58,8 +58,8 @@ async def database_health_check() -> HealthResponse:
     检查数据库连接是否正常
     """
     try:
-        # 使用现有的数据库实例进行健康检查
-        db = get_database()
+        # 使用异步数据库实例进行健康检查
+        db = get_async_database()
         db_status = await db.health_check()
 
         if db_status:
@@ -105,8 +105,8 @@ async def full_health_check() -> HealthResponse:
     checks["api"] = {"status": "healthy", "message": "API服务正常"}
 
     # 检查数据库
+    db = get_async_database()
     try:
-        db = get_database()
         db_status = await db.health_check()
         checks["database"] = {
             "status": "healthy" if db_status else "unhealthy",
@@ -121,57 +121,25 @@ async def full_health_check() -> HealthResponse:
         }
         overall_status = HealthStatus.UNHEALTHY
 
-    # 检查关键表是否存在
-    try:
-        # 检查用户表
-        db = get_database()
-        with db._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM user_info LIMIT 1")
-            checks["user_table"] = {
+    # 检查关键表是否存在（通过异步查询）
+    table_checks = [
+        ("user_table", "user_info", "用户表"),
+        ("exchange_table", "exchange_info", "交易所表"),
+        ("api_key_table", "user_exchange_api", "API密钥表"),
+    ]
+    for check_key, table_name, label in table_checks:
+        try:
+            rows = await db.execute_raw(f"SELECT COUNT(*) FROM {table_name} LIMIT 1")
+            checks[check_key] = {
                 "status": "healthy",
-                "message": "用户表正常"
+                "message": f"{label}正常"
             }
-    except Exception as e:
-        checks["user_table"] = {
-            "status": "unhealthy",
-            "message": f"用户表检查失败: {str(e)}"
-        }
-        overall_status = HealthStatus.UNHEALTHY
-
-    # 检查交易所表
-    try:
-        db = get_database()
-        with db._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM exchange_info LIMIT 1")
-            checks["exchange_table"] = {
-                "status": "healthy",
-                "message": "交易所表正常"
+        except Exception as e:
+            checks[check_key] = {
+                "status": "unhealthy",
+                "message": f"{label}检查失败: {str(e)}"
             }
-    except Exception as e:
-        checks["exchange_table"] = {
-            "status": "unhealthy",
-            "message": f"交易所表检查失败: {str(e)}"
-        }
-        overall_status = HealthStatus.UNHEALTHY
-
-    # 检查API密钥表
-    try:
-        db = get_database()
-        with db._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM user_exchange_api LIMIT 1")
-            checks["api_key_table"] = {
-                "status": "healthy",
-                "message": "API密钥表正常"
-            }
-    except Exception as e:
-        checks["api_key_table"] = {
-            "status": "unhealthy",
-            "message": f"API密钥表检查失败: {str(e)}"
-        }
-        overall_status = HealthStatus.UNHEALTHY
+            overall_status = HealthStatus.UNHEALTHY
 
     # 系统信息
     import psutil

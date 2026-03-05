@@ -25,10 +25,10 @@ import asyncio
 import logging
 from typing import Any, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from quant_trading_system.models.signal import Signal
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.services.flow.signal_record_subscriber import (
     SignalRecordSubscriber,
     ORDER_EVENTS,
@@ -152,45 +152,50 @@ class SignalStreamEngine:
     async def _scan_and_start_signals(self) -> None:
         """扫描 signal 表，启动运行中且需要自动监听的信号"""
         try:
-            db: Session = next(get_db())
-            try:
-                signals = db.query(Signal).filter(
-                    Signal.status == "running",
-                    Signal.signal_source == "subscribe",
-                    Signal.auto_start_stream == True,
-                    Signal.enable_flag == True,
-                ).all()
-
-                logger.info(f"扫描到 {len(signals)} 个需要自动启动的信号源")
-
-                for signal in signals:
-                    if not signal.target_api_key or not signal.target_api_secret:
-                        logger.warning(
-                            f"信号源缺少 API 授权信息，跳过: "
-                            f"signal_id={signal.id}, name={signal.name}"
+            # 使用异步 Session 查询 ORM 模型
+            async for db in get_db():
+                try:
+                    result = await db.execute(
+                        select(Signal).where(
+                            Signal.status == "running",
+                            Signal.signal_source == "subscribe",
+                            Signal.auto_start_stream == True,
+                            Signal.enable_flag == True,
                         )
-                        continue
+                    )
+                    signals = result.scalars().all()
 
-                    watch_symbols = signal.watch_symbols if signal.watch_symbols else None
+                    logger.info(f"扫描到 {len(signals)} 个需要自动启动的信号源")
 
-                    try:
-                        await self.add_signal_stream(
-                            signal_id=signal.id,
-                            signal_name=signal.name,
-                            target_api_key=signal.target_api_key,
-                            target_api_secret=signal.target_api_secret,
-                            account_type=signal.account_type or "spot",
-                            exchange=signal.exchange or "binance",
-                            testnet=signal.testnet or False,
-                            watch_symbols=watch_symbols,
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"启动信号流失败: signal_id={signal.id}, "
-                            f"name={signal.name}, error={e}"
-                        )
-            finally:
-                db.close()
+                    for signal in signals:
+                        if not signal.target_api_key or not signal.target_api_secret:
+                            logger.warning(
+                                f"信号源缺少 API 授权信息，跳过: "
+                                f"signal_id={signal.id}, name={signal.name}"
+                            )
+                            continue
+
+                        watch_symbols = signal.watch_symbols if signal.watch_symbols else None
+
+                        try:
+                            await self.add_signal_stream(
+                                signal_id=signal.id,
+                                signal_name=signal.name,
+                                target_api_key=signal.target_api_key,
+                                target_api_secret=signal.target_api_secret,
+                                account_type=signal.account_type or "spot",
+                                exchange=signal.exchange or "binance",
+                                testnet=signal.testnet or False,
+                                watch_symbols=watch_symbols,
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"启动信号流失败: signal_id={signal.id}, "
+                                f"name={signal.name}, error={e}"
+                            )
+                except Exception as e:
+                    logger.error(f"查询信号表失败: {e}", exc_info=True)
+                break  # 只需要一个 session
         except Exception as e:
             logger.error(f"扫描信号表失败: {e}", exc_info=True)
 

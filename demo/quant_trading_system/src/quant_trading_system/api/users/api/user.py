@@ -34,9 +34,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.api.users.services.user_service import UserService
 from quant_trading_system.api.users.models.user_models import (
     UserResponse, RegisterRequest, LoginRequest, LoginResponse,
@@ -51,14 +51,14 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     """从拦截器验证后的request.state中获取当前用户信息"""
     username = getattr(request.state, 'username', None)
     if not username:
         raise HTTPException(status_code=401, detail="未认证的用户")
 
     user_service = UserService(db)
-    user = user_service.user_repo.get_user_by_username(username)
+    user = await user_service.user_repo.get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在或已被禁用")
 
@@ -76,7 +76,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     request: RegisterRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """
     用户注册
@@ -97,7 +97,7 @@ async def register_user(
     user_service = UserService(db)
 
     try:
-        user_info = user_service.register_user(
+        user_info = await user_service.register_user(
             username=request.username,
             password=request.password,
             email=request.email,
@@ -112,7 +112,7 @@ async def register_user(
 @router.post("/login", response_model=LoginResponse)
 async def login(
     request: LoginRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """
     用户登录
@@ -125,7 +125,7 @@ async def login(
     """
     user_service = UserService(db)
 
-    auth_result = user_service.authenticate_user(request.username, request.password)
+    auth_result = await user_service.authenticate_user(request.username, request.password)
     if not auth_result:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
@@ -135,7 +135,7 @@ async def login(
 @router.post("/token/refresh", response_model=RefreshTokenResponse)
 async def refresh_token(
     request: RefreshTokenRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> RefreshTokenResponse:
     """
     刷新 Token（无需认证）
@@ -155,7 +155,7 @@ async def refresh_token(
     user_service = UserService(db)
 
     try:
-        result = user_service.refresh_token(request.refresh_token)
+        result = await user_service.refresh_token(request.refresh_token)
         if not result:
             raise HTTPException(status_code=401, detail="无效的刷新令牌或用户不存在")
         return RefreshTokenResponse(**result)
@@ -174,7 +174,7 @@ async def refresh_token(
 async def change_password(
     request: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     修改当前用户密码（需要认证）
@@ -187,7 +187,7 @@ async def change_password(
     user_service = UserService(db)
 
     try:
-        success = user_service.change_password(
+        success = await user_service.change_password(
             user_id=current_user["id"],
             old_password=request.old_password,
             new_password=request.new_password
@@ -203,7 +203,7 @@ async def change_password(
 @router.post("/password/reset")
 async def reset_password(
     request: ResetPasswordRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     重置用户密码（无需认证）
@@ -216,7 +216,7 @@ async def reset_password(
     user_service = UserService(db)
 
     try:
-        success = user_service.reset_password(request.username, request.new_password)
+        success = await user_service.reset_password(request.username, request.new_password)
         if not success:
             raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -233,7 +233,7 @@ async def reset_password(
 async def update_profile(
     request: UpdateProfileRequest,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """
     更新当前用户个人信息（需要认证）
@@ -257,7 +257,7 @@ async def update_profile(
     if request.avatar_url:
         profile_data["avatar_url"] = request.avatar_url
 
-    user_info = user_service.update_profile(current_user["id"], profile_data)
+    user_info = await user_service.update_profile(current_user["id"], profile_data)
     if not user_info:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -272,7 +272,7 @@ async def update_profile(
 async def get_exchange_info(
     exchange_id: int,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> ExchangeInfo:
     """
     获取交易所信息（需要认证）
@@ -281,7 +281,7 @@ async def get_exchange_info(
     """
     user_service = UserService(db)
 
-    exchange_info = user_service.get_exchange_info(exchange_id)
+    exchange_info = await user_service.get_exchange_info(exchange_id)
     if not exchange_info:
         raise HTTPException(status_code=404, detail="交易所不存在")
 
@@ -292,7 +292,7 @@ async def get_exchange_info(
 async def create_api_key(
     request: CreateAPIKeyRequest,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> APIKeyResponse:
     """
     创建交易所 API 密钥（需要认证）
@@ -307,7 +307,7 @@ async def create_api_key(
     user_service = UserService(db)
 
     try:
-        api_key_info = user_service.create_api_key(
+        api_key_info = await user_service.create_api_key(
             user_id=current_user["id"],
             exchange_id=request.exchange_id,
             label=request.label,
@@ -324,7 +324,7 @@ async def create_api_key(
 @router.get("/api-keys", response_model=APIKeyListResponse)
 async def list_api_keys(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> APIKeyListResponse:
     """
     获取当前用户的 API 密钥列表（需要认证）
@@ -333,7 +333,7 @@ async def list_api_keys(
     """
     user_service = UserService(db)
 
-    api_keys_info = user_service.get_user_api_keys(current_user["id"])
+    api_keys_info = await user_service.get_user_api_keys(current_user["id"])
     return APIKeyListResponse(**api_keys_info)
 
 
@@ -341,7 +341,7 @@ async def list_api_keys(
 async def get_api_key(
     api_key_id: int,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> APIKeyResponse:
     """
     获取指定 API 密钥详情（需要认证）
@@ -350,7 +350,7 @@ async def get_api_key(
     """
     user_service = UserService(db)
 
-    api_key_info = user_service.get_api_key_detail(current_user["id"], api_key_id)
+    api_key_info = await user_service.get_api_key_detail(current_user["id"], api_key_id)
     if not api_key_info:
         raise HTTPException(status_code=404, detail="API 密钥不存在或无权访问")
 
@@ -362,7 +362,7 @@ async def update_api_key(
     api_key_id: int,
     request: UpdateAPIKeyRequest,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> APIKeyResponse:
     """
     更新 API 密钥信息（需要认证，仅可更新标签）
@@ -372,7 +372,7 @@ async def update_api_key(
     """
     user_service = UserService(db)
 
-    api_key_info = user_service.update_api_key(current_user["id"], api_key_id, request.label)
+    api_key_info = await user_service.update_api_key(current_user["id"], api_key_id, request.label)
     if not api_key_info:
         raise HTTPException(status_code=404, detail="API 密钥不存在或无权修改")
 
@@ -383,7 +383,7 @@ async def update_api_key(
 async def delete_api_key(
     api_key_id: int,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     删除 API 密钥（需要认证，软删除）
@@ -392,7 +392,7 @@ async def delete_api_key(
     """
     user_service = UserService(db)
 
-    success = user_service.delete_api_key(current_user["id"], api_key_id)
+    success = await user_service.delete_api_key(current_user["id"], api_key_id)
     if not success:
         raise HTTPException(status_code=404, detail="API 密钥不存在或无权删除")
 

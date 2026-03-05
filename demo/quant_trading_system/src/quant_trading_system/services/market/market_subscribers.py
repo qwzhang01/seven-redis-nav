@@ -14,7 +14,6 @@
 - 开闭原则（OCP）：新增消费逻辑只需添加新订阅器，无需修改事件总线
 """
 
-import asyncio
 from typing import Any
 
 import structlog
@@ -55,7 +54,7 @@ class DatabaseSubscriber(MarketSubscriber):
 
     async def start(self) -> None:
         """启动：初始化数据存储服务"""
-        from quant_trading_system.services.database.data_store import get_data_store
+        from quant_trading_system.services.market.data_store import get_data_store
 
         self._data_store = get_data_store()
         await self._data_store.start()

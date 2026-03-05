@@ -16,10 +16,11 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, desc
 
 from quant_trading_system.models.signal import SignalTradeRecord
-from quant_trading_system.services.database.database import get_db
+from quant_trading_system.core.database import get_db
 from quant_trading_system.core.snowflake import generate_snowflake_id
 
 router = APIRouter()
@@ -49,7 +50,7 @@ async def list_trade_records(
     action: Optional[str] = Query(None, description="按操作类型筛选(buy/sell)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取信号交易记录列表（管理员）
@@ -67,16 +68,23 @@ async def list_trade_records(
     - items : 交易记录列表
     - total : 总数量
     """
-    query = db.query(SignalTradeRecord)
+    stmt = select(SignalTradeRecord)
+    count_stmt = select(func.count()).select_from(SignalTradeRecord)
     if signal_id is not None:
-        query = query.filter(SignalTradeRecord.signal_id == signal_id)
+        stmt = stmt.where(SignalTradeRecord.signal_id == signal_id)
+        count_stmt = count_stmt.where(SignalTradeRecord.signal_id == signal_id)
     if symbol:
-        query = query.filter(SignalTradeRecord.symbol == symbol.upper())
+        stmt = stmt.where(SignalTradeRecord.symbol == symbol.upper())
+        count_stmt = count_stmt.where(SignalTradeRecord.symbol == symbol.upper())
     if action:
-        query = query.filter(SignalTradeRecord.action == action.lower())
+        stmt = stmt.where(SignalTradeRecord.action == action.lower())
+        count_stmt = count_stmt.where(SignalTradeRecord.action == action.lower())
 
-    total = query.count()
-    items = query.order_by(SignalTradeRecord.traded_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(SignalTradeRecord.traded_at)).offset((page - 1) * page_size).limit(page_size)
+    )
+    items = result.scalars().all()
 
     return {
         "items": [_trade_record_to_dict(r) for r in items],
@@ -89,7 +97,7 @@ async def list_trade_records(
 @router.get("/{record_id}")
 async def get_trade_record(
     record_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     获取单条交易记录详情（管理员）
@@ -103,7 +111,8 @@ async def get_trade_record(
     异常：
     - 404: 记录不存在
     """
-    record = db.query(SignalTradeRecord).filter(SignalTradeRecord.id == record_id).first()
+    result = await db.execute(select(SignalTradeRecord).where(SignalTradeRecord.id == record_id))
+    record = result.scalars().first()
     if not record:
         raise HTTPException(status_code=404, detail="交易记录不存在")
 
@@ -129,7 +138,7 @@ class CreateTradeRecordRequest(BaseModel):
 @router.post("/")
 async def create_trade_record(
     request: CreateTradeRecordRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     手动创建交易记录（管理员）
@@ -156,8 +165,8 @@ async def create_trade_record(
         created_at=datetime.utcnow(),
     )
     db.add(record)
-    db.commit()
-    db.refresh(record)
+    await db.commit()
+    await db.refresh(record)
 
     return {
         "success": True,
