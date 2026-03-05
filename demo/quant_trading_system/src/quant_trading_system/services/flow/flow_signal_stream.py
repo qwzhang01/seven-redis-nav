@@ -14,7 +14,6 @@ from quant_trading_system.engines.signal_event_bus import (
     SignalEvent,
     SignalEventBus,
     SignalEventType,
-    signal_event_bus,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,7 +99,7 @@ class FlowSignalStream:
             s.upper().replace("/", "") for s in (watch_symbols or [])
         )
 
-        self._event_bus = event_bus or signal_event_bus
+        self._event_bus = event_bus or SignalEventBus()
 
         # 账户 WebSocket 监听器
         # 通过工厂创建（自动处理 proxy_url 注入 + 开发环境 Mock 切换）
