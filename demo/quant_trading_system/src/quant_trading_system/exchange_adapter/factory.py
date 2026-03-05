@@ -271,7 +271,7 @@ def create_user_stream(
         kwargs["proxy_url"] = settings.exchange.proxy_url
 
     # 开发环境自动切换到 mock
-    resolved_exchange = exchange
+    resolved_exchange = exchange.lower()
     if exchange != "mock":
         from quant_trading_system.core.config import settings as _settings
         if _settings.is_development:
