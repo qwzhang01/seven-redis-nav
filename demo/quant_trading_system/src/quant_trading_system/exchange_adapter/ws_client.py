@@ -17,6 +17,11 @@ from urllib.parse import urlparse
 import structlog
 
 logger = structlog.get_logger(__name__)
+# 修复 websockets 13.x 在 Python 3.12.7+ 上的 AttributeError('characters_written')
+# 原因：Python 3.12.7 移除了 StreamWriter.characters_written，websockets 13.x 仍在访问
+# 升级 websockets>=14.0 后可删除此补丁
+if not hasattr(asyncio.StreamWriter, "characters_written"):
+    asyncio.StreamWriter.characters_written = 0
 
 
 @dataclass
