@@ -7,7 +7,6 @@
 
 # ── 引擎层服务 ──
 from quant_trading_system.services.market import MarketService
-from quant_trading_system.strategy import Strategy, StrategyEngine
 from quant_trading_system.services.trading import TradingEngine, TradingOrchestrator
 from quant_trading_system.services.backtest import BacktestEngine
 from quant_trading_system.services.risk import RiskManager
@@ -16,8 +15,6 @@ from quant_trading_system.services.evaluation import StrategyEvaluator, Performa
 
 __all__ = [
     "MarketService",
-    "Strategy",
-    "StrategyEngine",
     "TradingEngine",
     "TradingOrchestrator",
     "BacktestEngine",

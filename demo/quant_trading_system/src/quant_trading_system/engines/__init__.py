@@ -32,10 +32,16 @@ from quant_trading_system.engines.signal_event_bus import (  # noqa: F401
     SignalEvent,
 )
 
-# ── 4. 信号监听引擎 ──
-from quant_trading_system.engines.signal_stream_engine import (  # noqa: F401
-    SignalStreamEngine,
-)
+# ── 4. 信号监听引擎（延迟导入，避免循环依赖） ──
+# SignalStreamEngine 依赖 services → strategy，而 strategy 又依赖 engines，
+# 因此在模块初始化阶段不能直接导入，需通过 __getattr__ 延迟加载。
+
+
+def __getattr__(name: str):
+    if name == "SignalStreamEngine":
+        from quant_trading_system.engines.signal_stream_engine import SignalStreamEngine
+        return SignalStreamEngine
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
