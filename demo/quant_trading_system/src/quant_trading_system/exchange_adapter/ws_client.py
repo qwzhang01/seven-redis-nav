@@ -114,6 +114,8 @@ class WebSocketClient:
                     # websockets 不会自动根据 URI scheme 推断 TLS
                     if parsed.scheme == "wss":
                         ssl_context = ssl.create_default_context()
+                        ssl_context.check_hostname = False  # ← 新增
+                        ssl_context.verify_mode = ssl.CERT_NONE  # ← 新增
                         connect_kwargs["ssl"] = ssl_context
                         connect_kwargs["server_hostname"] = dest_host
 
@@ -153,9 +155,22 @@ class WebSocketClient:
 
             return True
 
+
         except Exception as e:
+
             logger.error("WebSocket 连接失败", name=self.name, exc_info=True)
+
+            if hasattr(e, "__cause__") and e.__cause__ is not None:
+                logger.error("Cause: %s", e.__cause__)
+
+            if self._ws is not None and hasattr(self._ws, "transport"):
+                transport = self._ws.transport
+
+                logger.error("Transport state: %s",
+                             dir(transport))  # 看有没有 characters_written
+
             self.stats.error_count += 1
+
             return False
 
     async def disconnect(self) -> None:
