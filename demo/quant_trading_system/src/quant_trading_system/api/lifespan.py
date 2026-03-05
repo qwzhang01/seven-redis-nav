@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+
 from quant_trading_system.api.deps import set_app_ref, clear_app_ref
 from quant_trading_system.api.websocket.manager import ws_manager
 from quant_trading_system.core.config import settings
@@ -129,7 +130,7 @@ async def _subscribe_default_symbols() -> None:
         logger.warning("⚠️ 自动订阅默认交易对失败（不影响系统启动）", exc_info=True)
 
 
-async def _preload_history() -> None:
+def _preload_history() -> None:
     """
     自动拉取历史K线数据，预加载到内存缓冲区。
     """
@@ -139,7 +140,7 @@ async def _preload_history() -> None:
 
         if settings.is_production:
             logger.info("📡 生产环境：从交易所拉取历史K线数据...")
-            stats = await container.market_service.load_history(
+            stats = container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
                 exchange=settings.exchange.data_provider,
@@ -151,7 +152,7 @@ async def _preload_history() -> None:
                         stats=stats)
         else:
             logger.info("💾 开发环境：从数据库加载历史K线数据...")
-            stats = await container.market_service.load_history(
+            stats = container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
                 exchange=settings.exchange.data_provider,
@@ -252,11 +253,10 @@ async def lifespan(app: FastAPI):
     await _init_event_engine()
     await _startup_database()
     await _subscribe_default_symbols()
-    # todo 改为异步实现
-    # await _preload_history()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
     await _startup_flow_engines(app)
+    _preload_history()
 
     yield
 
