@@ -252,7 +252,7 @@ async def lifespan(app: FastAPI):
     await _init_event_engine()
     await _startup_database()
     await _subscribe_default_symbols()
-
+    # todo 改为异步实现
     # await _preload_history()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()

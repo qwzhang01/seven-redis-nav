@@ -29,7 +29,7 @@ from quant_trading_system.models.market import Bar
 logger = structlog.get_logger(__name__)
 
 # 币安 API 单次最大返回条数
-BINANCE_MAX_LIMIT = 1000
+BINANCE_MAX_LIMIT = 10000
 
 # 默认批次间的请求间隔（秒），避免触发限流
 DEFAULT_BATCH_DELAY = 0.3
