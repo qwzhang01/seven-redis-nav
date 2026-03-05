@@ -255,6 +255,7 @@ class MarketService:
                 market_type=market_type,
                 api_key=api_key or settings.BINANCE_API_KEY,
                 api_secret=api_secret or settings.BINANCE_SECRET_KEY,
+                proxy_url=settings.exchange.proxy_url,
                 **kwargs,
             )
         except ValueError as e:

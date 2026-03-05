@@ -356,12 +356,14 @@ class TradingOrchestrator:
 
         try:
             from quant_trading_system.exchange_adapter.factory import create_gateway
+            from quant_trading_system.core.config import settings
 
             gateway = create_gateway(
                 exchange=self.exchange,
                 api_key=self.api_key,
                 api_secret=self.api_secret,
                 market_type=self.market_type,
+                proxy_url=settings.exchange.proxy_url,
             )
         except ValueError as e:
             logger.warning(f"Gateway 创建失败: {e}")
