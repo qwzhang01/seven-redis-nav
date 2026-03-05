@@ -10,12 +10,17 @@ from typing import Any
 
 class QuantTradingError(Exception):
     """量化交易系统基础异常"""
-    
+
     def __init__(self, message: str, code: str = "", details: dict[str, Any] | None = None):
         self.message = message
         self.code = code
         self.details = details or {}
         super().__init__(message)
+
+
+class PwdError(QuantTradingError):
+    """配置错误"""
+    pass
 
 
 # ========== 配置相关异常 ==========
@@ -159,11 +164,11 @@ class ExchangeConnectionError(ExchangeError):
 
 class ExchangeAPIError(ExchangeError):
     """交易所API错误"""
-    
+
     def __init__(
-        self, 
-        message: str, 
-        code: str = "", 
+        self,
+        message: str,
+        code: str = "",
         http_status: int | None = None,
         details: dict[str, Any] | None = None,
     ):
@@ -183,21 +188,21 @@ class ExchangeAuthError(ExchangeError):
 
 # ========== 系统相关异常 ==========
 
-class SystemError(QuantTradingError):
+class SysConfigError(QuantTradingError):
     """系统错误"""
     pass
 
 
-class InitializationError(SystemError):
+class InitializationError(SysConfigError):
     """初始化错误"""
     pass
 
 
-class ShutdownError(SystemError):
+class ShutdownError(SysConfigError):
     """关闭错误"""
     pass
 
 
-class TimeoutError(SystemError):
+class OutOfTimeError(SysConfigError):
     """超时错误"""
     pass

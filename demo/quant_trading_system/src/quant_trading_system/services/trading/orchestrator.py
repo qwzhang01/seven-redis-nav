@@ -195,7 +195,7 @@ class TradingOrchestrator:
         )
 
         # 8. 启动各引擎
-        # 注：K线 → EventEngine BAR 的桥接由 TradingEngineSubscriber 自动完成
+# 注：K线 → EventEngine BAR 的桥接由 MarketDataDispatcher 自动完成
         await self.strategy_engine.start()
         await self.trading_engine.start()
         await self.market_service.start()

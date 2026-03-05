@@ -140,6 +140,7 @@ class KLineBuffer:
             low=data[:, 3],
             close=data[:, 4],
             volume=data[:, 5],
+            turnover=data[:, 6],
         )
 
     @property
@@ -365,7 +366,7 @@ class KLineEngine:
             tasks = [cb(bar) for cb in self._general_callbacks]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    def update_bar_from_ws(self, symbol: str, bar: Bar) -> None:
+    async def update_bar_from_ws(self, symbol: str, bar: Bar) -> None:
         """
         使用交易所WebSocket推送的K线数据直接更新缓冲区
 
@@ -398,6 +399,9 @@ class KLineEngine:
             current = self._current_bars.get(symbol, {}).get(timeframe)
             if current is not None and current.timestamp == bar.timestamp:
                 del self._current_bars[symbol][timeframe]
+
+            # 触发K线关闭回调
+            await self._notify_bar(bar)
         else:
             # K线未关闭：更新 current_bar
             self._current_bars[symbol][timeframe] = bar
@@ -501,367 +505,35 @@ class KLineEngine:
         """
         拉取历史K线数据，预加载到 _buffers 中。
 
-        支持两种数据源：
-        - exchange: 从交易所 REST API 拉取（生产环境）
-        - database: 从数据库加载（开发环境）
+        委托给 KLineHistoryLoader 执行具体的加载逻辑。
 
         Args:
             symbols: 交易对列表，为 None 则使用 DefaultTradingPair 配置
-            timeframes: 时间周期列表，为 None 则使用 [M1, M5, M15, H1]
+            timeframes: 时间周期列表
             limit: 每个周期拉取的K线数量
             exchange: 交易所名称
             source: 数据源，"exchange" 从交易所拉取，"database" 从数据库加载
-            save_to_db: 从交易所拉取后是否同时保存到数据库（用于补充发版期间的数据缺口）
+            save_to_db: 从交易所拉取后是否同时保存到数据库
 
         Returns:
             各交易对加载的K线数量统计
         """
-        if symbols is None:
-            symbols = DefaultTradingPair.values()
+        from quant_trading_system.services.market.kline_history_loader import KLineHistoryLoader
 
-        if timeframes is None:
-            timeframes = ([KlineInterval.SEC_1,
-                          KlineInterval.MIN_1,
-                          KlineInterval.MIN_3,
-                          KlineInterval.MIN_5,
-                          KlineInterval.MIN_15,
-                          KlineInterval.MIN_30,
-                          KlineInterval.HOUR_1,
-                          KlineInterval.HOUR_2,
-                          KlineInterval.HOUR_4,
-                          KlineInterval.HOUR_6,
-                          KlineInterval.HOUR_8,
-                          KlineInterval.HOUR_12,
-                          KlineInterval.DAY_1,
-                          KlineInterval.DAY_3,
-                          KlineInterval.WEEK_1,
-                          KlineInterval.MONTH_1])
+        loader = KLineHistoryLoader(buffer_size=self.buffer_size)
+        stats = await loader.load_history(
+            buffers=self._buffers,
+            symbols=symbols,
+            timeframes=timeframes,
+            limit=limit,
+            exchange=exchange,
+            source=source,
+            save_to_db=save_to_db,
+        )
 
-        stats: dict[str, int] = {}
-
-        if source == "database":
-            stats = await self._load_history_from_database(
-                symbols=symbols,
-                timeframes=timeframes,
-                limit=limit,
-                exchange=exchange,
-            )
-        else:
-            stats = await self._load_history_from_exchange(
-                symbols=symbols,
-                timeframes=timeframes,
-                limit=limit,
-                exchange=exchange,
-                save_to_db=save_to_db,
-            )
-
-        logger.info("Historical kline data loaded", stats=stats, source=source)
-        return stats
-
-    async def _load_history_from_database(
-        self,
-        symbols: list[str],
-        timeframes: list[KlineInterval],
-        limit: int,
-        exchange: str,
-    ) -> dict[str, int]:
-        """
-        从数据库加载历史K线数据到内存缓冲区（开发环境使用）。
-
-        Args:
-            symbols: 交易对列表
-            timeframes: 时间周期列表
-            limit: 每个周期最多加载的K线数量
-            exchange: 交易所名称
-
-        Returns:
-            各交易对加载的K线数量统计
-        """
-        from datetime import datetime, timedelta
-        from quant_trading_system.services.market.data_query import get_data_query_service
-
-        stats: dict[str, int] = {}
-        query_service = get_data_query_service()
-
-        # 查询时间范围：从当前时间往前推足够的时间窗口
-        end_time = datetime.utcnow()
-        # 根据最大周期和limit估算需要的时间范围（以1小时周期 * limit 为上限）
-        start_time = end_time - timedelta(hours=limit)
-
-        for symbol in symbols:
-            symbol_count = 0
-            buffer_key = symbol.replace("/", "").replace("-", "")
-
-            for tf in timeframes:
-                try:
-                    bar_array = await query_service.get_kline_data(
-                        symbol=buffer_key,
-                        timeframe=tf,
-                        start_time=start_time,
-                        end_time=end_time,
-                        limit=limit,
-                    )
-
-                    if bar_array is None or len(bar_array) == 0:
-                        logger.warning(
-                            "No kline data in database",
-                            symbol=symbol,
-                            timeframe=tf.value,
-                        )
-                        continue
-
-                    # 确保缓冲区存在
-                    if tf not in self._buffers[buffer_key]:
-                        self._buffers[buffer_key][tf] = KLineBuffer(
-                            symbol=buffer_key,
-                            exchange=exchange,
-                            timeframe=tf,
-                            max_size=self.buffer_size,
-                        )
-
-                    buffer = self._buffers[buffer_key][tf]
-
-                    # 将数据库中的K线逐条写入缓冲区
-                    # 预先将 datetime64[ms] 数组转为毫秒级整数时间戳，避免逐条 float() 转换报错
-                    ts_ms = bar_array.timestamp.astype("datetime64[ms]").astype(np.int64)
-                    for i in range(len(bar_array)):
-                        bar = Bar(
-                            symbol=buffer_key,
-                            exchange=exchange,
-                            timeframe=tf,
-                            timestamp=float(ts_ms[i]),
-                            open=float(bar_array.open[i]),
-                            high=float(bar_array.high[i]),
-                            low=float(bar_array.low[i]),
-                            close=float(bar_array.close[i]),
-                            volume=float(bar_array.volume[i]),
-                            is_closed=True,
-                        )
-                        buffer.append(bar)
-                        self._bar_count += 1
-                        symbol_count += 1
-
-                    logger.debug(
-                        "Loaded historical klines from database",
-                        symbol=symbol,
-                        timeframe=tf.value,
-                        count=len(bar_array),
-                    )
-
-                except Exception as e:
-                    logger.error(
-                        "Failed to load historical klines from database",
-                        symbol=symbol,
-                        timeframe=tf.value,
-                        error=str(e),
-                    )
-                    continue
-
-            stats[symbol] = symbol_count
+        # 更新本引擎的统计计数
+        total_loaded = sum(stats.values())
+        self._bar_count += total_loaded
 
         return stats
 
-    async def _load_history_from_exchange(
-        self,
-        symbols: list[str],
-        timeframes: list[KlineInterval],
-        limit: int,
-        exchange: str,
-        save_to_db: bool = False,
-    ) -> dict[str, int]:
-        """
-        从交易所 REST API 拉取历史K线数据到内存缓冲区。
-        生产环境下同时保存到数据库，以补充发版期间实时行情同步暂停的数据缺口。
-
-        Args:
-            symbols: 交易对列表
-            timeframes: 时间周期列表
-            limit: 每个周期拉取的K线数量
-            exchange: 交易所名称
-            save_to_db: 是否同时保存到数据库
-
-        Returns:
-            各交易对加载的K线数量统计
-        """
-        stats: dict[str, int] = {}
-
-        # 根据交易所选择 API 客户端
-        if exchange == "binance":
-            from quant_trading_system.exchange_adapter.factory import create_rest_client
-        else:
-            logger.error(f"Unsupported exchange for history loading: {exchange}")
-            return stats
-
-        # 如果需要保存到数据库，获取数据存储服务
-        data_store = None
-        if save_to_db:
-            try:
-                from quant_trading_system.services.market.data_store import get_data_store
-                data_store = get_data_store()
-                logger.info("Will save fetched kline data to database for gap filling")
-            except Exception as e:
-                logger.warning(
-                    "Failed to get data store, skipping save to database",
-                    error=str(e),
-                )
-
-        loop = asyncio.get_event_loop()
-
-        with create_rest_client(exchange, market_type="spot") as api:
-            for symbol in symbols:
-                symbol_count = 0
-                # 去掉 "/" 和 "-" 得到 _buffers 的 key（与 process_tick 一致）
-                buffer_key = symbol.replace("/", "").replace("-", "")
-
-                for tf in timeframes:
-                    try:
-                        # 在线程池中执行同步 API 调用
-                        bar_array = await loop.run_in_executor(
-                            None,
-                            lambda s=symbol, t=tf: api.fetch_klines(
-                                symbol=s,
-                                timeframe=t,
-                                limit=limit,
-                            ),
-                        )
-
-                        if bar_array is None or len(bar_array) == 0:
-                            continue
-
-                        # 确保缓冲区存在
-                        if tf not in self._buffers[buffer_key]:
-                            self._buffers[buffer_key][tf] = KLineBuffer(
-                                symbol=buffer_key,
-                                exchange=exchange,
-                                timeframe=tf,
-                                max_size=self.buffer_size,
-                            )
-
-                        buffer = self._buffers[buffer_key][tf]
-
-                        # 将历史 K 线逐条写入缓冲区，并可选保存到数据库
-                        # 预先将 datetime64[ms] 数组转为毫秒级整数时间戳，避免逐条 float() 转换报错
-                        ts_ms = bar_array.timestamp.astype("datetime64[ms]").astype(np.int64)
-                        for i in range(len(bar_array)):
-                            bar = Bar(
-                                symbol=buffer_key,
-                                exchange=exchange,
-                                timeframe=tf,
-                                timestamp=float(ts_ms[i]),
-                                open=float(bar_array.open[i]),
-                                high=float(bar_array.high[i]),
-                                low=float(bar_array.low[i]),
-                                close=float(bar_array.close[i]),
-                                volume=float(bar_array.volume[i]),
-                                is_closed=True,
-                            )
-                            buffer.append(bar)
-                            self._bar_count += 1
-                            symbol_count += 1
-
-                            # 生产环境：同时保存到数据库，补充发版期间的数据缺口
-                            if data_store is not None:
-                                try:
-                                    await data_store.store_kline(bar)
-                                except Exception as store_err:
-                                    logger.warning(
-                                        "Failed to save kline to database",
-                                        symbol=buffer_key,
-                                        timeframe=tf.value,
-                                        error=str(store_err),
-                                    )
-
-                        logger.debug(
-                            "Loaded historical klines from exchange",
-                            symbol=symbol,
-                            timeframe=tf.value,
-                            count=len(bar_array),
-                            saved_to_db=data_store is not None,
-                        )
-
-                    except Exception as e:
-                        logger.error(
-                            "Failed to load historical klines",
-                            symbol=symbol,
-                            timeframe=tf.value,
-                            error=str(e),
-                        )
-                        continue
-
-                stats[symbol] = symbol_count
-
-        # 如果保存了数据到数据库，确保缓冲区刷新
-        if data_store is not None:
-            try:
-                await data_store.flush_all()
-                logger.info("Flushed kline data to database after history loading")
-            except Exception as e:
-                logger.warning("Failed to flush kline data to database", error=str(e))
-
-        return stats
-
-
-class KLineAggregator:
-    """
-    K线聚合器
-
-    从小周期K线合成大周期K线
-    """
-
-    def __init__(self) -> None:
-        self._buffers: dict[str, dict[KlineInterval, list[Bar]]] = defaultdict(dict)
-
-    def aggregate(
-        self,
-        bars: list[Bar],
-        target_timeframe: KlineInterval,
-    ) -> list[Bar]:
-        """
-        聚合K线
-
-        Args:
-            bars: 源K线列表
-            target_timeframe: 目标周期
-
-        Returns:
-            聚合后的K线列表
-        """
-        if not bars:
-            return []
-
-        source_tf = bars[0].timeframe
-        target_seconds = target_timeframe.seconds
-
-        if target_seconds <= source_tf.seconds:
-            return bars  # 无需聚合
-
-        # 按目标周期分组
-        grouped: dict[float, list[Bar]] = defaultdict(list)
-
-        for bar in bars:
-            # 计算目标周期开始时间
-            bar_start = (int(bar.timestamp / 1000) // target_seconds) * target_seconds * 1000
-            grouped[bar_start].append(bar)
-
-        # 合成K线
-        result = []
-        for bar_start, group_bars in sorted(grouped.items()):
-            if not group_bars:
-                continue
-
-            agg_bar = Bar(
-                symbol=group_bars[0].symbol,
-                exchange=group_bars[0].exchange,
-                timeframe=target_timeframe,
-                timestamp=bar_start,
-                open=group_bars[0].open,
-                high=max(b.high for b in group_bars),
-                low=min(b.low for b in group_bars),
-                close=group_bars[-1].close,
-                volume=sum(b.volume for b in group_bars),
-                turnover=sum(b.turnover for b in group_bars),
-                is_closed=True,
-            )
-            result.append(agg_bar)
-
-        return result

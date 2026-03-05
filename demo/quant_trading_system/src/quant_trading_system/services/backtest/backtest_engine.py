@@ -174,8 +174,8 @@ class BacktestEngine:
         # 数据查询服务（如果使用数据库）
         self._data_query_service = None
         if use_database:
-            from quant_trading_system.services.market.data_query import get_data_query_service
-            self._data_query_service = get_data_query_service()
+            from quant_trading_system.services.market.market_data_reader import get_market_data_reader
+            self._data_query_service = get_market_data_reader()
 
         # ---- 核心模块（统一订单管理） ----
         self._position_manager = PositionManager()

@@ -17,7 +17,9 @@ from fastapi import FastAPI
 from quant_trading_system.core.config import settings
 from quant_trading_system.api.deps import set_app_ref, clear_app_ref
 from quant_trading_system.api.websocket.manager import ws_manager
+from quant_trading_system.core.container import container
 from quant_trading_system.core.database import init_database, close_database
+from quant_trading_system.core.enums import DefaultTradingPair
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +61,10 @@ async def _startup_orchestrator(app: FastAPI) -> None:
     from quant_trading_system.services.trading.orchestrator import \
         TradingOrchestrator
 
-    # 开发环境使用 mock 数据源，无需连接真实交易所
-    use_mock = settings.is_development
-    exchange_name = "mock" if use_mock else "binance"
-    if use_mock:
-        print("🎭 开发环境：使用 MockConnector 模拟行情数据")
-
     orchestrator = TradingOrchestrator(
         mode="paper",
-        exchange=exchange_name,
+        # 开发环境使用 mock 数据源，无需连接真实交易所
+        exchange="mock" if settings.is_development else "binance",
         market_type="spot",
         api_key=settings.BINANCE_API_KEY or "",
         api_secret=settings.BINANCE_SECRET_KEY or "",
@@ -85,29 +82,20 @@ async def _startup_orchestrator(app: FastAPI) -> None:
 
     # 保存到 app.state
     app.state.orchestrator = orchestrator
-    print(
-        f"✅ 编排器启动完成，已加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
-    print(f"   已注册策略: {registered}")
+    print(f"✅ 编排器启动完成，加载 {len(registered)} 个策略类型（均处于 stopped 状态）")
 
-    # 自动订阅默认交易对的 WebSocket 实时行情
-    await _subscribe_default_symbols(orchestrator)
-
-    # 自动拉取/加载历史K线数据
-    await _preload_history(orchestrator, use_mock)
-
-
-async def _subscribe_default_symbols(orchestrator) -> None:
+async def _subscribe_default_symbols() -> None:
     """自动订阅默认交易对的 WebSocket 实时行情"""
     try:
-        await orchestrator.subscribe_default_symbols()
-        from quant_trading_system.core.enums import DefaultTradingPair
-        default_symbols = DefaultTradingPair.values()
-        print(f"✅ 已自动订阅默认交易对行情: {default_symbols}")
+        await container.market_service.subscribe(
+            symbols=list(DefaultTradingPair.values()),
+            exchange=settings.exchange.data_provider,
+        )
     except Exception as e:
         print(f"⚠️ 自动订阅默认交易对失败（不影响系统启动）: {e}")
 
 
-async def _preload_history(orchestrator, use_mock: bool) -> None:
+async def _preload_history() -> None:
     """
     自动拉取历史K线数据，预加载到内存缓冲区。
     """
@@ -115,14 +103,12 @@ async def _preload_history(orchestrator, use_mock: bool) -> None:
         from quant_trading_system.core.enums import DefaultTradingPair
         default_symbols = DefaultTradingPair.values()
 
-        history_exchange = "binance" if use_mock else orchestrator.exchange
-
         if settings.is_production:
             print("📡 生产环境：从交易所拉取历史K线数据...")
-            stats = await orchestrator.market_service.load_history(
+            stats = await container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
-                exchange=history_exchange,
+                exchange=settings.exchange.data_provider,
                 source="exchange",
                 save_to_db=True,
             )
@@ -131,25 +117,14 @@ async def _preload_history(orchestrator, use_mock: bool) -> None:
                 f"✅ 已从交易所预加载历史K线数据并保存到数据库: {total} 条 ({stats})")
         else:
             print("💾 开发环境：从数据库加载历史K线数据...")
-            stats = await orchestrator.market_service.load_history(
+            stats = await container.market_service.load_history(
                 symbols=default_symbols,
                 limit=500,
-                exchange=history_exchange,
+                exchange=settings.exchange.data_provider,
                 source="database",
             )
             total = sum(stats.values())
-            if total > 0:
-                print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
-            else:
-                print("⚠️ 数据库中无历史K线数据，回退到从交易所拉取...")
-                stats = await orchestrator.market_service.load_history(
-                    symbols=default_symbols,
-                    limit=500,
-                    exchange=history_exchange,
-                    source="exchange",
-                )
-                total = sum(stats.values())
-                print(f"✅ 已从交易所预加载历史K线数据: {total} 条 ({stats})")
+            print(f"✅ 已从数据库预加载历史K线数据: {total} 条 ({stats})")
     except Exception as e:
         print(f"⚠️ 预加载历史K线数据失败（不影响系统启动）: {e}")
 
@@ -174,7 +149,7 @@ async def _startup_flow_engines(app: FastAPI) -> None:
     4. FlowSignalStream（WebSocket 监听大佬账户）
     """
     try:
-        from quant_trading_system.engines.signal_stream_engine import SignalStreamEngine
+        from quant_trading_system.services.flow.signal_stream_engine import SignalStreamEngine
 
         if settings.is_development:
             print("  🎭 开发环境：信号引擎使用 Mock 模式（不连接真实 Binance API）")
@@ -241,6 +216,8 @@ async def lifespan(app: FastAPI):
     # ── 启动 ──
     print("🚀 启动量化交易系统...")
     await _startup_database()
+    await _subscribe_default_symbols()
+    await _preload_history()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
     await _startup_flow_engines(app)

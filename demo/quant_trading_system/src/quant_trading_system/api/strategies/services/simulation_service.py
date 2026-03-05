@@ -252,12 +252,12 @@ class SimulationService:
     ):
         """获取K线数据（BarArray）
 
-        直接调用 DataQueryService 的同步方法，
+        直接调用 MarketDataReader 的同步方法，
         避免在同步/异步上下文中混用 asyncio.run 导致的事件循环冲突。
         """
-        from quant_trading_system.services.market.data_query import get_data_query_service
+        from quant_trading_system.services.market.market_data_reader import get_market_data_reader
 
-        query_service = get_data_query_service()
+        query_service = get_market_data_reader()
 
         # 转换时间参数
         if end_time:

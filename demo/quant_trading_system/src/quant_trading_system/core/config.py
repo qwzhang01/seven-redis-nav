@@ -369,16 +369,17 @@ class Settings(BaseSettings):
     )
 
     # 环境配置
-    env: str = Field(default="development", alias="ENVIRONMENT")  # development, testing, production
-    debug: bool = True
+    # development, testing, production
+    env: str = Field(default="development", alias="ENVIRONMENT")
+    debug: bool = Field(default=True, alias="DEBUG")
 
     # 系统名称
-    app_name: str = "量化交易系统"
-    app_version: str = "1.0.0"
+    app_name: str = Field(default="量化交易系统",alias="APP_NAME")
+    app_version: str = Field(default="1.0.0",alias="APP_VERSION")
 
-    # 测试配置
-    test_database_url: str = "sqlite:///./test.db"
-    test_mode: bool = False
+    # 同步历史行情
+    sync_history_data: bool = Field(default=False,alias="SYNC_HISTORY_DATA")
+    sync_history_data_start_date: str = Field(default="022-01-01 00:00:00",alias="SYNC_HISTORY_DATA_START_DATE")
 
     # 子配置
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

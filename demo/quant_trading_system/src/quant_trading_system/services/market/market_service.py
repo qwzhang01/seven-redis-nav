@@ -7,11 +7,12 @@
 架构重构要点：
 1. 交易所对接层（ExchangeConnector）—— 纯粹负责对接交易所
 2. 行情事件总线（MarketEventBus）—— 发布/订阅模式解耦生产与消费
-3. 三个订阅器各司其职：
+3. 四个订阅器各司其职：
    - DatabaseSubscriber：行情数据异步存储到数据库
    - WebSocketSubscriber：实时行情推送到前端 WebSocket
-   - TradingEngineSubscriber：行情数据转发给交易引擎
-4. 历史数据同步器（HistoricalDataSyncer）—— 配置驱动 + 事件机制异步拉取
+   - IndicatorSubscriber：K线闭合后计算并推送技术指标
+   - MarketDataDispatcher：行情数据分发给交易引擎和K线合成引擎
+4. 历史数据同步器（HistoricalKlineSyncer）—— 配置驱动 + 事件机制异步拉取
 
 对外提供：
 - 历史行情查询接口
@@ -46,14 +47,14 @@ from quant_trading_system.exchange_adapter.factory import create_connector
 # 订阅器
 from quant_trading_system.services.market.market_subscribers import (
     DatabaseSubscriber,
-    TradingEngineSubscriber,
+    MarketDataDispatcher,
     WebSocketSubscriber,
 )
+from quant_trading_system.services.market.indicator_subscriber import IndicatorSubscriber
 
 # 历史数据同步器
 from quant_trading_system.services.market.historical_kline_syncer import (
     HistoricalKlineSyncer,
-    SyncerConfig,
 )
 from quant_trading_system.exchange_adapter.factory import create_rest_client
 
@@ -63,32 +64,6 @@ from quant_trading_system.services.market.kline_engine import KLineEngine
 logger = structlog.get_logger(__name__)
 
 
-# ═══════════════════════════════════════════════════════════════
-# 单例工厂
-# ═══════════════════════════════════════════════════════════════
-
-def get_market_service(event_engine: Any = None) -> "MarketService":
-    """
-    获取 MarketService 单例实例
-
-    Args:
-        event_engine: 系统事件引擎（仅首次创建时生效）
-
-    Returns:
-        MarketService 实例
-    """
-    from quant_trading_system.core.container import container
-
-    if container._market_service is None:
-        container.market_service = MarketService()
-
-    return container.market_service
-
-
-# ═══════════════════════════════════════════════════════════════
-# MarketService（门面模式）
-# ═══════════════════════════════════════════════════════════════
-
 class MarketService:
     """
     行情服务（门面模式）
@@ -96,8 +71,8 @@ class MarketService:
     作为行情子系统的统一入口，协调以下组件：
     - MarketEventBus：事件分发中心
     - ExchangeConnector：交易所连接器（多个）
-    - 3个订阅器：数据库存储、WebSocket推送、交易引擎
-    - HistoricalDataSyncer：历史数据同步器
+    - 4个订阅器：数据库存储、WebSocket推送、指标计算、数据分发
+    - HistoricalKlineSyncer：历史数据同步器
     - KLineEngine：K线内存缓冲与合成
 
     使用流程：
@@ -117,13 +92,14 @@ class MarketService:
         # ── 交易所连接器 ──
         self._connectors: dict[str, ExchangeConnector] = {}
 
-        # ── 3个订阅器 ──
+        # ── 4个订阅器 ──
         self._db_subscriber = DatabaseSubscriber()
         self._ws_subscriber = WebSocketSubscriber()
-        self._trading_subscriber = TradingEngineSubscriber()
+        self._indicator_subscriber = IndicatorSubscriber()
+        self._data_dispatcher = MarketDataDispatcher()
 
-        # 注入 KLineEngine 引用给交易引擎订阅器
-        self._trading_subscriber.set_kline_engine(self._kline_engine)
+        # 注入 KLineEngine 引用给数据分发器
+        self._data_dispatcher.set_kline_engine(self._kline_engine)
 
         # ── 历史数据同步器 ──
         self._historical_syncer = HistoricalKlineSyncer(
@@ -148,7 +124,7 @@ class MarketService:
         启动行情服务
 
         流程：
-        1. 注册3个订阅器到事件总线
+        1. 注册4个订阅器到事件总线
         2. 启动所有订阅器
         3. 启动所有已添加的连接器
         4. 如果配置了启动时同步，执行历史数据同步
@@ -169,9 +145,9 @@ class MarketService:
             await connector.start()
 
         # ── 启动时历史数据同步 ──
-        if self._historical_syncer.config.sync_on_startup:
+        if settings.sync_history_data:
             asyncio.create_task(
-                self._historical_syncer.sync_on_startup(),
+                self._historical_syncer.sync_on_startup(settings.sync_history_data_start_date),
                 name="historical-sync-on-startup",
             )
 
@@ -201,7 +177,7 @@ class MarketService:
         logger.info("行情服务已停止")
 
     def _register_subscribers(self) -> None:
-        """注册3个订阅器到事件总线"""
+        """注册4个订阅器到事件总线"""
         # 实时行情事件类型
         realtime_events = [
             MarketEventType.TICK,
@@ -216,9 +192,12 @@ class MarketService:
         # 2. WebSocket 前端推送订阅器 —— 仅订阅实时事件
         self._event_bus.subscribe_many(realtime_events, self._ws_subscriber)
 
-        # 3. 交易引擎订阅器 —— 订阅 Tick 和 K线
-        self._event_bus.subscribe(MarketEventType.TICK, self._trading_subscriber)
-        self._event_bus.subscribe(MarketEventType.KLINE, self._trading_subscriber)
+        # 3. 指标计算订阅器 —— 仅订阅K线事件
+        self._event_bus.subscribe(MarketEventType.KLINE, self._indicator_subscriber)
+
+        # 4. 数据分发器 —— 订阅 Tick 和 K线
+        self._event_bus.subscribe(MarketEventType.TICK, self._data_dispatcher)
+        self._event_bus.subscribe(MarketEventType.KLINE, self._data_dispatcher)
 
     # ═══════════════════════════════════════════════════════════
     # 交易所管理

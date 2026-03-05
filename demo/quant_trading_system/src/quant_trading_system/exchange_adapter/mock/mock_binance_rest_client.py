@@ -1,20 +1,21 @@
 """
-Mock 币安跟单数据客户端（开发环境专用）
-=======================================
+Mock 币安 REST API 客户端（开发环境专用）
+=========================================
 
-与 BinanceCopyTradeClient 完全兼容的接口，
+与 BinanceRestClient 完全兼容的接口，
 不连接真实 Binance REST API，返回模拟的下单结果和查询数据。
 
 用于开发环境联调和前端对接。
 """
 
-import logging
 import random
 import time
 from datetime import datetime
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 # 模拟交易对价格范围
 MOCK_PRICES = {
@@ -32,18 +33,19 @@ def _get_mock_price(symbol: str) -> float:
     return round(base * random.uniform(0.99, 1.01), 2)
 
 
-class MockBinanceCopyTradeClient:
+class MockBinanceRestClient:
     """
-    Mock 币安跟单数据客户端
+    Mock 币安 REST API 客户端
 
-    完全兼容 BinanceCopyTradeClient 的接口，
+    完全兼容 BinanceRestClient 的同步和异步接口，
     不发起真实 HTTP 请求，返回模拟数据。
 
     模拟特性：
-    - place_order: 返回成功的下单结果（含模拟订单ID、成交价格、滑点）
-    - get_account_info: 返回模拟账户余额
-    - get_all_orders: 返回模拟历史订单
+    - place_order / async_place_order: 返回成功的下单结果（含模拟订单ID、成交价格、滑点）
+    - get_account_info / async_get_account_info: 返回模拟账户余额
+    - get_all_orders / async_get_all_orders: 返回模拟历史订单
     - get_current_price: 返回模拟价格（带随机波动）
+    - cancel_order / async_cancel_order: 返回模拟撤单结果
     """
 
     def __init__(
@@ -56,10 +58,11 @@ class MockBinanceCopyTradeClient:
         self.api_key = api_key
         self.api_secret = api_secret
         self.account_type = account_type
+        self.market_type = account_type  # 兼容 BinanceRestClient 的 market_type 属性
         self.base_url = "mock://binance"
 
         logger.info(
-            f"🎭 [Mock] 币安跟单客户端已创建 "
+            f"🎭 [Mock] 币安 REST 客户端已创建 "
             f"(account_type={account_type}, api_key={api_key[:8]}...)"
         )
 
@@ -120,6 +123,66 @@ class MockBinanceCopyTradeClient:
         )
 
         return result
+
+    # ── 撤单接口 ──────────────────────────────────────────────
+
+    def cancel_order(
+        self,
+        symbol: str,
+        order_id: Optional[int] = None,
+        client_order_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """模拟撤单"""
+        symbol_upper = symbol.replace("/", "").upper()
+        oid = order_id or random.randint(10**9, 10**10 - 1)
+        now_ms = int(time.time() * 1000)
+
+        result = {
+            "symbol": symbol_upper,
+            "origClientOrderId": client_order_id or f"mock_{oid}",
+            "orderId": oid,
+            "orderListId": -1,
+            "clientOrderId": f"cancel_{oid}",
+            "price": "0.00000000",
+            "origQty": "0.01000000",
+            "executedQty": "0.00000000",
+            "cummulativeQuoteQty": "0.00000000",
+            "status": "CANCELED",
+            "timeInForce": "GTC",
+            "type": "LIMIT",
+            "side": "BUY",
+        }
+
+        logger.info(
+            f"🎭 [Mock] 模拟撤单成功: {symbol_upper} orderId={oid}"
+        )
+        return result
+
+    def query_order(
+        self,
+        symbol: str,
+        order_id: Optional[int] = None,
+        client_order_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """模拟查询单个订单状态"""
+        symbol_upper = symbol.replace("/", "").upper()
+        oid = order_id or random.randint(10**9, 10**10 - 1)
+        p = _get_mock_price(symbol_upper)
+        q = round(random.uniform(0.001, 0.1), 6)
+
+        return {
+            "symbol": symbol_upper,
+            "orderId": oid,
+            "clientOrderId": client_order_id or f"mock_{oid}",
+            "price": str(p),
+            "origQty": str(q),
+            "executedQty": str(q),
+            "cummulativeQuoteQty": str(round(p * q, 4)),
+            "status": "FILLED",
+            "type": "MARKET",
+            "side": random.choice(["BUY", "SELL"]),
+            "time": int(time.time() * 1000),
+        }
 
     # ── 账户查询 ──────────────────────────────────────────────
 
@@ -312,10 +375,102 @@ class MockBinanceCopyTradeClient:
 
     def close(self) -> None:
         """关闭客户端（Mock 无需清理）"""
-        logger.debug("🎭 [Mock] 币安跟单客户端已关闭")
+        logger.debug("🎭 [Mock] 币安 REST 客户端已关闭")
+
+    async def aclose(self) -> None:
+        """异步关闭客户端（Mock 无需清理，与 BinanceRestBase.aclose 对称）"""
+        self.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    # ══════════════════════════════════════════════════════════
+    # 异步方法（与 BinanceRestClient 的 async_* 接口对称）
+    # ══════════════════════════════════════════════════════════
+
+    async def async_place_order(
+        self,
+        symbol: str,
+        side: str,
+        order_type: str = "MARKET",
+        quantity: Optional[float] = None,
+        price: Optional[float] = None,
+        time_in_force: Optional[str] = None,
+        stop_price: Optional[float] = None,
+        client_order_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """异步模拟下单（委托同步方法）"""
+        return self.place_order(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            price=price,
+            time_in_force=time_in_force,
+        )
+
+    async def async_cancel_order(
+        self,
+        symbol: str,
+        order_id: Optional[int] = None,
+        client_order_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """异步模拟撤单（委托同步方法）"""
+        return self.cancel_order(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=client_order_id,
+        )
+
+    async def async_query_order(
+        self,
+        symbol: str,
+        order_id: Optional[int] = None,
+        client_order_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """异步模拟查询订单（委托同步方法）"""
+        return self.query_order(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=client_order_id,
+        )
+
+    async def async_get_account_info(self) -> dict[str, Any]:
+        """异步获取模拟账户信息（委托同步方法）"""
+        return self.get_account_info()
+
+    async def async_get_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+        """异步获取模拟挂单（委托同步方法）"""
+        return self.get_open_orders(symbol=symbol)
+
+    async def async_get_all_orders(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """异步获取模拟历史订单（委托同步方法）"""
+        return self.get_all_orders(symbol=symbol, limit=limit)
+
+    async def async_get_my_trades(self, symbol: str, limit: int = 50) -> list[dict[str, Any]]:
+        """异步获取模拟成交记录（委托同步方法）"""
+        return self.get_my_trades(symbol=symbol, limit=limit)
+
+    async def async_get_positions(self) -> list[dict[str, Any]]:
+        """
+        异步获取模拟持仓信息
+
+        与 BinanceRestClient.async_get_positions 对称：
+        - 现货：从账户信息中提取非零余额的资产
+        - 合约：返回模拟合约持仓
+        """
+        if self.account_type == "spot":
+            account = self.get_account_info()
+            return [
+                balance for balance in account.get("balances", [])
+                if float(balance.get("free", 0)) > 0 or float(balance.get("locked", 0)) > 0
+            ]
+        else:
+            return self.get_futures_positions()
+
+
+# 向后兼容别名（已废弃，将在未来版本移除）
+MockBinanceCopyTradeClient = MockBinanceRestClient

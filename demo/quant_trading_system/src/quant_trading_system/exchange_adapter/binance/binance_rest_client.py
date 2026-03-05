@@ -13,13 +13,13 @@
 支持 spot（现货）和 futures（合约）两种账户类型。
 """
 
-import logging
 import time
 from datetime import datetime
 from typing import Any, Optional
 
 import httpx
 import numpy as np
+import structlog
 
 from quant_trading_system.models.market import BarArray
 from quant_trading_system.core.enums import KlineInterval
@@ -32,7 +32,7 @@ from quant_trading_system.exchange_adapter.utils import (
     RetryUtils,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class BinanceRestClient(BinanceRestBase):

@@ -1,7 +1,8 @@
 """
-数据存储服务
+行情数据写入服务
 
-提供实时行情数据存储到TimescaleDB的功能
+提供实时行情数据异步写入TimescaleDB的功能。
+纯写入职责，查询请使用 MarketDataReader。
 """
 
 import asyncio
@@ -17,8 +18,8 @@ from quant_trading_system.core.snowflake import generate_snowflake_id
 logger = structlog.get_logger(__name__)
 
 
-class DataStore:
-    """数据存储服务 - 异步版本"""
+class MarketDataWriter:
+    """行情数据写入服务 - 纯写入职责"""
 
     def __init__(self, batch_size: int = 1000, flush_interval: float = 5.0):
         self.db = get_async_database()
@@ -296,93 +297,29 @@ class DataStore:
             except Exception as e:
                 logger.error("Error in flush loop", error=str(e))
 
-    # 数据查询方法 - 异步版本
-    async def get_kline_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        start_time: datetime,
-        end_time: datetime,
-        limit: int = 1000
-    ) -> List[Dict[str, Any]]:
-        """查询K线数据 - 异步版本"""
-        try:
-            query = """
-                SELECT timestamp, open, high, low, close, volume, turnover
-                FROM kline_data
-                WHERE symbol = $1 AND timeframe = $2
-                AND timestamp >= $3 AND timestamp <= $4
-                ORDER BY timestamp ASC
-                LIMIT $5
-            """
 
-            params = {
-                'symbol': symbol,
-                'timeframe': timeframe,
-                'start_time': start_time,
-                'end_time': end_time,
-                'limit': limit
-            }
-
-            results = await self.db.execute_query(query, params)
-            return results
-
-        except Exception as e:
-            logger.error("Failed to query kline data", error=str(e))
-            return []
-
-    async def get_latest_kline(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int = 1
-    ) -> List[Dict[str, Any]]:
-        """获取最新的K线数据 - 异步版本"""
-        try:
-            query = """
-                SELECT timestamp, open, high, low, close, volume, turnover
-                FROM kline_data
-                WHERE symbol = $1 AND timeframe = $2
-                ORDER BY timestamp DESC
-                LIMIT $3
-            """
-
-            params = {
-                'symbol': symbol,
-                'timeframe': timeframe,
-                'limit': limit
-            }
-
-            results = await self.db.execute_query(query, params)
-            return results
-
-        except Exception as e:
-            logger.error("Failed to query latest kline data", error=str(e))
-            return []
+# 全局写入服务实例
+_writer_instance: Optional[MarketDataWriter] = None
 
 
-# 全局数据存储实例
-data_store_instance: Optional[DataStore] = None
+def get_market_data_writer() -> MarketDataWriter:
+    """获取行情数据写入服务实例（单例模式）"""
+    global _writer_instance
+    if _writer_instance is None:
+        _writer_instance = MarketDataWriter()
+    return _writer_instance
 
 
-def get_data_store() -> DataStore:
-    """获取数据存储实例（单例模式）"""
-    global data_store_instance
-    if data_store_instance is None:
-        data_store_instance = DataStore()
-    return data_store_instance
+async def init_market_data_writer() -> MarketDataWriter:
+    """初始化行情数据写入服务"""
+    writer = get_market_data_writer()
+    await writer.start()
+    return writer
 
 
-async def init_data_store() -> DataStore:
-    """初始化数据存储服务"""
-    store = get_data_store()
-    await store.start()
-    return store
-
-
-async def close_data_store() -> None:
-    """关闭数据存储服务"""
-    global data_store_instance
-    if data_store_instance:
-        await data_store_instance.stop()
-        data_store_instance = None
+async def close_market_data_writer() -> None:
+    """关闭行情数据写入服务"""
+    global _writer_instance
+    if _writer_instance:
+        await _writer_instance.stop()
+        _writer_instance = None

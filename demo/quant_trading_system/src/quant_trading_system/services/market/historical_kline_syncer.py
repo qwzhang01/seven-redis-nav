@@ -9,40 +9,24 @@
 - 根据 K线周期自动计算每批的时间窗口大小
 - 拉取到数据后，模仿实时行情的事件机制，通过 MarketEventBus 发布 HISTORICAL_KLINE 事件
 - 订阅了 HISTORICAL_KLINE 事件的订阅器（如 DatabaseSubscriber）自动处理存储
-
-使用方式：
-    syncer = HistoricalKlineSyncer(binance_api, event_bus)
-    await syncer.sync(
-        symbol="BTCUSDT",
-        timeframe=KlineInterval.MIN_1,
-        start_time="2024-01-01",
-        end_time="2024-01-31",
-    )
 """
 
 import asyncio
 import time
-from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
 
-from quant_trading_system.core.enums import KlineInterval
-from quant_trading_system.models.market import Bar
-from quant_trading_system.exchange_adapter.factory import create_rest_client
+from quant_trading_system.core.enums import KlineInterval, DefaultTradingPair
 from quant_trading_system.engines.market_event_bus import (
     MarketEvent,
     MarketEventBus,
     MarketEventType,
 )
 from quant_trading_system.exchange_adapter.utils import TimeUtils
+from quant_trading_system.models.market import Bar
 
 logger = structlog.get_logger(__name__)
-
-
-# ═══════════════════════════════════════════════════════════════
-# K线周期 → 毫秒 映射
-# ═══════════════════════════════════════════════════════════════
 
 INTERVAL_MS: dict[str, int] = {
     "1s": 1_000,
@@ -68,36 +52,6 @@ BINANCE_MAX_LIMIT = 1000
 
 # 默认批次间的请求间隔（秒），避免触发限流
 DEFAULT_BATCH_DELAY = 0.3
-
-
-@dataclass
-class SyncerConfig:
-    """
-    历史K线同步器配置
-
-    控制同步行为：是否启动时自动同步、默认同步参数等。
-    """
-
-    # 是否在服务启动时自动执行历史数据同步
-    sync_on_startup: bool = False
-
-    # 启动时自动同步的交易对列表
-    startup_symbols: list[str] = field(default_factory=lambda: ["BTCUSDT", "ETHUSDT"])
-
-    # 启动时自动同步的K线周期列表
-    startup_timeframes: list[KlineInterval] = field(
-        default_factory=lambda: [KlineInterval.HOUR_1]
-    )
-
-    # 启动时同步的天数（从当前时间往前推）
-    startup_sync_days: int = 7
-
-    # 批次间请求延迟（秒）
-    batch_delay: float = DEFAULT_BATCH_DELAY
-
-    # 每批拉取条数
-    batch_size: int = BINANCE_MAX_LIMIT
-
 
 class HistoricalKlineSyncer:
     """
@@ -140,9 +94,6 @@ class HistoricalKlineSyncer:
         self,
         binance_api: Any,
         event_bus: MarketEventBus,
-        config: SyncerConfig | None = None,
-        batch_delay: float = DEFAULT_BATCH_DELAY,
-        batch_size: int = BINANCE_MAX_LIMIT,
     ) -> None:
         """
         初始化历史K线同步器
@@ -150,18 +101,11 @@ class HistoricalKlineSyncer:
         Args:
             binance_api: 币安 REST API 客户端
             event_bus: 行情事件总线
-            config: 同步器配置（可选，为空则使用默认配置）
-            batch_delay: 批次间请求延迟（秒），默认 0.3s
-            batch_size: 每批拉取条数，最大 1000
         """
         self._api = binance_api
         self._event_bus = event_bus
-        self._config = config or SyncerConfig(
-            batch_delay=batch_delay,
-            batch_size=batch_size,
-        )
-        self._batch_delay = self._config.batch_delay
-        self._batch_size = min(self._config.batch_size, BINANCE_MAX_LIMIT)
+        self._batch_delay = DEFAULT_BATCH_DELAY
+        self._batch_size = BINANCE_MAX_LIMIT
 
         # 同步统计
         self._stats: dict[str, Any] = {
@@ -173,11 +117,6 @@ class HistoricalKlineSyncer:
 
     # ─── 公开接口 ───────────────────────────────────────────────
 
-    @property
-    def config(self) -> SyncerConfig:
-        """获取同步器配置"""
-        return self._config
-
     def close(self) -> None:
         """
         关闭同步器，释放底层 BinanceAPI 的 HTTP 客户端资源
@@ -186,31 +125,19 @@ class HistoricalKlineSyncer:
             self._api.close()
             logger.info("历史K线同步器已关闭")
 
-    async def sync_on_startup(self) -> None:
+    async def sync_on_startup(self, start_time: str) -> None:
         """
         服务启动时自动执行的历史数据同步
-
-        根据 config 中配置的交易对列表、K线周期和同步天数，
-        自动拉取近期历史数据并通过事件总线发布。
         """
-        logger.info(
-            "开始启动时历史数据同步",
-            symbols=self._config.startup_symbols,
-            timeframes=[tf.value for tf in self._config.startup_timeframes],
-            sync_days=self._config.startup_sync_days,
-        )
+        from datetime import datetime, timezone
 
-        from datetime import datetime, timedelta
-
-        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        start_time = (
-            datetime.now() - timedelta(days=self._config.startup_sync_days)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        now_utc = datetime.now(timezone.utc)
+        end_time = now_utc.strftime("%Y-%m-%d %H:%M:%S")
 
         # 构建批量同步任务
         tasks: list[dict[str, Any]] = []
-        for symbol in self._config.startup_symbols:
-            for timeframe in self._config.startup_timeframes:
+        for symbol in DefaultTradingPair.values():
+            for timeframe in INTERVAL_MS:
                 tasks.append({
                     "symbol": symbol,
                     "timeframe": timeframe,
@@ -223,7 +150,7 @@ class HistoricalKlineSyncer:
             return
 
         try:
-            results = await self.sync_multiple(tasks, concurrency=1)
+            results = await self._sync_multiple(tasks, concurrency=1)
             total = sum(v for v in results.values() if v > 0)
             logger.info(
                 "启动时历史数据同步完成",
@@ -267,16 +194,10 @@ class HistoricalKlineSyncer:
         start_ms = TimeUtils.parse_time_string(start_time)
         end_ms = TimeUtils.parse_time_string(end_time) if end_time else int(time.time() * 1000)
 
-        # 计算每批时间窗口
+        # 获取K线周期对应的毫秒数（用于推进时间窗口）
         interval_ms = INTERVAL_MS.get(interval_str)
         if not interval_ms:
             raise ValueError(f"不支持的K线周期: {interval_str}")
-
-        batch_window_ms = interval_ms * self._batch_size  # 每批覆盖的时间范围
-
-        # 估算总批次数
-        total_time_span = end_ms - start_ms
-        estimated_batches = max(1, (total_time_span + batch_window_ms - 1) // batch_window_ms)
 
         logger.info(
             "开始同步历史K线",
@@ -284,7 +205,6 @@ class HistoricalKlineSyncer:
             timeframe=interval_str,
             start_time=start_time,
             end_time=end_time or "now",
-            estimated_batches=estimated_batches,
             batch_size=self._batch_size,
         )
 
@@ -295,18 +215,18 @@ class HistoricalKlineSyncer:
         while current_start_ms < end_ms:
             batch_index += 1
 
-            # 计算当前批次的结束时间
-            current_end_ms = min(current_start_ms + batch_window_ms, end_ms)
-
             try:
                 # 使用 BinanceAPI 拉取一批数据
-                bar_array = await asyncio.get_event_loop().run_in_executor(
+                # 只传 start_time + 总 end_time + limit=batch_size，
+                # 让 fetch_klines 内部分页逻辑自行控制（拉满 limit 条即停）
+                loop = asyncio.get_running_loop()
+                bar_array = await loop.run_in_executor(
                     None,
-                    lambda s=current_start_ms, e=current_end_ms: self._api.fetch_klines(
+                    lambda s=current_start_ms: self._api.fetch_klines(
                         symbol=symbol_formatted,
                         timeframe=timeframe,
                         start_time=self._ms_to_time_string(s),
-                        end_time=self._ms_to_time_string(e),
+                        end_time=self._ms_to_time_string(end_ms),
                         limit=self._batch_size,
                     ),
                 )
@@ -315,12 +235,11 @@ class HistoricalKlineSyncer:
 
                 if batch_count == 0:
                     logger.debug(
-                        "批次无数据，跳过",
+                        "批次无数据，同步结束",
                         batch=batch_index,
                         start_ms=current_start_ms,
                     )
-                    current_start_ms = current_end_ms + 1
-                    continue
+                    break
 
                 # 将 BarArray 转换为 Bar 对象列表，通过事件总线发布
                 bars = self._bar_array_to_bars(bar_array, symbol_formatted, timeframe)
@@ -330,6 +249,10 @@ class HistoricalKlineSyncer:
 
                 total_bars += batch_count
 
+                # 使用最后一条数据的时间戳推进起始位置
+                last_bar = bars[-1]
+                last_ts = int(last_bar.timestamp)
+
                 logger.info(
                     "批次同步完成",
                     batch=batch_index,
@@ -337,7 +260,7 @@ class HistoricalKlineSyncer:
                     total_bars=total_bars,
                     symbol=symbol_formatted,
                     timeframe=interval_str,
-                    progress=f"{min(100, int((current_end_ms - start_ms) / (end_ms - start_ms) * 100))}%",
+                    progress=f"{min(100, int((last_ts - start_ms) / max(1, end_ms - start_ms) * 100))}%",
                 )
 
                 # 进度回调
@@ -350,12 +273,8 @@ class HistoricalKlineSyncer:
                     except Exception as e:
                         logger.warning("进度回调异常", error=str(e))
 
-                # 更新起始位置：使用最后一条数据的时间戳 + 1 个周期
-                last_ts = int(bar_array._timestamp_buf[-1]) if bar_array._timestamp_buf else 0
-                if last_ts > 0:
-                    current_start_ms = last_ts + interval_ms
-                else:
-                    current_start_ms = current_end_ms + 1
+                # 更新起始位置：最后一条时间戳 + 1 个周期，避免重复
+                current_start_ms = last_ts + interval_ms
 
                 # 如果返回条数少于请求的 batch_size，说明已到末尾
                 if batch_count < self._batch_size:
@@ -371,8 +290,8 @@ class HistoricalKlineSyncer:
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                # 失败后继续下一批，避免整体中断
-                current_start_ms = current_end_ms + 1
+                # 失败后跳过一个批次窗口继续，避免整体中断
+                current_start_ms += interval_ms * self._batch_size
 
             # 批次间延迟，避免触发 API 限流
             if current_start_ms < end_ms:
@@ -403,7 +322,7 @@ class HistoricalKlineSyncer:
 
         return total_bars
 
-    async def sync_multiple(
+    async def _sync_multiple(
         self,
         tasks: list[dict[str, Any]],
         concurrency: int = 1,
@@ -526,16 +445,16 @@ class HistoricalKlineSyncer:
     @staticmethod
     def _ms_to_time_string(ms: int) -> str:
         """
-        将毫秒时间戳转换为时间字符串
+        将毫秒时间戳转换为 UTC 时间字符串
 
         Args:
             ms: 毫秒时间戳
 
         Returns:
-            格式为 "YYYY-MM-DD HH:MM:SS" 的时间字符串
+            格式为 "YYYY-MM-DD HH:MM:SS" 的 UTC 时间字符串
         """
-        from datetime import datetime
-        dt = datetime.fromtimestamp(ms / 1000)
+        from datetime import datetime, timezone
+        dt = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
 
     @property

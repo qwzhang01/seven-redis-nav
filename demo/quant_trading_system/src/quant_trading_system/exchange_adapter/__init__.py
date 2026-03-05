@@ -6,7 +6,7 @@
 包含：
 
 公共模块（exchange_adapter 根目录）：
-- base.py: ExchangeGateway / ExchangeConnector 抽象基类
+- base.py: ExchangeGateway / ExchangeConnector / ExchangeRestClient / ExchangeUserStream 抽象基类
 - utils.py: TimeUtils / RetryUtils 通用工具
 - ws_client.py: WebSocketClient 通用 WebSocket 客户端
 
@@ -18,7 +18,7 @@ binance 子包：
 - BinanceUserStreamManager: 用户数据流管理器
 
 mock 子包：
-- MockConnector / MockBinanceCopyTradeClient / MockBinanceUserStreamManager
+- MockConnector / MockBinanceRestClient / MockBinanceUserStreamManager
 - generate_mock_klines / generate_multi_timeframe_klines
 """
 
@@ -26,6 +26,8 @@ mock 子包：
 from quant_trading_system.exchange_adapter.base import (
     ExchangeConnector,
     ExchangeGateway,
+    ExchangeRestClient,
+    ExchangeUserStream,
 )
 
 # ── 通用工具 ──
@@ -44,10 +46,16 @@ from quant_trading_system.exchange_adapter.ws_client import (
 from quant_trading_system.exchange_adapter.factory import (
     create_connector,
     create_gateway,
+    create_rest_client,
+    create_user_stream,
     register_connector,
     register_gateway,
+    register_rest_client,
+    register_user_stream,
     supported_connectors,
     supported_gateways,
+    supported_rest_clients,
+    supported_user_streams,
 )
 
 # ── 币安对接 ──
@@ -65,6 +73,8 @@ __all__ = [
     # 公共抽象基类
     "ExchangeGateway",
     "ExchangeConnector",
+    "ExchangeRestClient",
+    "ExchangeUserStream",
     # 通用工具
     "RetryUtils",
     "TimeUtils",
@@ -74,10 +84,16 @@ __all__ = [
     # 工厂函数
     "create_connector",
     "create_gateway",
+    "create_rest_client",
+    "create_user_stream",
     "register_connector",
     "register_gateway",
+    "register_rest_client",
+    "register_user_stream",
     "supported_connectors",
     "supported_gateways",
+    "supported_rest_clients",
+    "supported_user_streams",
     # 币安对接
     "BinanceConfig",
     "BinanceDataConverter",

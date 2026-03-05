@@ -1,7 +1,7 @@
 """
-数据查询服务
+行情数据读取服务
 
-为回测引擎提供从 TimescaleDB 获取数据的功能。
+从 TimescaleDB 查询行情数据（K线、Tick等）。
 基于 AsyncTimescaleDB（SQLAlchemy 异步引擎 + asyncpg），全部使用异步查询。
 """
 
@@ -17,8 +17,8 @@ from quant_trading_system.core.database import get_async_database
 logger = structlog.get_logger(__name__)
 
 
-class DataQueryService:
-    """数据查询服务（异步版本）"""
+class MarketDataReader:
+    """行情数据读取服务（异步版本）"""
 
     def __init__(self):
         self.db = get_async_database()
@@ -372,19 +372,19 @@ class DataQueryService:
             return []
 
 
-# 全局数据查询实例
-data_query_instance: Optional[DataQueryService] = None
+# 全局读取服务实例
+_reader_instance: Optional[MarketDataReader] = None
 
 
-def get_data_query_service() -> DataQueryService:
-    """获取数据查询服务实例（单例模式）"""
-    global data_query_instance
-    if data_query_instance is None:
-        data_query_instance = DataQueryService()
-    return data_query_instance
+def get_market_data_reader() -> MarketDataReader:
+    """获取行情数据读取服务实例（单例模式）"""
+    global _reader_instance
+    if _reader_instance is None:
+        _reader_instance = MarketDataReader()
+    return _reader_instance
 
 
-async def init_data_query_service() -> DataQueryService:
-    """初始化数据查询服务"""
-    service = get_data_query_service()
+async def init_market_data_reader() -> MarketDataReader:
+    """初始化行情数据读取服务"""
+    service = get_market_data_reader()
     return service

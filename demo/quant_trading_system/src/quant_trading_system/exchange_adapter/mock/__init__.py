@@ -6,7 +6,7 @@ Mock 模块
 本模块提供以下 mock 功能：
 
 - MockConnector: 模拟行情连接器（tick / kline / depth 推送）
-- MockBinanceCopyTradeClient: 模拟 Binance 跟单 API
+- MockBinanceRestClient: 模拟 Binance REST API 客户端
 - MockBinanceUserStreamManager: 模拟 Binance 用户数据流
 - generate_mock_klines / generate_multi_timeframe_klines: 生成模拟 K线数据
 
@@ -15,14 +15,21 @@ Mock 模块
 """
 
 from quant_trading_system.core.config import settings
-from quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade import \
-    MockBinanceCopyTradeClient
-from quant_trading_system.exchange_adapter.mock.mock_binance_user_stream import \
-    MockBinanceUserStreamManager
-from quant_trading_system.exchange_adapter.mock.mock_connector import MockConnector, \
-    SymbolConfig, DEFAULT_SYMBOL_CONFIGS
-from quant_trading_system.exchange_adapter.mock.mock_data import generate_mock_klines, \
-    generate_multi_timeframe_klines
+from quant_trading_system.exchange_adapter.mock.mock_binance_rest_client import (
+    MockBinanceRestClient,
+)
+from quant_trading_system.exchange_adapter.mock.mock_binance_user_stream import (
+    MockBinanceUserStreamManager,
+)
+from quant_trading_system.exchange_adapter.mock.mock_connector import (
+    MockConnector,
+    SymbolConfig,
+    DEFAULT_SYMBOL_CONFIGS,
+)
+from quant_trading_system.exchange_adapter.mock.mock_data import (
+    generate_mock_klines,
+    generate_multi_timeframe_klines,
+)
 
 
 def is_mock_enabled() -> bool:
@@ -35,28 +42,6 @@ def is_mock_enabled() -> bool:
     return settings.is_development
 
 
-# ── 延迟导入，避免循环依赖 ──
-
-_LAZY_IMPORTS = {
-    "MockConnector":                ("quant_trading_system.exchange_adapter.mock.mock_connector", "MockConnector"),
-    "SymbolConfig":                 ("quant_trading_system.exchange_adapter.mock.mock_connector", "SymbolConfig"),
-    "DEFAULT_SYMBOL_CONFIGS":       ("quant_trading_system.exchange_adapter.mock.mock_connector", "DEFAULT_SYMBOL_CONFIGS"),
-    "MockBinanceCopyTradeClient":   ("quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade", "MockBinanceCopyTradeClient"),
-    "MockBinanceUserStreamManager": ("quant_trading_system.exchange_adapter.mock.mock_binance_user_stream", "MockBinanceUserStreamManager"),
-    "generate_mock_klines":         ("quant_trading_system.exchange_adapter.mock.mock_data", "generate_mock_klines"),
-    "generate_multi_timeframe_klines": ("quant_trading_system.exchange_adapter.mock.mock_data", "generate_multi_timeframe_klines"),
-}
-
-
-def __getattr__(name: str):
-    if name in _LAZY_IMPORTS:
-        module_path, attr = _LAZY_IMPORTS[name]
-        import importlib
-        module = importlib.import_module(module_path)
-        return getattr(module, attr)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 __all__ = [
     "is_mock_enabled",
     # 行情连接器 Mock
@@ -64,7 +49,7 @@ __all__ = [
     "SymbolConfig",
     "DEFAULT_SYMBOL_CONFIGS",
     # 交易所 API Mock
-    "MockBinanceCopyTradeClient",
+    "MockBinanceRestClient",
     "MockBinanceUserStreamManager",
     # 模拟数据生成
     "generate_mock_klines",

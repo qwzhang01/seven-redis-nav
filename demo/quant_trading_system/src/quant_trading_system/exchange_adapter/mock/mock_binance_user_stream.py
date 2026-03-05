@@ -12,12 +12,13 @@ Mock 币安 User Data Stream 管理器（开发环境专用）
 """
 
 import asyncio
-import logging
 import random
 import time
 from typing import Any, Callable, Coroutine, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 # 回调函数类型
 EventCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]

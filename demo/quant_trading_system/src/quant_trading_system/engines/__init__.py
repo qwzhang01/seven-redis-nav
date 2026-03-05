@@ -39,7 +39,7 @@ from quant_trading_system.engines.signal_event_bus import (  # noqa: F401
 
 def __getattr__(name: str):
     if name == "SignalStreamEngine":
-        from quant_trading_system.engines.signal_stream_engine import SignalStreamEngine
+        from quant_trading_system.services.flow.signal_stream_engine import SignalStreamEngine
         return SignalStreamEngine
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

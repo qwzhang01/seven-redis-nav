@@ -22,15 +22,15 @@
 """
 
 import asyncio
-import logging
 import time
 from typing import Any, Callable, Coroutine, Optional
 
+import structlog
 from binance import AsyncClient, BinanceSocketManager
 
 from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # 回调函数类型：接收事件字典，返回协程
 EventCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]

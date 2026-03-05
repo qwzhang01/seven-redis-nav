@@ -5,8 +5,9 @@
 包含通用的时间处理和重试工具函数
 """
 
+import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -26,31 +27,24 @@ class TimeUtils:
             time_str: 时间字符串，格式支持：
                      - "YYYY-MM-DD"（仅日期）
                      - "YYYY-MM-DD HH:MM:SS"（完整时间）
-                     - ISO 8601格式（如："YYYY-MM-DDTHH:MM:SSZ"、"YYYY-MM-DDTHH:MM:SS+HH:MM"）
+                     - ISO 8601格式（如："YYYY-MM-DDTHH:MM:SSZ"、"YYYY-MM-DDTHH:MM:SS+HH:MM"、"YYYY-MM-DDTHH:MM:SS-05:00"）
 
         Returns:
             毫秒时间戳
         """
         try:
-            # 首先尝试解析ISO 8601格式
+            # 统一使用 datetime.fromisoformat() 解析 ISO 8601 格式
+            # 将 'Z' 后缀替换为 '+00:00' 以兼容 fromisoformat
             if "T" in time_str:
-                # 移除时区信息，因为datetime.fromisoformat()需要Python 3.7+
-                # 对于简单的ISO格式，可以直接使用strptime
-                if time_str.endswith("Z"):
-                    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
-                elif "+" in time_str:
-                    # 处理带时区偏移的格式，如：2026-02-24T16:55:17+08:00
-                    dt_str = time_str.split("+")[0]
-                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
-                elif "-" in time_str[10:]:
-                    # 处理带负时区偏移的格式
-                    dt_str = time_str.split("-")[0]
-                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
-                else:
-                    # 不带时区的ISO格式
-                    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
+                normalized = time_str.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(normalized)
+                # 如果带时区信息，转为 UTC 后去掉时区再取 timestamp
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                return int(dt.timestamp() * 1000)
+
             # 尝试解析完整时间
-            elif " " in time_str:
+            if " " in time_str:
                 dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
             else:
                 dt = datetime.strptime(time_str, "%Y-%m-%d")
@@ -215,6 +209,121 @@ class RetryUtils:
             logger.debug("httpx not available, using standard exceptions only")
 
         return RetryUtils.execute_with_retry(
+            func=func,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            retry_exceptions=tuple(network_exceptions),
+            **kwargs
+        )
+
+    # ── 异步重试 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def async_execute_with_retry(
+        func: callable,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        retry_exceptions: tuple = (Exception,),
+        **kwargs
+    ) -> Any:
+        """
+        带重试机制异步执行函数
+
+        Args:
+            func: 要执行的异步函数
+            max_retries: 最大重试次数
+            base_delay: 基础延迟时间（秒）
+            retry_exceptions: 需要重试的异常类型
+            **kwargs: 函数参数
+
+        Returns:
+            函数执行结果
+        """
+        retry_count = 0
+
+        while retry_count <= max_retries:
+            try:
+                return await func(**kwargs)
+            except retry_exceptions as e:
+                retry_count += 1
+
+                if retry_count > max_retries:
+                    logger.error(
+                        "Async failed after all retries",
+                        error=str(e),
+                        error_type=type(e).__name__,
+                        retries=max_retries,
+                    )
+                    raise
+
+                delay = RetryUtils._calculate_delay(retry_count, base_delay, e)
+
+                logger.warning(
+                    "Async operation failed, retrying",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    retry_count=retry_count,
+                    max_retries=max_retries,
+                    delay=delay,
+                )
+
+                await asyncio.sleep(delay)
+
+        raise RuntimeError("Unexpected error in async retry logic")
+
+    @staticmethod
+    async def async_execute_with_progressive_retry(
+        func: callable,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        **kwargs
+    ) -> Any:
+        """
+        使用渐进式重试策略异步执行函数
+
+        针对网络请求的智能重试策略，根据异常类型和重试次数动态调整。
+
+        Args:
+            func: 要执行的异步函数
+            max_retries: 最大重试次数
+            base_delay: 基础延迟时间（秒）
+            **kwargs: 函数参数
+
+        Returns:
+            函数执行结果
+        """
+        network_exceptions: list[type] = [
+            ConnectionError,
+            TimeoutError,
+            OSError,
+            IOError,
+        ]
+
+        try:
+            import httpx
+            network_exceptions.extend([
+                httpx.ConnectError,
+                httpx.TimeoutException,
+                httpx.ReadError,
+                httpx.WriteError,
+                httpx.ProxyError,
+                httpx.NetworkError,
+                httpx.RemoteProtocolError,
+                httpx.ProtocolError,
+            ])
+        except ImportError:
+            logger.debug("httpx not available, using standard exceptions only")
+
+        try:
+            import aiohttp
+            network_exceptions.extend([
+                aiohttp.ClientError,
+                aiohttp.ServerDisconnectedError,
+            ])
+        except ImportError:
+            logger.debug("aiohttp not available, using standard exceptions only")
+
+        return await RetryUtils.async_execute_with_retry(
             func=func,
             max_retries=max_retries,
             base_delay=base_delay,

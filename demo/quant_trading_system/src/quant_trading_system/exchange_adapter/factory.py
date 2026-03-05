@@ -87,8 +87,8 @@ def _create_binance_rest_client(**kwargs: Any) -> Any:
 
 def _create_mock_rest_client(**kwargs: Any) -> Any:
     """创建模拟 REST API 客户端（开发环境）"""
-    from quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade import MockBinanceCopyTradeClient
-    return MockBinanceCopyTradeClient(
+    from quant_trading_system.exchange_adapter.mock.mock_binance_rest_client import MockBinanceRestClient
+    return MockBinanceRestClient(
         api_key=kwargs.get("api_key", "mock_key"),
         api_secret=kwargs.get("api_secret", "mock_secret"),
         account_type=kwargs.get("market_type", "spot"),

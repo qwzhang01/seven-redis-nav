@@ -7,7 +7,7 @@
 核心组件：
 - **AsyncTimescaleDB**: 异步数据库连接管理器（连接池、原始SQL查询、建表初始化、健康检查）
 - **get_db()**: FastAPI 异步依赖注入，返回 AsyncSession
-- **get_async_database()**: 获取 AsyncTimescaleDB 单例（供 DataStore/DataQuery 使用）
+- **get_async_database()**: 获取 AsyncTimescaleDB 单例（供 MarketDataWriter/MarketDataReader 使用）
 
 生命周期统一由 lifespan 管理：
     init_database()   → 初始化异步引擎 + 建表
@@ -17,37 +17,11 @@
 import structlog
 from typing import Optional, AsyncGenerator
 from pathlib import Path
-import os
-from urllib.parse import urlparse, quote_plus
-from dotenv import load_dotenv
 from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
 
-# 加载环境变量
-load_dotenv()
-
 logger = structlog.get_logger(__name__)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# URL 构建工具
-# ═══════════════════════════════════════════════════════════════════
-
-
-def _build_async_database_url() -> str:
-    """构建异步数据库URL，将 postgresql:// 转换为 postgresql+asyncpg://，并对密码进行URL编码"""
-    database_url = os.getenv("DATABASE_URL", "postgresql://quant:quant123@localhost:5432/quant_trading")
-    parsed = urlparse(database_url)
-    if parsed.password:
-        encoded_password = quote_plus(parsed.password)
-        netloc = f"{parsed.username}:{encoded_password}@{parsed.hostname}"
-        if parsed.port:
-            netloc += f":{parsed.port}"
-        database_url = f"{parsed.scheme}://{netloc}{parsed.path}"
-        if parsed.query:
-            database_url += f"?{parsed.query}"
-    return database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -80,7 +54,8 @@ class AsyncTimescaleDB:
             return
 
         try:
-            database_url = _build_async_database_url()
+            from quant_trading_system.core.config import settings
+            database_url = settings.database.timescale_url
             self._engine = create_async_engine(
                 database_url,
                 pool_size=self.min_size,
