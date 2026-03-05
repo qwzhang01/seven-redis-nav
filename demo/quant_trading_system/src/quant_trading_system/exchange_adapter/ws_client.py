@@ -15,6 +15,7 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 import structlog
+import websockets.exceptions
 
 logger = structlog.get_logger(__name__)
 # 修复 websockets 13.x 在 Python 3.12.7+ 上的 AttributeError('characters_written')
@@ -301,6 +302,22 @@ class WebSocketClient:
                     await self._on_message(data)
 
             except asyncio.CancelledError:
+                break
+            except websockets.exceptions.ConnectionClosedOK:
+                # 正常关闭（主动 disconnect 或服务端优雅关闭），无需重连
+                logger.info("WebSocket 连接正常关闭", name=self.name)
+                break
+            except websockets.exceptions.ConnectionClosedError as e:
+                # 异常关闭（服务端静默断开、网络抖动等），属于预期内的网络事件
+                logger.warning(
+                    "WebSocket 连接异常关闭，准备重连",
+                    name=self.name,
+                    code=e.rcvd.code if e.rcvd else None,
+                    reason=e.rcvd.reason if e.rcvd else "no close frame",
+                )
+                self.stats.error_count += 1
+                if self._running:
+                    await self._reconnect()
                 break
             except Exception as e:
                 logger.error("WebSocket 接收异常", name=self.name, exc_info=True)
