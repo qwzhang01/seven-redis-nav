@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from quant_trading_system.models.signal import Signal
 from quant_trading_system.services.database.database import get_db
-from quant_trading_system.services.signal.signal_record_subscriber import (
+from quant_trading_system.services.flow.signal_record_subscriber import (
     SignalRecordSubscriber,
     ORDER_EVENTS,
     SNAPSHOT_EVENTS,

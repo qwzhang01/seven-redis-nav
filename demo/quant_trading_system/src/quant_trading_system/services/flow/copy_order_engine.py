@@ -31,7 +31,6 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from quant_trading_system.core.config import settings
 from quant_trading_system.core.snowflake import generate_snowflake_id
 from quant_trading_system.models.follow import (
     SignalFollowEvent,

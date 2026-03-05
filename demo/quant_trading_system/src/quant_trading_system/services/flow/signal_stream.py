@@ -9,7 +9,6 @@
 import logging
 from typing import Any, Optional
 
-from quant_trading_system.core.config import settings
 from quant_trading_system.exchange_adapter.factory import create_user_stream
 from quant_trading_system.engines.signal_event_bus import (
     SignalEvent,
@@ -51,7 +50,7 @@ class SignalStream:
 
         self._event_bus = event_bus or signal_event_bus
 
-        # 目标账户 WebSocket 监听器
+        # 账户 WebSocket 监听器
         # 通过工厂创建（自动处理 proxy_url 注入 + 开发环境 Mock 切换）
         self._stream_manager = create_user_stream(
             exchange=exchange,
@@ -66,17 +65,16 @@ class SignalStream:
         self._events_published = 0
 
     async def start(self) -> None:
-        """启动信号流"""
         self._stream_manager.on_order_update = self._on_order_event
         self._stream_manager.on_account_update = self._on_account_event
         self._stream_manager.on_snapshot_ready = self._on_snapshot_ready
+
         await self._stream_manager.start()
-        logger.info(f"信号流已启动: signal_id={self.signal_id}, name={self.signal_name}")
+        logger.info(f"监听大佬账号ws已启动: signal_id={self.signal_id}, name={self.signal_name}")
 
     async def stop(self) -> None:
-        """停止信号流"""
         await self._stream_manager.stop()
-        logger.info(f"信号流已停止: signal_id={self.signal_id}, name={self.signal_name}")
+        logger.info(f"监听大佬账号ws已停止: signal_id={self.signal_id}, name={self.signal_name}")
 
     def get_status(self) -> dict[str, Any]:
         """获取状态"""
