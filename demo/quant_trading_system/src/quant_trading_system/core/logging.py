@@ -103,6 +103,7 @@ def setup_logging(
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),       # 渲染 stack_info=True 的调用栈
+        structlog.processors.format_exc_info,           # 渲染 exc_info 异常堆栈（logger.exception / exc_info=True）
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.stdlib.add_logger_name,
         structlog.stdlib.ExtraAdder(),
