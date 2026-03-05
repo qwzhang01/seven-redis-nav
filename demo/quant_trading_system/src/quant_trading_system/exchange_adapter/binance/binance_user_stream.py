@@ -31,6 +31,8 @@ from binance import AsyncClient, BinanceSocketManager
 from quant_trading_system.exchange_adapter.binance.binance_rest_client import \
     BinanceRestClient
 
+from src.quant_trading_system.core.enums import DefaultTradingPair
+
 logger = structlog.get_logger(__name__)
 
 # 回调函数类型：接收事件字典，返回协程
@@ -404,11 +406,12 @@ class BinanceUserStreamManager:
         try:
             await self.fetch_initial_snapshot()
 
-            trade = self._rest_client.get_my_trades()
-            logger.info(f"trade: {trade}")
-            orders = self._rest_client.get_all_orders()
-            logger.info(f"orders: {orders}")
-            
+            for symbol in DefaultTradingPair.values():
+                trade = self._rest_client.get_my_trades(symbol=symbol)
+                logger.info(f"trade: {trade}")
+                orders = self._rest_client.get_all_orders(symbol=symbol)
+                logger.info(f"orders: {orders}")
+
         except Exception as e:
             logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
 
