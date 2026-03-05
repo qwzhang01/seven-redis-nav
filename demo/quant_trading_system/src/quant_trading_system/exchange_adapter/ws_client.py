@@ -8,6 +8,7 @@
 
 import asyncio
 import json
+import ssl
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -108,6 +109,13 @@ class WebSocketClient:
                     proxy = Proxy.from_url(self.proxy_url)
                     sock = await proxy.connect(dest_host=dest_host, dest_port=dest_port)
                     connect_kwargs["sock"] = sock
+
+                    # wss:// 需要显式传入 SSL 参数，因为通过 sock 连接时
+                    # websockets 不会自动根据 URI scheme 推断 TLS
+                    if parsed.scheme == "wss":
+                        ssl_context = ssl.create_default_context()
+                        connect_kwargs["ssl"] = ssl_context
+                        connect_kwargs["server_hostname"] = dest_host
 
                     logger.info(
                         "WebSocket 通过代理连接",
