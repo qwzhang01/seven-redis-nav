@@ -163,6 +163,11 @@ class AccountManager:
             return 0.0
         return self._account.total_balance
 
+    def reset(self) -> None:
+        """重置账户状态（用于回测重新运行）"""
+        self._account = None
+        logger.debug("账户管理器已重置")
+
     @property
     def stats(self) -> dict[str, Any]:
         """获取统计信息"""

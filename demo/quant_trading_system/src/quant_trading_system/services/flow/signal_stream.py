@@ -10,9 +10,7 @@ import logging
 from typing import Any, Optional
 
 from quant_trading_system.core.config import settings
-from quant_trading_system.exchange_adapter.binance.binance_user_stream import (
-    BinanceUserStreamManager,
-)
+from quant_trading_system.exchange_adapter.factory import create_user_stream
 from quant_trading_system.engines.signal_event_bus import (
     SignalEvent,
     SignalEventBus,
@@ -54,25 +52,14 @@ class SignalStream:
         self._event_bus = event_bus or signal_event_bus
 
         # 目标账户 WebSocket 监听器
-        # 开发环境使用 Mock，不连接真实 Binance
-        if settings.is_development:
-            from quant_trading_system.exchange_adapter.mock.mock_binance_user_stream import (
-                MockBinanceUserStreamManager,
-            )
-            self._stream_manager = MockBinanceUserStreamManager(
-                api_key=target_api_key,
-                api_secret=target_api_secret,
-                account_type=account_type,
-                testnet=testnet,
-            )
-        else:
-            self._stream_manager = BinanceUserStreamManager(
-                api_key=target_api_key,
-                api_secret=target_api_secret,
-                account_type=account_type,
-                testnet=testnet,
-                proxy_url=settings.exchange.proxy_url,
-            )
+        # 通过工厂创建（自动处理 proxy_url 注入 + 开发环境 Mock 切换）
+        self._stream_manager = create_user_stream(
+            exchange=exchange,
+            api_key=target_api_key,
+            api_secret=target_api_secret,
+            account_type=account_type,
+            testnet=testnet,
+        )
 
         # 统计
         self._events_received = 0

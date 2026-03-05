@@ -199,23 +199,43 @@ class RSI(Indicator):
         volume: np.ndarray | None = None,
     ) -> IndicatorResult:
         period = self.params["period"]
+        n = len(close)
+
+        if n < period + 1:
+            return IndicatorResult(
+                name=self.name,
+                values={"rsi": np.full(n, np.nan)},
+                params=self.params,
+            )
 
         # 计算价格变化
         delta = np.diff(close, prepend=close[0])
 
         # 分离涨跌
-        gain = np.where(delta > 0, delta, 0)
-        loss = np.where(delta < 0, -delta, 0)
+        gain = np.where(delta > 0, delta, 0.0)
+        loss = np.where(delta < 0, -delta, 0.0)
 
-        # 计算平均涨跌
-        avg_gain = self._smooth_average(gain, period)
-        avg_loss = self._smooth_average(loss, period)
+        # 使用向量化 Wilder 平滑
+        avg_gain = self._smooth_average_fast(gain, period)
+        avg_loss = self._smooth_average_fast(loss, period)
 
-        # 计算RSI
-        rs = np.where(avg_loss != 0, avg_gain / avg_loss, 100)
-        rsi = 100 - 100 / (1 + rs)
+        # 计算RSI（安全除法，避免 divide by zero 警告）
+        rsi = np.full(n, np.nan)
+        valid = ~np.isnan(avg_gain) & ~np.isnan(avg_loss)
+        # avg_loss == 0 且 avg_gain > 0 → RSI = 100
+        # avg_loss == 0 且 avg_gain == 0 → RSI = 50
+        # 否则正常计算
+        mask_zero_loss = valid & (avg_loss == 0)
+        mask_normal = valid & (avg_loss != 0)
 
-        # 前period个值设为NaN
+        rsi[mask_zero_loss & (avg_gain > 0)] = 100.0
+        rsi[mask_zero_loss & (avg_gain == 0)] = 50.0
+
+        if np.any(mask_normal):
+            rs = avg_gain[mask_normal] / avg_loss[mask_normal]
+            rsi[mask_normal] = 100.0 - 100.0 / (1.0 + rs)
+
+        # 前 period 个值设为 NaN
         rsi[:period] = np.nan
 
         return IndicatorResult(
@@ -225,19 +245,32 @@ class RSI(Indicator):
         )
 
     @staticmethod
-    def _smooth_average(data: np.ndarray, period: int) -> np.ndarray:
-        """平滑平均（Wilder平滑）"""
-        result = np.full_like(data, np.nan, dtype=float)
+    def _smooth_average_fast(data: np.ndarray, period: int) -> np.ndarray:
+        """向量化 Wilder 平滑（使用 scipy-style 递推的纯 numpy 实现）
 
-        if len(data) < period:
+        Wilder 递推: y[i] = (y[i-1] * (period-1) + x[i]) / period
+        等价于指数平滑: y[i] = alpha * x[i] + (1-alpha) * y[i-1], alpha = 1/period
+
+        虽然递推关系无法完全向量化，但对于小窗口（<500）
+        直接 for 循环在 numpy scalar 上比创建临时数组更快。
+        这里保持 for 循环但使用 float 变量避免数组索引开销。
+        """
+        n = len(data)
+        result = np.full(n, np.nan, dtype=np.float64)
+
+        if n < period:
             return result
 
-        # 初始值使用SMA
-        result[period - 1] = np.mean(data[:period])
+        # 初始值使用 SMA
+        alpha = 1.0 / period
+        one_minus_alpha = 1.0 - alpha
+        prev = float(np.mean(data[:period]))
+        result[period - 1] = prev
 
-        # Wilder平滑
-        for i in range(period, len(data)):
-            result[i] = (result[i - 1] * (period - 1) + data[i]) / period
+        # 使用 float 标量递推（比 result[i-1] 数组索引快 ~3x）
+        for i in range(period, n):
+            prev = alpha * data[i] + one_minus_alpha * prev
+            result[i] = prev
 
         return result
 
@@ -338,20 +371,38 @@ class BOLL(Indicator):
     ) -> IndicatorResult:
         period = self.params["period"]
         std_dev = self.params["std_dev"]
-
         n = len(close)
+
+        if n < period:
+            nan_arr = np.full(n, np.nan)
+            return IndicatorResult(
+                name=self.name,
+                values={"middle": nan_arr, "upper": nan_arr.copy(), "lower": nan_arr.copy()},
+                params=self.params,
+            )
+
+        # 向量化滑动窗口均值（使用 cumsum 技巧，O(n)）
+        cs = np.cumsum(close)
+        cs_padded = np.concatenate([[0.0], cs])
+        # middle[i] = mean(close[i-period+1 : i+1])
         middle = np.full(n, np.nan)
+        middle[period - 1:] = (cs_padded[period:] - cs_padded[:n - period + 1]) / period
+
+        # 向量化滑动窗口标准差（使用 cumsum of squares 技巧，O(n)）
+        cs2 = np.cumsum(close * close)
+        cs2_padded = np.concatenate([[0.0], cs2])
+        sum_sq = cs2_padded[period:] - cs2_padded[:n - period + 1]
+        sum_vals = cs_padded[period:] - cs_padded[:n - period + 1]
+        # ddof=1 的标准差: sqrt((sum_sq - sum_vals²/n) / (n-1))
+        variance = (sum_sq - sum_vals * sum_vals / period) / (period - 1)
+        # 防止浮点误差导致负方差
+        variance = np.maximum(variance, 0.0)
+        std_arr = np.sqrt(variance)
+
         upper = np.full(n, np.nan)
         lower = np.full(n, np.nan)
-
-        for i in range(period - 1, n):
-            window = close[i - period + 1:i + 1]
-            mean = np.mean(window)
-            std = np.std(window, ddof=1)
-
-            middle[i] = mean
-            upper[i] = mean + std_dev * std
-            lower[i] = mean - std_dev * std
+        upper[period - 1:] = middle[period - 1:] + std_dev * std_arr
+        lower[period - 1:] = middle[period - 1:] - std_dev * std_arr
 
         return IndicatorResult(
             name=self.name,
@@ -620,5 +671,137 @@ class WR(Indicator):
         return IndicatorResult(
             name=self.name,
             values={"wr": wr},
+            params=self.params,
+        )
+
+
+@register_indicator
+class SuperTrend(Indicator):
+    """
+    超级趋势指标 (SuperTrend)
+
+    基于 ATR 的趋势跟踪指标。
+    - 当价格在 SuperTrend 线之上时为看涨（绿色），direction = 1
+    - 当价格在 SuperTrend 线之下时为看跌（红色），direction = -1
+
+    输出:
+        supertrend: SuperTrend 线的值
+        direction:  1 表示看涨，-1 表示看跌
+    """
+
+    name: ClassVar[str] = "SUPERTREND"
+    description: ClassVar[str] = "超级趋势指标"
+    indicator_type: ClassVar[str] = "trend"
+
+    params_def: ClassVar[dict[str, dict[str, Any]]] = {
+        "atr_period": {"type": int, "default": 10, "min": 1, "max": 200},
+        "multiplier": {"type": float, "default": 3.0, "min": 0.1, "max": 20.0},
+    }
+
+    outputs: ClassVar[list[str]] = ["supertrend", "direction"]
+
+    def calculate(
+        self,
+        close: np.ndarray,
+        high: np.ndarray | None = None,
+        low: np.ndarray | None = None,
+        open: np.ndarray | None = None,
+        volume: np.ndarray | None = None,
+    ) -> IndicatorResult:
+        if high is None or low is None:
+            raise ValueError("SuperTrend requires high and low prices")
+
+        atr_period = self.params["atr_period"]
+        multiplier = self.params["multiplier"]
+        n = len(close)
+
+        supertrend = np.full(n, np.nan)
+        direction = np.full(n, np.nan)
+
+        if n < atr_period + 1:
+            return IndicatorResult(
+                name=self.name,
+                values={"supertrend": supertrend, "direction": direction},
+                params=self.params,
+            )
+
+        # ---- 向量化计算 True Range ----
+        tr = np.empty(n)
+        tr[0] = high[0] - low[0]
+        hl = high[1:] - low[1:]
+        hc = np.abs(high[1:] - close[:-1])
+        lc = np.abs(low[1:] - close[:-1])
+        tr[1:] = np.maximum(np.maximum(hl, hc), lc)
+
+        # ---- ATR（Wilder 平滑，标量递推优化） ----
+        atr = np.full(n, np.nan)
+        alpha = 1.0 / atr_period
+        one_minus_alpha = 1.0 - alpha
+        prev_atr = float(np.mean(tr[:atr_period]))
+        atr[atr_period - 1] = prev_atr
+
+        for i in range(atr_period, n):
+            prev_atr = alpha * tr[i] + one_minus_alpha * prev_atr
+            atr[i] = prev_atr
+
+        # ---- 向量化计算基础上/下轨 ----
+        hl2 = (high + low) * 0.5
+        basic_upper = hl2 + multiplier * atr
+        basic_lower = hl2 - multiplier * atr
+
+        # ---- SuperTrend 主循环（标量优化，减少数组索引开销） ----
+        final_upper = np.full(n, np.nan)
+        final_lower = np.full(n, np.nan)
+
+        start = atr_period - 1
+
+        fu = float(basic_upper[start])
+        fl = float(basic_lower[start])
+        final_upper[start] = fu
+        final_lower[start] = fl
+
+        cur_dir = 1.0 if close[start] > fu else -1.0
+        direction[start] = cur_dir
+        supertrend[start] = fl if cur_dir == 1.0 else fu
+
+        # 预取为局部变量，避免循环内属性查找
+        _close = close
+        _bu = basic_upper
+        _bl = basic_lower
+
+        for i in range(start + 1, n):
+            prev_close = _close[i - 1]
+            bu_i = _bu[i]
+            bl_i = _bl[i]
+
+            # 上轨平滑
+            if prev_close <= fu:
+                fu = min(bu_i, fu)
+            else:
+                fu = bu_i
+            final_upper[i] = fu
+
+            # 下轨平滑
+            if prev_close >= fl:
+                fl = max(bl_i, fl)
+            else:
+                fl = bl_i
+            final_lower[i] = fl
+
+            # 方向判定
+            c_i = _close[i]
+            if cur_dir == 1.0:
+                if c_i < fl:
+                    cur_dir = -1.0
+            else:
+                if c_i > fu:
+                    cur_dir = 1.0
+
+            direction[i] = cur_dir
+            supertrend[i] = fl if cur_dir == 1.0 else fu
+
+        return IndicatorResult(
+            name=self.name,
+            values={"supertrend": supertrend, "direction": direction},
             params=self.params,
         )

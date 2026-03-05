@@ -12,6 +12,7 @@ from quant_trading_system.indicators.technical import (
     OBV,
     RSI,
     SMA,
+    SuperTrend,
     WR,
 )
 from quant_trading_system.indicators.indicator_engine import IndicatorEngine
@@ -32,4 +33,5 @@ __all__ = [
     "OBV",
     "MFI",
     "WR",
+    "SuperTrend",
 ]

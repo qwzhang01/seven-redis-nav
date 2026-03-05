@@ -55,7 +55,7 @@ from quant_trading_system.services.market.historical_kline_syncer import (
     HistoricalKlineSyncer,
     SyncerConfig,
 )
-from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
+from quant_trading_system.exchange_adapter.factory import create_rest_client
 
 # K线引擎（保持原有实现，负责内存缓冲和K线合成）
 from quant_trading_system.services.market.kline_engine import KLineEngine
@@ -127,10 +127,10 @@ class MarketService:
 
         # ── 历史数据同步器 ──
         self._historical_syncer = HistoricalKlineSyncer(
-            binance_api=BinanceRestClient(
+            binance_api=create_rest_client(
+                "binance",
                 api_key=settings.BINANCE_API_KEY,
                 api_secret=settings.BINANCE_SECRET_KEY,
-                proxy_url=settings.exchange.proxy_url,
             ),
             event_bus=self._event_bus,
         )

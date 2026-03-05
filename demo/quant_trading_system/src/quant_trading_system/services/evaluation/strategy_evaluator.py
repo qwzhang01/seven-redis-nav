@@ -108,8 +108,9 @@ class StrategyEvaluator:
         # 按策略分组的绩效指标
         self._metrics: dict[str, StrategyMetrics] = {}
 
-        # 按策略分组的持仓成本 {strategy_id: {symbol: avg_price}}
-        self._entry_prices: dict[str, dict[str, float]] = defaultdict(dict)
+        # 按策略分组的持仓成本 {strategy_id: {symbol: (avg_price, quantity)}}
+        # 使用 (均价, 数量) 元组支持分批建仓的加权平均成本计算
+        self._entry_positions: dict[str, dict[str, tuple[float, float]]] = defaultdict(dict)
 
         # 当前权益
         self._current_equity = initial_equity
@@ -167,17 +168,30 @@ class StrategyEvaluator:
 
         if trade.side == OrderSide.BUY:
             metrics.buy_trades += 1
-            # 记录买入成本
-            self._entry_prices[strategy_id][trade.symbol] = trade.price
+            # 分批建仓：加权平均成本计算
+            existing = self._entry_positions[strategy_id].get(trade.symbol, (0.0, 0.0))
+            old_avg, old_qty = existing
+            new_qty = old_qty + trade.quantity
+            if new_qty > 0:
+                new_avg = (old_avg * old_qty + trade.price * trade.quantity) / new_qty
+            else:
+                new_avg = trade.price
+            self._entry_positions[strategy_id][trade.symbol] = (new_avg, new_qty)
         else:
             metrics.sell_trades += 1
-            # 计算平仓盈亏
-            entry_price = self._entry_prices[strategy_id].get(trade.symbol, 0)
-            if entry_price > 0:
-                pnl = (trade.price - entry_price) * trade.quantity - trade.commission
+            # 计算平仓盈亏（基于加权平均成本）
+            existing = self._entry_positions[strategy_id].get(trade.symbol, (0.0, 0.0))
+            avg_price, held_qty = existing
+            if avg_price > 0 and held_qty > 0:
+                reduce_qty = min(trade.quantity, held_qty)
+                pnl = (trade.price - avg_price) * reduce_qty - trade.commission
                 self._update_pnl_stats(metrics, pnl)
-                # 清除成本记录
-                self._entry_prices[strategy_id].pop(trade.symbol, None)
+                # 更新剩余持仓
+                remaining_qty = held_qty - reduce_qty
+                if remaining_qty <= 0:
+                    self._entry_positions[strategy_id].pop(trade.symbol, None)
+                else:
+                    self._entry_positions[strategy_id][trade.symbol] = (avg_price, remaining_qty)
 
         # 更新派生指标
         self._recalculate_derived(metrics)
@@ -267,7 +281,7 @@ class StrategyEvaluator:
     def reset(self) -> None:
         """重置所有指标"""
         self._metrics.clear()
-        self._entry_prices.clear()
+        self._entry_positions.clear()
         self._all_trades.clear()
         self._current_equity = self._initial_equity
 

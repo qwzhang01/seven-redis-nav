@@ -687,8 +687,7 @@ class KLineEngine:
 
         # 根据交易所选择 API 客户端
         if exchange == "binance":
-            from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
-            api_class = BinanceRestClient
+            from quant_trading_system.exchange_adapter.factory import create_rest_client
         else:
             logger.error(f"Unsupported exchange for history loading: {exchange}")
             return stats
@@ -708,7 +707,7 @@ class KLineEngine:
 
         loop = asyncio.get_event_loop()
 
-        with api_class(market_type="spot") as api:
+        with create_rest_client(exchange, market_type="spot") as api:
             for symbol in symbols:
                 symbol_count = 0
                 # 去掉 "/" 和 "-" 得到 _buffers 的 key（与 process_tick 一致）

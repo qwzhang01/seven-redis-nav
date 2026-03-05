@@ -395,6 +395,7 @@ class OrderProcessor:
         self._signal_count = 0
         self._order_count = 0
         self._position_manager.reset()
+        self._account_manager.reset()
 
     @property
     def stats(self) -> dict[str, Any]:

@@ -6,6 +6,9 @@ from quant_trading_system.strategy.strategies.macd_strategy import MACDStrategy
 from quant_trading_system.strategy.strategies.multi_timeframe_ma_breakout import (
     MultiTimeframeMABreakoutStrategy,
 )
+from quant_trading_system.strategy.strategies.rsi_bb_supertrend_strategy import (
+    RSIBBSuperTrendStrategy,
+)
 from quant_trading_system.strategy.strategies.rsi_strategy import RSIStrategy
 
 __all__ = [
@@ -14,4 +17,5 @@ __all__ = [
     "RSIStrategy",
     "BollingerBandStrategy",
     "MultiTimeframeMABreakoutStrategy",
+    "RSIBBSuperTrendStrategy",
 ]

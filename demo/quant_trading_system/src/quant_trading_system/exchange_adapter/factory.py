@@ -29,6 +29,10 @@ logger = structlog.get_logger(__name__)
 ConnectorFactory = Callable[..., ExchangeConnector]
 # Gateway 工厂签名: (**kwargs) -> ExchangeGateway
 GatewayFactory = Callable[..., ExchangeGateway]
+# RestClient 工厂签名: (**kwargs) -> Any
+RestClientFactory = Callable[..., Any]
+# UserStream 工厂签名: (**kwargs) -> Any
+UserStreamFactory = Callable[..., Any]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -69,6 +73,52 @@ def _create_binance_gateway(**kwargs: Any) -> ExchangeGateway:
     )
 
 
+def _create_binance_rest_client(**kwargs: Any) -> Any:
+    """创建币安 REST API 客户端"""
+    from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
+    return BinanceRestClient(
+        api_key=kwargs.get("api_key", ""),
+        api_secret=kwargs.get("api_secret", ""),
+        market_type=kwargs.get("market_type", "spot"),
+        testnet=kwargs.get("testnet", False),
+        proxy_url=kwargs.get("proxy_url"),
+    )
+
+
+def _create_mock_rest_client(**kwargs: Any) -> Any:
+    """创建模拟 REST API 客户端（开发环境）"""
+    from quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade import MockBinanceCopyTradeClient
+    return MockBinanceCopyTradeClient(
+        api_key=kwargs.get("api_key", "mock_key"),
+        api_secret=kwargs.get("api_secret", "mock_secret"),
+        account_type=kwargs.get("market_type", "spot"),
+        testnet=kwargs.get("testnet", False),
+    )
+
+
+def _create_binance_user_stream(**kwargs: Any) -> Any:
+    """创建币安 User Data Stream 管理器"""
+    from quant_trading_system.exchange_adapter.binance.binance_user_stream import BinanceUserStreamManager
+    return BinanceUserStreamManager(
+        api_key=kwargs.get("api_key", ""),
+        api_secret=kwargs.get("api_secret", ""),
+        account_type=kwargs.get("account_type", "spot"),
+        testnet=kwargs.get("testnet", False),
+        proxy_url=kwargs.get("proxy_url"),
+    )
+
+
+def _create_mock_user_stream(**kwargs: Any) -> Any:
+    """创建模拟 User Data Stream 管理器（开发环境）"""
+    from quant_trading_system.exchange_adapter.mock.mock_binance_user_stream import MockBinanceUserStreamManager
+    return MockBinanceUserStreamManager(
+        api_key=kwargs.get("api_key", "mock_key"),
+        api_secret=kwargs.get("api_secret", "mock_secret"),
+        account_type=kwargs.get("account_type", "spot"),
+        testnet=kwargs.get("testnet", False),
+    )
+
+
 # ── Connector 注册表 ──
 _CONNECTOR_REGISTRY: dict[str, ConnectorFactory] = {
     "binance": _create_binance_connector,
@@ -78,6 +128,18 @@ _CONNECTOR_REGISTRY: dict[str, ConnectorFactory] = {
 # ── Gateway 注册表 ──
 _GATEWAY_REGISTRY: dict[str, GatewayFactory] = {
     "binance": _create_binance_gateway,
+}
+
+# ── RestClient 注册表 ──
+_REST_CLIENT_REGISTRY: dict[str, RestClientFactory] = {
+    "binance": _create_binance_rest_client,
+    "mock": _create_mock_rest_client,
+}
+
+# ── UserStream 注册表 ──
+_USER_STREAM_REGISTRY: dict[str, UserStreamFactory] = {
+    "binance": _create_binance_user_stream,
+    "mock": _create_mock_user_stream,
 }
 
 
@@ -139,6 +201,92 @@ def create_gateway(
     return factory(**kwargs)
 
 
+def create_rest_client(
+    exchange: str,
+    **kwargs: Any,
+) -> Any:
+    """
+    根据交易所名称创建 REST API 客户端
+
+    自动处理：
+    - proxy_url 注入（从 settings 读取，也可通过 kwargs 覆盖）
+    - Mock 自动切换（开发环境自动使用 mock 实现）
+
+    Args:
+        exchange: 交易所名称（如 "binance"）
+        **kwargs: 交易所特定参数（api_key, api_secret, market_type, testnet 等）
+
+    Returns:
+        对应的 REST API 客户端实例
+
+    Raises:
+        ValueError: 不支持的交易所
+    """
+    # 自动注入 proxy_url（如果调用方未显式传入）
+    if "proxy_url" not in kwargs:
+        from quant_trading_system.core.config import settings
+        kwargs["proxy_url"] = settings.exchange.proxy_url
+
+    # 开发环境自动切换到 mock
+    resolved_exchange = exchange
+    if exchange != "mock":
+        from quant_trading_system.core.config import settings as _settings
+        if _settings.is_development:
+            resolved_exchange = "mock"
+            logger.debug("开发环境，REST 客户端自动切换为 mock", original=exchange)
+
+    factory = _REST_CLIENT_REGISTRY.get(resolved_exchange)
+    if factory is None:
+        supported = ", ".join(sorted(_REST_CLIENT_REGISTRY.keys()))
+        raise ValueError(
+            f"不支持的交易所: {exchange!r}，当前支持: {supported}"
+        )
+    return factory(**kwargs)
+
+
+def create_user_stream(
+    exchange: str,
+    **kwargs: Any,
+) -> Any:
+    """
+    根据交易所名称创建 User Data Stream 管理器
+
+    自动处理：
+    - proxy_url 注入（从 settings 读取，也可通过 kwargs 覆盖）
+    - Mock 自动切换（开发环境自动使用 mock 实现）
+
+    Args:
+        exchange: 交易所名称（如 "binance"）
+        **kwargs: 交易所特定参数（api_key, api_secret, account_type, testnet 等）
+
+    Returns:
+        对应的 UserStream 管理器实例
+
+    Raises:
+        ValueError: 不支持的交易所
+    """
+    # 自动注入 proxy_url（如果调用方未显式传入）
+    if "proxy_url" not in kwargs:
+        from quant_trading_system.core.config import settings
+        kwargs["proxy_url"] = settings.exchange.proxy_url
+
+    # 开发环境自动切换到 mock
+    resolved_exchange = exchange
+    if exchange != "mock":
+        from quant_trading_system.core.config import settings as _settings
+        if _settings.is_development:
+            resolved_exchange = "mock"
+            logger.debug("开发环境，UserStream 自动切换为 mock", original=exchange)
+
+    factory = _USER_STREAM_REGISTRY.get(resolved_exchange)
+    if factory is None:
+        supported = ", ".join(sorted(_USER_STREAM_REGISTRY.keys()))
+        raise ValueError(
+            f"不支持的交易所: {exchange!r}，当前支持: {supported}"
+        )
+    return factory(**kwargs)
+
+
 def register_connector(exchange: str, factory: ConnectorFactory) -> None:
     """
     注册自定义 Connector 工厂（供扩展使用）
@@ -163,6 +311,30 @@ def register_gateway(exchange: str, factory: GatewayFactory) -> None:
     logger.info("已注册 Gateway 工厂", exchange=exchange)
 
 
+def register_rest_client(exchange: str, factory: RestClientFactory) -> None:
+    """
+    注册自定义 RestClient 工厂（供扩展使用）
+
+    Args:
+        exchange: 交易所名称
+        factory: 工厂函数，签名 (**kwargs) -> RestClient
+    """
+    _REST_CLIENT_REGISTRY[exchange] = factory
+    logger.info("已注册 RestClient 工厂", exchange=exchange)
+
+
+def register_user_stream(exchange: str, factory: UserStreamFactory) -> None:
+    """
+    注册自定义 UserStream 工厂（供扩展使用）
+
+    Args:
+        exchange: 交易所名称
+        factory: 工厂函数，签名 (**kwargs) -> UserStreamManager
+    """
+    _USER_STREAM_REGISTRY[exchange] = factory
+    logger.info("已注册 UserStream 工厂", exchange=exchange)
+
+
 def supported_connectors() -> list[str]:
     """返回当前支持的 Connector 交易所列表"""
     return sorted(_CONNECTOR_REGISTRY.keys())
@@ -171,3 +343,13 @@ def supported_connectors() -> list[str]:
 def supported_gateways() -> list[str]:
     """返回当前支持的 Gateway 交易所列表"""
     return sorted(_GATEWAY_REGISTRY.keys())
+
+
+def supported_rest_clients() -> list[str]:
+    """返回当前支持的 RestClient 交易所列表"""
+    return sorted(_REST_CLIENT_REGISTRY.keys())
+
+
+def supported_user_streams() -> list[str]:
+    """返回当前支持的 UserStream 交易所列表"""
+    return sorted(_USER_STREAM_REGISTRY.keys())

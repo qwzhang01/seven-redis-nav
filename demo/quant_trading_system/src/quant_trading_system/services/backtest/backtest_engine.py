@@ -618,12 +618,17 @@ class BacktestEngine:
             result.final_capital - result.initial_capital
         ) / result.initial_capital
 
-        if result.duration_days > 0:
+        # 问题4修复：极短回测期（< 7天）不做年化，避免年化收益爆炸
+        min_annualize_days = 7
+        if result.duration_days >= min_annualize_days:
             if result.total_return > -1:
                 annualized_factor = 365 / result.duration_days
                 result.annual_return = float(np.exp(np.log(1 + result.total_return) * annualized_factor) - 1)
             else:
                 result.annual_return = -1.0
+        elif result.duration_days > 0:
+            # 回测期不足 7 天，直接使用总收益率，不做年化
+            result.annual_return = result.total_return
         else:
             result.annual_return = 0.0
 
@@ -643,9 +648,37 @@ class BacktestEngine:
         drawdown = (peak - equity_array) / peak
         result.max_drawdown = float(np.max(drawdown))
 
+        # 问题3修复：计算最大回撤持续时间（从峰值到恢复至新峰值的最长周期，单位天）
+        max_dd_duration = 0.0
+        dd_start_ts = 0.0
+        timestamps = np.array([e[0] for e in self._equity_curve])
+        for j in range(1, len(equity_array)):
+            if equity_array[j] < peak[j]:
+                # 处于回撤中
+                if dd_start_ts == 0.0:
+                    dd_start_ts = timestamps[j - 1]  # 记录回撤开始时间（前一根的峰值时刻）
+            else:
+                # 已恢复到新峰值
+                if dd_start_ts > 0.0:
+                    duration = (timestamps[j] - dd_start_ts) / (86400 * 1000)
+                    max_dd_duration = max(max_dd_duration, duration)
+                    dd_start_ts = 0.0
+        # 如果回测结束时仍处于回撤中
+        if dd_start_ts > 0.0:
+            duration = (timestamps[-1] - dd_start_ts) / (86400 * 1000)
+            max_dd_duration = max(max_dd_duration, duration)
+        result.max_drawdown_duration = max_dd_duration
+
         # 夏普比率（假设无风险利率为0）
         if result.volatility > 0:
             result.sharpe_ratio = result.annual_return / result.volatility
+
+        # 问题2修复：计算 Sortino Ratio（只考虑下行风险）
+        if len(returns) > 0:
+            downside_returns = returns[returns < 0]
+            downside_std = float(np.std(downside_returns) * np.sqrt(252)) if len(downside_returns) > 0 else 0.0
+            if downside_std > 0:
+                result.sortino_ratio = result.annual_return / downside_std
 
         # Calmar比率
         if result.max_drawdown > 0:

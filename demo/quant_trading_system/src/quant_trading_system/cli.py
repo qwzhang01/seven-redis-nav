@@ -144,7 +144,7 @@ def backtest(
                 )
         else:
             click.echo(f"Fetching historical data from Binance...")
-            from quant_trading_system.exchange_adapter.binance.binance_rest_client import BinanceRestClient
+            from quant_trading_system.exchange_adapter.factory import create_rest_client
 
             strategy_tfs = list(
                 strategy_class.timeframes) if strategy_class.timeframes else [tf]
@@ -152,7 +152,7 @@ def backtest(
                 click.echo(
                     f"Multi-timeframe strategy: {[t.value for t in strategy_tfs]}")
                 tf_bars = {}
-                with BinanceRestClient(market_type="spot", proxy_url=settings.exchange.proxy_url) as api:
+                with create_rest_client("binance", market_type="spot") as api:
                     for stf in strategy_tfs:
                         click.echo(f"  Fetching {stf.value} data...")
                         tf_bars[stf] = api.fetch_klines(
@@ -169,7 +169,7 @@ def backtest(
                     symbol_formatted = f"{base_symbol}/{quote_symbol}"
                 bars = {symbol_formatted: tf_bars}
             else:
-                with BinanceRestClient(market_type="spot", proxy_url=settings.exchange.proxy_url) as api:
+                with create_rest_client("binance", market_type="spot") as api:
                     bars = api.fetch_klines(
                         symbol=symbol,
                         timeframe=tf,

@@ -40,9 +40,7 @@ from quant_trading_system.models.follow import (
     SignalFollowTrade,
 )
 from quant_trading_system.services.database.database import get_db
-from quant_trading_system.exchange_adapter.binance.binance_rest_client import (
-    BinanceRestClient,
-)
+from quant_trading_system.exchange_adapter.factory import create_rest_client
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +74,11 @@ class CopyOrderEngine:
         api_secret: str,
         account_type: str = "spot",
         testnet: bool = False,
-    ) -> BinanceRestClient:
+    ) -> Any:
         """
         获取或创建下单客户端（按 API Key + 账户类型 缓存）
 
-        开发环境自动使用 MockBinanceCopyTradeClient，不连接真实 Binance。
+        通过工厂创建，自动处理 proxy_url 注入和开发环境 Mock 切换。
 
         Args:
             api_key: 跟单账户 API Key
@@ -89,28 +87,17 @@ class CopyOrderEngine:
             testnet: 是否测试网
 
         Returns:
-            BinanceRestClient 实例（或 Mock 实例）
+            REST 客户端实例（BinanceRestClient 或 Mock 实例）
         """
         cache_key = (api_key, account_type)
         if cache_key not in self._clients:
-            if settings.is_development:
-                from quant_trading_system.exchange_adapter.mock.mock_binance_copy_trade import (
-                    MockBinanceCopyTradeClient,
-                )
-                self._clients[cache_key] = MockBinanceCopyTradeClient(
-                    api_key=api_key,
-                    api_secret=api_secret,
-                    account_type=account_type,
-                    testnet=testnet,
-                )
-            else:
-                self._clients[cache_key] = BinanceRestClient(
-                    api_key=api_key,
-                    api_secret=api_secret,
-                    market_type=account_type,
-                    testnet=testnet,
-                    proxy_url=settings.exchange.proxy_url,
-                )
+            self._clients[cache_key] = create_rest_client(
+                "binance",
+                api_key=api_key,
+                api_secret=api_secret,
+                market_type=account_type,
+                testnet=testnet,
+            )
         return self._clients[cache_key]
 
     async def execute_copy(
