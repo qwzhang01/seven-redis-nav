@@ -30,12 +30,14 @@ class BinanceGateway(ExchangeGateway):
         api_key: str,
         api_secret: str,
         market_type: str = "spot",
+        proxy_url: str | None = None,
     ) -> None:
         super().__init__(name=f"binance-{market_type}")
         self._client = BinanceRestClient(
             api_key=api_key,
             api_secret=api_secret,
             market_type=market_type,
+            proxy_url=proxy_url,
         )
 
     # ------------------------------------------------------------------

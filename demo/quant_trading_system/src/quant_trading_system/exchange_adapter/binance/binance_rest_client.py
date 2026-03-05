@@ -51,6 +51,7 @@ class BinanceRestClient(BinanceRestBase):
         api_secret: str = "",
         market_type: str = "spot",
         testnet: bool = False,
+        proxy_url: str | None = None,
     ):
         """
         初始化币安 REST 客户端
@@ -60,12 +61,14 @@ class BinanceRestClient(BinanceRestBase):
             api_secret: 币安 API Secret
             market_type: 市场类型 spot/futures
             testnet: 是否使用测试网
+            proxy_url: 代理地址（如 socks5://127.0.0.1:7891）
         """
         super().__init__(
             api_key=api_key,
             api_secret=api_secret,
             market_type=market_type,
             testnet=testnet,
+            proxy_url=proxy_url,
         )
         # 保留 account_type 别名，兼容外部调用
         self.account_type = market_type

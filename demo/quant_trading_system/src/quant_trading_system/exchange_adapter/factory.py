@@ -43,6 +43,7 @@ def _create_binance_connector(event_bus: MarketEventBus, **kwargs: Any) -> Excha
         market_type=kwargs.get("market_type", "spot"),
         api_key=kwargs.get("api_key", ""),
         api_secret=kwargs.get("api_secret", ""),
+        proxy_url=kwargs.get("proxy_url"),
     )
 
 
@@ -64,6 +65,7 @@ def _create_binance_gateway(**kwargs: Any) -> ExchangeGateway:
         api_key=kwargs["api_key"],
         api_secret=kwargs["api_secret"],
         market_type=kwargs.get("market_type", "spot"),
+        proxy_url=kwargs.get("proxy_url"),
     )
 
 

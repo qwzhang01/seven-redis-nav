@@ -236,10 +236,12 @@ class BinanceRestBase:
         api_secret: str = "",
         market_type: str = "spot",
         testnet: bool = False,
+        proxy_url: str | None = None,
     ) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
         self.market_type = market_type
+        self.proxy_url = proxy_url
 
         if testnet:
             if market_type == "spot":
@@ -253,20 +255,27 @@ class BinanceRestBase:
         # 异步 HTTP 客户端（延迟创建，复用连接池）
         self._async_session: Any = None
 
-    @staticmethod
-    def _create_http_client():
+    def _create_http_client(self):
         """
         创建标准 httpx.Client，统一超时和连接池配置。
+        如果配置了代理，同时设置 httpx 代理。
         延迟导入 httpx，避免未安装时启动报错。
         """
         import httpx as _httpx
 
-        return _httpx.Client(
-            timeout=_httpx.Timeout(connect=30.0, read=60.0, write=30.0, pool=30.0),
-            verify=True,
-            follow_redirects=True,
-            limits=_httpx.Limits(max_keepalive_connections=10, max_connections=20),
-        )
+        client_kwargs: dict[str, Any] = {
+            "timeout": _httpx.Timeout(connect=30.0, read=60.0, write=30.0, pool=30.0),
+            "verify": True,
+            "follow_redirects": True,
+            "limits": _httpx.Limits(max_keepalive_connections=10, max_connections=20),
+        }
+
+        # 如果配置了 HTTP 代理，httpx 原生支持 http/https/socks5 代理
+        if self.proxy_url:
+            client_kwargs["proxy"] = self.proxy_url
+            logger.info("httpx Client 使用代理", proxy=self.proxy_url)
+
+        return _httpx.Client(**client_kwargs)
 
     # ------------------------------------------------------------------
     # 签名
@@ -351,12 +360,28 @@ class BinanceRestBase:
     async def _get_async_session(self):
         """
         获取或创建可复用的 aiohttp ClientSession。
+        如果配置了代理，使用 aiohttp-socks 创建带代理的连接器。
         延迟创建以避免在非异步上下文中初始化。
         """
         if self._async_session is None or self._async_session.closed:
             import aiohttp
+
+            connector = None
+            # 如果配置了代理，尝试使用 aiohttp-socks 创建代理连接器
+            if self.proxy_url:
+                try:
+                    from aiohttp_socks import ProxyConnector
+                    connector = ProxyConnector.from_url(self.proxy_url)
+                    logger.info("aiohttp 使用代理连接器", proxy=self.proxy_url)
+                except ImportError:
+                    logger.warning(
+                        "aiohttp-socks 未安装，异步 HTTP 请求将不使用代理。"
+                        "请运行: pip install aiohttp-socks"
+                    )
+
             self._async_session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=60, connect=30),
+                connector=connector,
             )
         return self._async_session
 

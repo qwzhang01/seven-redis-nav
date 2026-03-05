@@ -130,6 +130,7 @@ class MarketService:
             binance_api=BinanceRestClient(
                 api_key=settings.BINANCE_API_KEY,
                 api_secret=settings.BINANCE_SECRET_KEY,
+                proxy_url=settings.exchange.proxy_url,
             ),
             event_bus=self._event_bus,
         )

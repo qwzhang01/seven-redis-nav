@@ -44,6 +44,7 @@ class BinanceConnector(ExchangeConnector):
         market_type: str = "spot",
         api_key: str = "",
         api_secret: str = "",
+        proxy_url: str | None = None,
     ) -> None:
         super().__init__(name="binance", event_bus=event_bus)
 
@@ -55,6 +56,7 @@ class BinanceConnector(ExchangeConnector):
         self._ws_client = WebSocketClient(
             url=ws_url,
             name=f"binance-{market_type}",
+            proxy_url=proxy_url,
         )
         self._ws_client.set_callbacks(
             on_message=self._on_message,

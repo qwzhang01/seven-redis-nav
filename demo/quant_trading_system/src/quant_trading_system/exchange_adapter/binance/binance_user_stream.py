@@ -64,6 +64,7 @@ class BinanceUserStreamManager:
         api_secret: str,
         account_type: str = "spot",
         testnet: bool = False,
+        proxy_url: str | None = None,
     ):
         """
         初始化管理器
@@ -73,11 +74,13 @@ class BinanceUserStreamManager:
             api_secret: 币安 API Secret
             account_type: 账户类型 spot/futures
             testnet: 是否使用测试网
+            proxy_url: 代理地址（如 socks5://127.0.0.1:7891）
         """
         self.api_key = api_key
         self.api_secret = api_secret
         self.account_type = account_type
         self.testnet = testnet
+        self.proxy_url = proxy_url
 
         # python-binance 客户端
         self._client: Optional[AsyncClient] = None
@@ -103,6 +106,7 @@ class BinanceUserStreamManager:
             api_secret=api_secret,
             market_type=account_type,
             testnet=testnet,
+            proxy_url=proxy_url,
         )
 
         # 统计
@@ -126,10 +130,17 @@ class BinanceUserStreamManager:
             f"api_key={self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else '***'}"
         )
 
+        # 构建请求参数，如果配置了代理则传入
+        requests_params = {}
+        if self.proxy_url:
+            requests_params["proxy"] = self.proxy_url
+            logger.info(f"AsyncClient 使用代理: {self.proxy_url}")
+
         client = await AsyncClient.create(
             api_key=self.api_key,
             api_secret=self.api_secret,
             testnet=self.testnet,
+            requests_params=requests_params if requests_params else None,
         )
         logger.info("AsyncClient 创建成功")
         return client

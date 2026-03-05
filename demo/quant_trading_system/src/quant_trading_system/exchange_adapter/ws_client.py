@@ -10,7 +10,8 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
+from urllib.parse import urlparse
 
 import structlog
 
@@ -51,6 +52,7 @@ class WebSocketClient:
         ping_timeout: float = 10.0,
         reconnect_delay: float = 5.0,
         max_reconnect_attempts: int = 10,
+        proxy_url: Optional[str] = None,
     ) -> None:
         self.url = url
         self.name = name
@@ -58,6 +60,7 @@ class WebSocketClient:
         self.ping_timeout = ping_timeout
         self.reconnect_delay = reconnect_delay
         self.max_reconnect_attempts = max_reconnect_attempts
+        self.proxy_url = proxy_url
 
         self._ws: Any = None
         self._connected = False
@@ -80,17 +83,48 @@ class WebSocketClient:
         self._on_disconnect = on_disconnect
 
     async def connect(self) -> bool:
-        """连接到 WebSocket 服务器"""
+        """连接到 WebSocket 服务器（支持代理）"""
         if self._connected:
             return True
 
         try:
             import websockets
 
+            connect_kwargs: dict[str, Any] = {
+                "ping_interval": self.ping_interval,
+                "ping_timeout": self.ping_timeout,
+            }
+
+            # 如果配置了代理，通过 python-socks 建立代理隧道
+            if self.proxy_url:
+                try:
+                    from python_socks.async_.asyncio import Proxy
+
+                    parsed = urlparse(self.url)
+                    dest_host = parsed.hostname or ""
+                    # WebSocket 默认端口：wss=443, ws=80
+                    dest_port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+
+                    proxy = Proxy.from_url(self.proxy_url)
+                    sock = await proxy.connect(dest_host=dest_host, dest_port=dest_port)
+                    connect_kwargs["sock"] = sock
+
+                    logger.info(
+                        "WebSocket 通过代理连接",
+                        name=self.name,
+                        proxy=self.proxy_url,
+                        dest=f"{dest_host}:{dest_port}",
+                    )
+                except ImportError:
+                    logger.warning(
+                        "python-socks 未安装，忽略代理配置。"
+                        "请运行: pip install python-socks[asyncio]",
+                        name=self.name,
+                    )
+
             self._ws = await websockets.connect(
                 self.url,
-                ping_interval=self.ping_interval,
-                ping_timeout=self.ping_timeout,
+                **connect_kwargs,
             )
             self._connected = True
             self._running = True

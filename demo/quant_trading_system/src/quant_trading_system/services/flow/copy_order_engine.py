@@ -109,6 +109,7 @@ class CopyOrderEngine:
                     api_secret=api_secret,
                     market_type=account_type,
                     testnet=testnet,
+                    proxy_url=settings.exchange.proxy_url,
                 )
         return self._clients[cache_key]
 

@@ -217,6 +217,11 @@ class ExchangeSettings(BaseSettings):
     exchange_api_retry_count: int = 3
     exchange_api_rate_limit: int = 10
 
+    # 代理配置（开发环境可选）
+    # 支持 http 和 socks5 代理，留空则不使用代理
+    # 格式示例: http://127.0.0.1:7890 / socks5://127.0.0.1:7891
+    proxy_url: Optional[str] = None
+
     # 数据源
     data_provider: str = "binance"
     historical_data_path: str = "./data/historical"
@@ -444,6 +449,11 @@ class Settings(BaseSettings):
     @property
     def BINANCE_TESTNET(self) -> bool:
         return self.exchange.binance_testnet
+
+    # 代理配置
+    @property
+    def PROXY_URL(self) -> Optional[str]:
+        return self.exchange.proxy_url
 
     # 行情数据同步开关
     @property

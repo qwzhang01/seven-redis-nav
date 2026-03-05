@@ -71,6 +71,7 @@ class SignalStream:
                 api_secret=target_api_secret,
                 account_type=account_type,
                 testnet=testnet,
+                proxy_url=settings.exchange.proxy_url,
             )
 
         # 统计
