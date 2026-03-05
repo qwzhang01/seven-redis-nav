@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
-
 from quant_trading_system.api.deps import set_app_ref, clear_app_ref
 from quant_trading_system.api.websocket.manager import ws_manager
 from quant_trading_system.core.config import settings
@@ -25,6 +24,23 @@ logger = structlog.get_logger(__name__)
 
 
 # ── Lifespan 启动步骤 ────────────────────────────────────────────
+
+async def _init_event_engine() -> None:
+    try:
+        container.event_engine.start()
+
+        logger.info("✅ 事件引擎初始化成功")
+    except Exception as e:
+        logger.error("❌ 事件引擎初始化失败", exc_info=True)
+        raise
+
+
+async def _kill_event_engine() -> None:
+    try:
+        container.event_engine.stop()
+        logger.info("✅ 事件引擎已关闭")
+    except Exception as e:
+        logger.error("❌ 事件引擎关闭失败", exc_info=True)
 
 
 async def _startup_database() -> None:
@@ -233,9 +249,11 @@ async def lifespan(app: FastAPI):
 
     # ── 启动 ──
     logger.info("🚀 启动量化交易系统...")
+    await _init_event_engine()
     await _startup_database()
     await _subscribe_default_symbols()
-    await _preload_history()
+
+    # await _preload_history()
     await _startup_orchestrator(app)
     await _startup_websocket_heartbeat()
     await _startup_flow_engines(app)
@@ -244,6 +262,7 @@ async def lifespan(app: FastAPI):
 
     # ── 关闭 ──
     logger.info("🛑 停止量化交易系统...")
+    await _kill_event_engine()
     await _shutdown_flow_engines(app)
     await _shutdown_websocket_heartbeat()
     await _shutdown_orchestrator(app)
