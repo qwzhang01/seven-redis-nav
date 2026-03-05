@@ -140,6 +140,10 @@ class WebSocketClient:
             self._ws = await websockets.connect(
                 self.url,
                 **connect_kwargs,
+                open_timeout=15,
+                ping_interval=self.ping_interval,
+                ping_timeout=self.ping_timeout,
+                classmethod=10
             )
             self._connected = True
             self._running = True
@@ -160,22 +164,31 @@ class WebSocketClient:
 
             return True
 
-
-        except Exception as e:
-
+        except websockets.exceptions.InvalidHandshake as e:
             logger.error("WebSocket 连接失败", name=self.name, exc_info=True)
 
-            if hasattr(e, "__cause__") and e.__cause__ is not None:
-                logger.error("Cause: %s", e.__cause__)
-
-            if self._ws is not None and hasattr(self._ws, "transport"):
-                transport = self._ws.transport
-
-                logger.error("Transport state: %s",
-                             dir(transport))  # 看有没有 characters_written
+            self.stats.error_count += 1
+            return False
+        except OSError as ose:
+            if hasattr(ose, 'characters_written'):
+                logger.error(
+                    "OSError with characters_written: %s (可能非阻塞写部分成功)", ose)
+            else:
+                logger.error("OSError: %s", ose)
 
             self.stats.error_count += 1
+            return False
+        except Exception as e:
+            logger.error("连接异常", exc_info=True)
+            if hasattr(e, '__cause__') and e.__cause__:
+                logger.error("Cause: %s", e.__cause__)
+            # 如果 _ws 已部分创建，检查 transport
+            if self._ws is not None:
+                transport = getattr(self._ws, 'transport', None)
+                if transport:
+                    logger.debug("Transport attrs: %s", dir(transport))
 
+            self.stats.error_count += 1
             return False
 
     async def disconnect(self) -> None:
