@@ -28,25 +28,6 @@ from quant_trading_system.models.market import Bar
 
 logger = structlog.get_logger(__name__)
 
-INTERVAL_MS: dict[str, int] = {
-    "1s": 1_000,
-    "1m": 60_000,
-    "3m": 180_000,
-    "5m": 300_000,
-    "15m": 900_000,
-    "30m": 1_800_000,
-    "1h": 3_600_000,
-    "2h": 7_200_000,
-    "4h": 14_400_000,
-    "6h": 21_600_000,
-    "8h": 28_800_000,
-    "12h": 43_200_000,
-    "1d": 86_400_000,
-    "3d": 259_200_000,
-    "1w": 604_800_000,
-    "1M": 2_592_000_000,  # 按 30 天近似
-}
-
 # 币安 API 单次最大返回条数
 BINANCE_MAX_LIMIT = 1000
 
@@ -137,7 +118,7 @@ class HistoricalKlineSyncer:
         # 构建批量同步任务
         tasks: list[dict[str, Any]] = []
         for symbol in DefaultTradingPair.values():
-            for timeframe in INTERVAL_MS:
+            for timeframe in KlineInterval:
                 tasks.append({
                     "symbol": symbol,
                     "timeframe": timeframe,
@@ -195,8 +176,8 @@ class HistoricalKlineSyncer:
         end_ms = TimeUtils.parse_time_string(end_time) if end_time else int(time.time() * 1000)
 
         # 获取K线周期对应的毫秒数（用于推进时间窗口）
-        interval_ms = INTERVAL_MS.get(interval_str)
-        if not interval_ms:
+        interval_ms = KlineInterval.from_str(interval_str)
+        if not interval_ms or interval_ms is None:
             raise ValueError(f"不支持的K线周期: {interval_str}")
 
         logger.info(
