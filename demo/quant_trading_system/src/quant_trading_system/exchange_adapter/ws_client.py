@@ -112,15 +112,19 @@ class WebSocketClient:
                     dest_port = parsed.port or (443 if parsed.scheme == "wss" else 80)
 
                     proxy = Proxy.from_url(self.proxy_url)
-                    sock = await proxy.connect(dest_host=dest_host, dest_port=dest_port)
+                    # 为代理隧道建立设置超时，防止代理无响应时无限阻塞
+                    sock = await asyncio.wait_for(
+                        proxy.connect(dest_host=dest_host, dest_port=dest_port),
+                        timeout=self.ping_timeout,
+                    )
                     connect_kwargs["sock"] = sock
 
                     # wss:// 需要显式传入 SSL 参数，因为通过 sock 连接时
                     # websockets 不会自动根据 URI scheme 推断 TLS
                     if parsed.scheme == "wss":
                         ssl_context = ssl.create_default_context()
-                        ssl_context.check_hostname = False  # ← 新增
-                        ssl_context.verify_mode = ssl.CERT_NONE  # ← 新增
+                        ssl_context.check_hostname = False
+                        ssl_context.verify_mode = ssl.CERT_NONE
                         connect_kwargs["ssl"] = ssl_context
                         connect_kwargs["server_hostname"] = dest_host
 
@@ -136,14 +140,29 @@ class WebSocketClient:
                         "请运行: pip install python-socks[asyncio]",
                         name=self.name,
                     )
+                except asyncio.TimeoutError:
+                    logger.error(
+                        "代理隧道建立超时",
+                        name=self.name,
+                        proxy=self.proxy_url,
+                        timeout=self.ping_timeout,
+                    )
+                    self.stats.error_count += 1
+                    return False
+                except OSError as proxy_err:
+                    logger.error(
+                        "代理隧道建立失败",
+                        name=self.name,
+                        proxy=self.proxy_url,
+                        error=str(proxy_err),
+                        error_type=type(proxy_err).__name__,
+                    )
+                    self.stats.error_count += 1
+                    return False
 
             self._ws = await websockets.connect(
                 self.url,
                 **connect_kwargs,
-                open_timeout=15,
-                ping_interval=self.ping_interval,
-                ping_timeout=self.ping_timeout,
-                classmethod=10
             )
             self._connected = True
             self._running = True
@@ -165,29 +184,53 @@ class WebSocketClient:
             return True
 
         except websockets.exceptions.InvalidHandshake as e:
-            logger.error("WebSocket 连接失败", name=self.name, exc_info=True)
-
+            logger.error("WebSocket 握手失败", name=self.name, exc_info=True)
+            self.stats.error_count += 1
+            return False
+        except ConnectionResetError as cre:
+            # 代理隧道建立后、TLS/WebSocket 握手阶段连接被重置
+            logger.error(
+                "WebSocket 连接被重置（ConnectionResetError），"
+                "通常是代理不稳定或目标服务器拒绝连接",
+                name=self.name,
+                proxy=self.proxy_url,
+                url=self.url,
+                error=str(cre),
+            )
+            # 清理可能半打开的连接
+            if self._ws is not None:
+                try:
+                    await self._ws.close()
+                except Exception:
+                    pass
+                self._ws = None
             self.stats.error_count += 1
             return False
         except OSError as ose:
-            if hasattr(ose, 'characters_written'):
-                logger.error(
-                    "OSError with characters_written: %s (可能非阻塞写部分成功)", ose)
-            else:
-                logger.error("OSError: %s", ose)
-
+            logger.error(
+                "WebSocket 连接 OSError",
+                name=self.name,
+                error=str(ose),
+                error_type=type(ose).__name__,
+                proxy=self.proxy_url,
+            )
             self.stats.error_count += 1
             return False
         except Exception as e:
-            logger.error("连接异常", exc_info=True)
-            if hasattr(e, '__cause__') and e.__cause__:
-                logger.error("Cause: %s", e.__cause__)
-            # 如果 _ws 已部分创建，检查 transport
+            logger.error(
+                "WebSocket 连接异常",
+                name=self.name,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
+            # 清理可能半打开的连接
             if self._ws is not None:
-                transport = getattr(self._ws, 'transport', None)
-                if transport:
-                    logger.debug("Transport attrs: %s", dir(transport))
-
+                try:
+                    await self._ws.close()
+                except Exception:
+                    pass
+                self._ws = None
             self.stats.error_count += 1
             return False
 
@@ -285,7 +328,7 @@ class WebSocketClient:
                 logger.error("WebSocket 心跳异常", name=self.name, exc_info=True)
 
     async def _reconnect(self) -> None:
-        """重连"""
+        """重连（带指数退避）"""
         if not self._running:
             return
 
@@ -300,12 +343,28 @@ class WebSocketClient:
         while self._running and self._reconnect_count < self.max_reconnect_attempts:
             self._reconnect_count += 1
             self.stats.reconnect_count += 1
-            logger.debug("WebSocket 重连中", name=self.name, attempt=self._reconnect_count)
-            await asyncio.sleep(self.reconnect_delay)
+
+            # 指数退避：delay * 2^(attempt-1)，上限 60 秒
+            delay = min(
+                self.reconnect_delay * (2 ** (self._reconnect_count - 1)),
+                60.0,
+            )
+            logger.info(
+                "WebSocket 重连中",
+                name=self.name,
+                attempt=self._reconnect_count,
+                max_attempts=self.max_reconnect_attempts,
+                delay=f"{delay:.1f}s",
+            )
+            await asyncio.sleep(delay)
             if await self.connect():
                 return
 
-        logger.error("WebSocket 达到最大重连次数", name=self.name)
+        logger.error(
+            "WebSocket 达到最大重连次数",
+            name=self.name,
+            max_attempts=self.max_reconnect_attempts,
+        )
 
     @property
     def is_connected(self) -> bool:
