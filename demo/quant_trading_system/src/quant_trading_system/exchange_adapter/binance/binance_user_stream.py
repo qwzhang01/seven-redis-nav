@@ -130,17 +130,14 @@ class BinanceUserStreamManager:
             f"api_key={self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else '***'}"
         )
 
-        # 构建请求参数，如果配置了代理则传入
-        requests_params = {}
         if self.proxy_url:
-            requests_params["proxy"] = self.proxy_url
             logger.info(f"AsyncClient 使用代理: {self.proxy_url}")
 
         client = await AsyncClient.create(
             api_key=self.api_key,
             api_secret=self.api_secret,
             testnet=self.testnet,
-            requests_params=requests_params if requests_params else None,
+            https_proxy=self.proxy_url,
         )
         logger.info("AsyncClient 创建成功")
         return client
