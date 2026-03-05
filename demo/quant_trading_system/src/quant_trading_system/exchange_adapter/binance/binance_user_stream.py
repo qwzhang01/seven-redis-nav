@@ -139,6 +139,16 @@ class BinanceUserStreamManager:
             testnet=self.testnet,
             https_proxy=self.proxy_url,
         )
+
+        # 同步服务器时间，计算并设置时间偏移量，避免 -1021 Timestamp 错误
+        try:
+            server_time = await client.get_server_time()
+            local_time = int(time.time() * 1000)
+            client.timestamp_offset = server_time['serverTime'] - local_time
+            logger.info(f"服务器时间偏移量已同步: offset={client.timestamp_offset}ms")
+        except Exception as e:
+            logger.warning(f"同步服务器时间失败（将使用本地时间）: {e}")
+
         logger.info("AsyncClient 创建成功")
         return client
 
@@ -205,6 +215,12 @@ class BinanceUserStreamManager:
                         f"account_type={self.account_type}, "
                         f"connected_at={self._connected_since}"
                     )
+
+                    # 为 REST 客户端同步服务器时间，避免签名请求出现 -1021 错误
+                    try:
+                        await self._rest_client.async_sync_server_time()
+                    except Exception as e:
+                        logger.warning(f"REST 客户端同步服务器时间失败（将使用本地时间）: {e}")
 
                     # WebSocket 连接成功后，自动拉取一次历史快照
                     try:

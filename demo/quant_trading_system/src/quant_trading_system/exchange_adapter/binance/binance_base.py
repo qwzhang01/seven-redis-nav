@@ -254,6 +254,8 @@ class BinanceRestBase:
         self._client = self._create_http_client()
         # 异步 HTTP 客户端（延迟创建，复用连接池）
         self._async_session: Any = None
+        # 本地时钟与币安服务器的时间偏移量（毫秒），用于校准签名时间戳，避免 -1021 错误
+        self._time_offset: int = 0
 
     def _create_http_client(self):
         """
@@ -329,7 +331,7 @@ class BinanceRestBase:
         headers = {"X-MBX-APIKEY": self.api_key}
 
         if signed:
-            params["timestamp"] = int(time.time() * 1000)
+            params["timestamp"] = int(time.time() * 1000) + self._time_offset
             params["recvWindow"] = 5000
             params["signature"] = self._sign(params)
 
@@ -411,7 +413,7 @@ class BinanceRestBase:
         headers = {"X-MBX-APIKEY": self.api_key}
 
         if signed:
-            params["timestamp"] = int(time.time() * 1000)
+            params["timestamp"] = int(time.time() * 1000) + self._time_offset
             params["signature"] = self._sign(params)
 
         session = await self._get_async_session()
@@ -432,6 +434,59 @@ class BinanceRestBase:
             logger.error("Binance API error", path=path, response=data)
 
         return data
+
+    # ------------------------------------------------------------------
+    # 时间同步
+    # ------------------------------------------------------------------
+
+    def sync_server_time(self) -> int:
+        """
+        同步币安服务器时间，计算并设置本地时钟偏移量（同步方式）。
+
+        调用 /api/v3/time（现货）或 /fapi/v1/time（合约）获取服务器时间，
+        与本地时间比较后设置 _time_offset，后续所有签名请求自动使用校准后的时间戳。
+
+        Returns:
+            时间偏移量（毫秒），正值表示本地时钟落后于服务器
+        """
+        path = self._get_path("/api/v3/time", "/fapi/v1/time")
+        try:
+            data = self._request("GET", path, signed=False)
+            server_time = data["serverTime"]
+            local_time = int(time.time() * 1000)
+            self._time_offset = server_time - local_time
+            logger.info(
+                "服务器时间同步完成",
+                time_offset_ms=self._time_offset,
+                market_type=self.market_type,
+            )
+            return self._time_offset
+        except Exception as e:
+            logger.warning(f"同步服务器时间失败（将使用本地时间）: {e}")
+            return 0
+
+    async def async_sync_server_time(self) -> int:
+        """
+        同步币安服务器时间，计算并设置本地时钟偏移量（异步方式）。
+
+        Returns:
+            时间偏移量（毫秒），正值表示本地时钟落后于服务器
+        """
+        path = self._get_path("/api/v3/time", "/fapi/v1/time")
+        try:
+            data = await self._async_request("GET", path, signed=False)
+            server_time = data["serverTime"]
+            local_time = int(time.time() * 1000)
+            self._time_offset = server_time - local_time
+            logger.info(
+                "服务器时间同步完成（异步）",
+                time_offset_ms=self._time_offset,
+                market_type=self.market_type,
+            )
+            return self._time_offset
+        except Exception as e:
+            logger.warning(f"异步同步服务器时间失败（将使用本地时间）: {e}")
+            return 0
 
     # ------------------------------------------------------------------
     # 路径工具
