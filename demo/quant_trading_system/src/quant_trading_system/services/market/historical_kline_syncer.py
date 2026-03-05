@@ -158,7 +158,7 @@ class HistoricalKlineSyncer:
                 total_bars=total,
             )
         except Exception as e:
-            logger.error("启动时历史数据同步失败", error=str(e))
+            logger.error("启动时历史数据同步失败", exc_info=True)
 
     async def sync(
         self,
@@ -271,7 +271,7 @@ class HistoricalKlineSyncer:
                         else:
                             on_progress(batch_index, total_bars, False)
                     except Exception as e:
-                        logger.warning("进度回调异常", error=str(e))
+                        logger.warning("进度回调异常", exc_info=True)
 
                 # 更新起始位置：最后一条时间戳 + 1 个周期，避免重复
                 current_start_ms = last_ts + interval_ms
@@ -287,8 +287,7 @@ class HistoricalKlineSyncer:
                     "批次同步失败",
                     batch=batch_index,
                     symbol=symbol_formatted,
-                    error=str(e),
-                    error_type=type(e).__name__,
+                    exc_info=True,
                 )
                 # 失败后跳过一个批次窗口继续，避免整体中断
                 current_start_ms += interval_ms * self._batch_size
@@ -361,7 +360,7 @@ class HistoricalKlineSyncer:
                     )
                     results[key] = count
                 except Exception as e:
-                    logger.error("批量同步任务失败", key=key, error=str(e))
+                    logger.error("批量同步任务失败", key=key, exc_info=True)
                     results[key] = -1
 
         await asyncio.gather(*[_sync_task(t) for t in tasks])

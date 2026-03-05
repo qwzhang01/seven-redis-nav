@@ -180,7 +180,7 @@ class MarketDataWriter:
                     logger.debug("No kline data processed (all were duplicates with no changes)")
 
             except Exception as e:
-                logger.error("Failed to flush kline data", error=str(e), count=len(buffer_snapshot))
+                logger.error("Failed to flush kline data", exc_info=True, count=len(buffer_snapshot))
 
     async def _flush_tick(self) -> None:
         """刷新实时行情数据到数据库 - 异步版本"""
@@ -235,7 +235,7 @@ class MarketDataWriter:
                     logger.debug("No tick data processed (all were duplicates with no changes)")
 
             except Exception as e:
-                logger.error("Failed to flush tick data", error=str(e), count=len(buffer_snapshot))
+                logger.error("Failed to flush tick data", exc_info=True, count=len(buffer_snapshot))
 
     async def _flush_depth(self) -> None:
         """刷新深度数据到数据库 - 异步版本"""
@@ -284,7 +284,7 @@ class MarketDataWriter:
                     logger.debug("No depth data processed (all were duplicates with no changes)")
 
             except Exception as e:
-                logger.error("Failed to flush depth data", error=str(e), count=len(buffer_snapshot))
+                logger.error("Failed to flush depth data", exc_info=True, count=len(buffer_snapshot))
 
     async def _flush_loop(self) -> None:
         """定时刷新循环"""
@@ -295,7 +295,7 @@ class MarketDataWriter:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("Error in flush loop", error=str(e))
+                logger.error("Error in flush loop", exc_info=True)
 
 
 # 全局写入服务实例

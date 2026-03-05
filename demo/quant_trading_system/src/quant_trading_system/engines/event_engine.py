@@ -271,7 +271,7 @@ class EventEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.exception(f"Worker {worker_name} error", error=str(e))
+                logger.exception(f"Worker {worker_name} error")
 
         logger.debug(f"Worker {worker_name} stopped")
 
@@ -287,7 +287,7 @@ class EventEngine:
                     logger.debug(f"Event filtered out", event_type=event_type.name)
                     return
             except Exception as e:
-                logger.error(f"Filter error", error=str(e), event_type=event_type.name)
+                logger.error(f"Filter error", exc_info=True, event_type=event_type.name)
 
         # 处理特定类型的处理器
         handlers = self._handlers.get(event_type, [])
@@ -304,7 +304,6 @@ class EventEngine:
                 handler(event)
             except Exception as e:
                 logger.exception(f"Sync handler error",
-                               error=str(e),
                                event_type=event_type.name)
 
         # 处理通用处理器
@@ -316,7 +315,7 @@ class EventEngine:
             try:
                 handler(event)
             except Exception as e:
-                logger.exception(f"General sync handler error", error=str(e))
+                logger.exception(f"General sync handler error")
 
     async def _safe_call_handler(
         self,
@@ -329,7 +328,6 @@ class EventEngine:
         except Exception as e:
             logger.exception(
                 f"Handler error",
-                error=str(e),
                 handler=handler.__name__,
                 event_type=event.type.name
             )

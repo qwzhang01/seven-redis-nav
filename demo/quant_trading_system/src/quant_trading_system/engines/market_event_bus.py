@@ -267,8 +267,8 @@ class MarketEventBus:
                 subscriber=subscriber.name,
                 event_type=event.type.name,
                 symbol=event.symbol,
-                error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
             raise
 
@@ -286,7 +286,7 @@ class MarketEventBus:
                         logger.error(
                             "订阅器启动失败",
                             subscriber=subscriber.name,
-                            error=str(e),
+                            exc_info=True,
                         )
 
     async def stop_all_subscribers(self) -> None:
@@ -303,7 +303,7 @@ class MarketEventBus:
                         logger.error(
                             "订阅器停止失败",
                             subscriber=subscriber.name,
-                            error=str(e),
+                            exc_info=True,
                         )
 
     def get_subscribers(self, event_type: MarketEventType) -> list[MarketSubscriber]:

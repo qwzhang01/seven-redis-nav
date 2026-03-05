@@ -238,7 +238,7 @@ class MarketService:
                 **kwargs,
             )
         except ValueError as e:
-            logger.error("创建连接器失败", exchange=exchange, error=str(e))
+            logger.error("创建连接器失败", exchange=exchange, exc_info=True)
             return
 
         self._connectors[connector_key] = connector

@@ -202,7 +202,7 @@ class KLineHistoryLoader:
                         "Failed to load historical klines from database",
                         symbol=symbol,
                         timeframe=tf.value,
-                        error=str(e),
+                        exc_info=True,
                     )
                     continue
 
@@ -252,7 +252,7 @@ class KLineHistoryLoader:
             except Exception as e:
                 logger.warning(
                     "Failed to get data writer, skipping save to database",
-                    error=str(e),
+                    exc_info=True,
                 )
 
         loop = asyncio.get_event_loop()
@@ -317,7 +317,7 @@ class KLineHistoryLoader:
                                         "Failed to save kline to database",
                                         symbol=buffer_key,
                                         timeframe=tf.value,
-                                        error=str(store_err),
+                                        exc_info=True,
                                     )
 
                         logger.debug(
@@ -333,7 +333,7 @@ class KLineHistoryLoader:
                             "Failed to load historical klines",
                             symbol=symbol,
                             timeframe=tf.value,
-                            error=str(e),
+                            exc_info=True,
                         )
                         continue
 
@@ -345,6 +345,6 @@ class KLineHistoryLoader:
                 await data_writer.flush_all()
                 logger.info("Flushed kline data to database after history loading")
             except Exception as e:
-                logger.warning("Failed to flush kline data to database", error=str(e))
+                logger.warning("Failed to flush kline data to database", exc_info=True)
 
         return stats

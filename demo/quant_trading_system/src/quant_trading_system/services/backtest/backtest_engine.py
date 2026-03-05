@@ -565,7 +565,7 @@ class BacktestEngine:
                                 self._risk_manager.on_order_filled(result.trade)
 
             except Exception as e:
-                logger.error(f"Strategy error at bar {i}", error=str(e))
+                logger.error(f"Strategy error at bar {i}", exc_info=True)
 
             # 记录权益
             total_position_value = self._position_manager.get_total_position_value()

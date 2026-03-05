@@ -33,7 +33,7 @@ async def _startup_database() -> None:
         await init_database()
         logger.info("✅ 数据库初始化成功")
     except Exception as e:
-        logger.error("❌ 数据库初始化失败", error=str(e))
+        logger.error("❌ 数据库初始化失败", exc_info=True)
         raise
 
 
@@ -43,7 +43,7 @@ async def _shutdown_database() -> None:
         await close_database()
         logger.info("✅ 数据库连接已关闭")
     except Exception as e:
-        logger.error("❌ 数据库关闭失败", error=str(e))
+        logger.error("❌ 数据库关闭失败", exc_info=True)
 
 
 async def _startup_orchestrator(app: FastAPI) -> None:
@@ -110,7 +110,7 @@ async def _subscribe_default_symbols() -> None:
             exchange=settings.exchange.data_provider,
         )
     except Exception as e:
-        logger.warning("⚠️ 自动订阅默认交易对失败（不影响系统启动）", error=str(e))
+        logger.warning("⚠️ 自动订阅默认交易对失败（不影响系统启动）", exc_info=True)
 
 
 async def _preload_history() -> None:
@@ -144,7 +144,7 @@ async def _preload_history() -> None:
             total = sum(stats.values())
             logger.info("✅ 已从数据库预加载历史K线数据", total=total, stats=stats)
     except Exception as e:
-        logger.warning("⚠️ 预加载历史K线数据失败（不影响系统启动）", error=str(e))
+        logger.warning("⚠️ 预加载历史K线数据失败（不影响系统启动）", exc_info=True)
 
 
 async def _startup_websocket_heartbeat() -> None:
@@ -153,7 +153,7 @@ async def _startup_websocket_heartbeat() -> None:
         await ws_manager.start_heartbeat()
         logger.info("✅ WebSocket 心跳检测已启动")
     except Exception as e:
-        logger.warning("⚠️ WebSocket 心跳检测启动失败", error=str(e))
+        logger.warning("⚠️ WebSocket 心跳检测启动失败", exc_info=True)
 
 
 async def _startup_flow_engines(app: FastAPI) -> None:
@@ -181,8 +181,7 @@ async def _startup_flow_engines(app: FastAPI) -> None:
                     active_count=signal_stream_engine.active_count)
 
     except Exception as e:
-        logger.warning("⚠️ 信号引擎初始化失败（不影响系统启动）", error=str(e),
-                       exc_info=True)
+        logger.warning("⚠️ 信号引擎初始化失败（不影响系统启动）", exc_info=True)
 
 
 # ── Lifespan 关闭步骤 ────────────────────────────────────────────
@@ -194,7 +193,7 @@ async def _shutdown_websocket_heartbeat() -> None:
         await ws_manager.stop_heartbeat()
         logger.info("✅ WebSocket 心跳检测已停止")
     except Exception as e:
-        logger.error("❌ WebSocket 心跳检测停止失败", error=str(e))
+        logger.error("❌ WebSocket 心跳检测停止失败", exc_info=True)
 
 
 async def _shutdown_flow_engines(app: FastAPI) -> None:
@@ -207,7 +206,7 @@ async def _shutdown_flow_engines(app: FastAPI) -> None:
             app.state.signal_stream_engine = None
             logger.info("✅ 信号监听引擎已停止", closed_count=count)
         except Exception as e:
-            logger.error("❌ 信号监听引擎停止失败", error=str(e))
+            logger.error("❌ 信号监听引擎停止失败", exc_info=True)
 
 
 async def _shutdown_orchestrator(app: FastAPI) -> None:

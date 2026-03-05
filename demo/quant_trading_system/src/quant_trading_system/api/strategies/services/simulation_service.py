@@ -140,7 +140,7 @@ class SimulationService:
         try:
             bars = SimulationService._get_bars(symbol_key, timeframe, start_time, end_time, limit)
         except Exception as e:
-            logger.error("获取K线数据失败", error=str(e), symbol=symbol_key, timeframe=timeframe)
+            logger.error("获取K线数据失败", symbol=symbol_key, timeframe=timeframe, exc_info=True)
             return {"strategy_id": str(user_strategy_id), "indicators": []}
 
         if bars is None or len(bars) == 0:
@@ -163,7 +163,7 @@ class SimulationService:
             try:
                 result = engine.calculate(indicator_name, bars, **indicator_params)
             except Exception as e:
-                logger.warning("指标计算失败", indicator=indicator_name, error=str(e))
+                logger.warning("指标计算失败", indicator=indicator_name, exc_info=True)
                 continue
 
             suffix = cfg.get("suffix", "")

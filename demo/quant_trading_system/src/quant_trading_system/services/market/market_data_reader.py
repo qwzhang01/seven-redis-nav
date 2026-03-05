@@ -116,9 +116,9 @@ class MarketDataReader:
         except Exception as e:
             logger.error(
                 "Failed to query kline data",
-                error=str(e),
                 symbol=symbol,
                 timeframe=timeframe,
+                exc_info=True,
             )
             return BarArray(symbol=symbol, exchange="unknown", timeframe=timeframe)
 
@@ -197,9 +197,10 @@ class MarketDataReader:
             if isinstance(task_result, Exception):
                 logger.error(
                     "Failed to query kline data for symbol/timeframe",
-                    error=str(task_result),
                     symbol=symbol,
                     timeframe=timeframe,
+                    error=str(task_result),
+                    exc_info=True,
                 )
                 result[symbol][timeframe] = BarArray(
                     symbol=symbol, exchange="unknown", timeframe=timeframe
@@ -219,7 +220,7 @@ class MarketDataReader:
             logger.debug("Available symbols retrieved", count=len(symbols))
             return symbols
         except Exception as e:
-            logger.error("Failed to query available symbols", error=str(e))
+            logger.error("Failed to query available symbols", exc_info=True)
             return []
 
     async def get_available_timeframes(self, symbol: str = None) -> List[str]:
@@ -238,7 +239,7 @@ class MarketDataReader:
             logger.debug("Available timeframes retrieved", count=len(timeframes))
             return timeframes
         except Exception as e:
-            logger.error("Failed to query available timeframes", error=str(e))
+            logger.error("Failed to query available timeframes", exc_info=True)
             return []
 
     async def get_data_time_range(
@@ -275,9 +276,9 @@ class MarketDataReader:
         except Exception as e:
             logger.error(
                 "Failed to query data time range",
-                error=str(e),
                 symbol=symbol,
                 timeframe=timeframe,
+                exc_info=True,
             )
             return {'start_time': None, 'end_time': None, 'count': 0}
 
@@ -330,9 +331,9 @@ class MarketDataReader:
         except Exception as e:
             logger.error(
                 "Failed to query latest bar",
-                error=str(e),
                 symbol=symbol,
                 timeframe=timeframe,
+                exc_info=True,
             )
             return None
 
@@ -368,7 +369,7 @@ class MarketDataReader:
             return results
 
         except Exception as e:
-            logger.error("Failed to query tick data", error=str(e))
+            logger.error("Failed to query tick data", exc_info=True)
             return []
 
 

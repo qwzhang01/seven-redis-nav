@@ -209,7 +209,7 @@ class IndicatorEngine:
             except Exception as e:
                 logger.error(f"Indicator calculation failed",
                            indicator=name,
-                           error=str(e))
+                           exc_info=True)
 
         return results
 
@@ -235,7 +235,8 @@ class IndicatorEngine:
             if isinstance(result, Exception):
                 logger.error(f"Indicator calculation failed",
                            indicator=name,
-                           error=str(result))
+                           error=str(result),
+                           exc_info=result)
             else:
                 results[name] = result
 

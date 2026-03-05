@@ -193,7 +193,7 @@ class WebSocketSubscriber(MarketSubscriber):
                 await self._push_depth(event.data)
         except Exception as e:
             # WebSocket 推送失败不应影响其他逻辑
-            logger.debug("WebSocket 推送失败", error=str(e), event_type=event.type.name)
+            logger.debug("WebSocket 推送失败", exc_info=True, event_type=event.type.name)
 
     async def _push_ticker(self, data: dict[str, Any]) -> None:
         """推送 Ticker 到前端"""
@@ -285,7 +285,7 @@ class MarketDataDispatcher(MarketSubscriber):
             from quant_trading_system.core.container import container
             self._event_engine = container.event_engine
         except Exception as e:
-            logger.warning("获取事件引擎失败，交易事件将不会被分发", error=str(e))
+            logger.warning("获取事件引擎失败，交易事件将不会被分发", exc_info=True)
 
         logger.info("行情数据分发器已启动")
 

@@ -76,7 +76,7 @@ class AsyncTimescaleDB:
             logger.info("异步 TimescaleDB 连接成功", version=version)
 
         except Exception as e:
-            logger.error("异步 TimescaleDB 连接失败", error=str(e))
+            logger.error("异步 TimescaleDB 连接失败", exc_info=True)
             raise
 
     async def disconnect(self) -> None:
@@ -112,7 +112,7 @@ class AsyncTimescaleDB:
                     rows.append(row_dict)
                 return rows
         except Exception as e:
-            logger.error("异步查询失败", query=query, error=str(e))
+            logger.error("异步查询失败", query=query, exc_info=True)
             raise
 
     async def execute_many(self, query: str, values: list) -> int:
@@ -123,7 +123,7 @@ class AsyncTimescaleDB:
                 result = await conn.execute(stmt, values)
                 return result.rowcount
         except Exception as e:
-            logger.error("异步批量操作失败", query=query, error=str(e))
+            logger.error("异步批量操作失败", query=query, exc_info=True)
             raise
 
     async def initialize_tables(self) -> None:
@@ -154,7 +154,7 @@ class AsyncTimescaleDB:
                 await raw_conn.driver_connection.execute(schema_sql)
             logger.info("数据库表初始化成功", schema=str(schema_path))
         except Exception as e:
-            logger.error("数据库表初始化失败", error=str(e))
+            logger.error("数据库表初始化失败", exc_info=True)
             raise
 
     async def health_check(self) -> bool:
@@ -189,7 +189,7 @@ class AsyncTimescaleDB:
                     # INSERT/UPDATE 等无返回结果的语句
                     return []
         except Exception as e:
-            logger.error("原始SQL查询失败", query=query, error=str(e))
+            logger.error("原始SQL查询失败", query=query, exc_info=True)
             raise
 
     @property

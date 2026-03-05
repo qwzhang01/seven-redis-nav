@@ -146,7 +146,7 @@ class WebSocketClient:
             return True
 
         except Exception as e:
-            logger.error("WebSocket 连接失败", name=self.name, error=str(e))
+            logger.error("WebSocket 连接失败", name=self.name, exc_info=True)
             self.stats.error_count += 1
             return False
 
@@ -182,7 +182,7 @@ class WebSocketClient:
             await self._ws.send(msg)
             return True
         except Exception as e:
-            logger.error("WebSocket 发送失败", name=self.name, error=str(e))
+            logger.error("WebSocket 发送失败", name=self.name, exc_info=True)
             self.stats.error_count += 1
             return False
 
@@ -219,7 +219,7 @@ class WebSocketClient:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("WebSocket 接收异常", name=self.name, error=str(e))
+                logger.error("WebSocket 接收异常", name=self.name, exc_info=True)
                 self.stats.error_count += 1
                 if self._running:
                     await self._reconnect()
@@ -241,7 +241,7 @@ class WebSocketClient:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("WebSocket 心跳异常", name=self.name, error=str(e))
+                logger.error("WebSocket 心跳异常", name=self.name, exc_info=True)
 
     async def _reconnect(self) -> None:
         """重连"""

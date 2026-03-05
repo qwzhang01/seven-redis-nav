@@ -298,7 +298,7 @@ class LiveExecutor(OrderExecutor):
             logger.error(
                 "实盘订单提交失败",
                 order_id=order.order_id,
-                error=str(e),
+                exc_info=True,
             )
 
         return result

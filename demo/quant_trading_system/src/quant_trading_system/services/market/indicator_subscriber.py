@@ -53,7 +53,7 @@ class IndicatorSubscriber(MarketSubscriber):
                 if event.data.get("is_closed", False):
                     await self._push_indicators_for_kline(event.data)
         except Exception as e:
-            logger.debug("指标计算推送失败", error=str(e), event_type=event.type.name)
+            logger.debug("指标计算推送失败", exc_info=True, event_type=event.type.name)
 
     async def _push_indicators_for_kline(self, data: dict[str, Any]) -> None:
         """
@@ -95,7 +95,7 @@ class IndicatorSubscriber(MarketSubscriber):
                 KlineInterval(timeframe),
             )
         except Exception as e:
-            logger.debug("获取K线缓冲区数据失败", error=str(e), symbol=symbol_key, timeframe=timeframe)
+            logger.debug("获取K线缓冲区数据失败", exc_info=True, symbol=symbol_key, timeframe=timeframe)
             return
 
         if bar_array is None or len(bar_array) == 0:
@@ -106,7 +106,7 @@ class IndicatorSubscriber(MarketSubscriber):
             from quant_trading_system.indicators.indicator_engine import get_indicator_engine
             indicator_engine = get_indicator_engine()
         except Exception as e:
-            logger.debug("获取指标引擎失败", error=str(e))
+            logger.debug("获取指标引擎失败", exc_info=True)
             return
 
         # 逐个计算并推送
@@ -138,7 +138,7 @@ class IndicatorSubscriber(MarketSubscriber):
                 logger.debug(
                     "指标计算或推送失败",
                     indicator=indicator_name,
-                    error=str(e),
+                    exc_info=True,
                     symbol=symbol_key,
                     timeframe=timeframe,
                 )
