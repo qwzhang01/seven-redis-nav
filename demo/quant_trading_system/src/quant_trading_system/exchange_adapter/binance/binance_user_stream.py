@@ -222,12 +222,6 @@ class BinanceUserStreamManager:
                     except Exception as e:
                         logger.warning(f"REST 客户端同步服务器时间失败（将使用本地时间）: {e}")
 
-                    # WebSocket 连接成功后，自动拉取一次历史快照
-                    try:
-                        await self.fetch_initial_snapshot()
-                    except Exception as e:
-                        logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
-
                     while self._running:
                         try:
                             # 设置超时以便能定期检查 _running 状态
@@ -404,6 +398,11 @@ class BinanceUserStreamManager:
 
         self._running = True
         self._reconnect_count = 0
+
+        try:
+            await self.fetch_initial_snapshot()
+        except Exception as e:
+            logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
 
         # 启动 WebSocket 连接协程
         self._ws_task = asyncio.create_task(self._ws_loop(), name="binance_user_stream_ws")
