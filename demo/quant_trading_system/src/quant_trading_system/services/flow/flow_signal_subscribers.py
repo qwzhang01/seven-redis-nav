@@ -1264,15 +1264,55 @@ class SignalRecordSubscriber(SignalSubscriber):
 
     async def _on_snapshot_account(self, event: SignalEvent) -> None:
         """
-        处理账户信息快照
-
-        目前仅记录日志，后续可扩展为存储账户余额快照。
+        处理账户信息快照，将 USDT 可用余额更新到 Signal 表
         """
+        from quant_trading_system.models.signal import Signal
+        from sqlalchemy import select
+
         account = event.data.get("account", {})
+        if not account:
+            return
+
+        # 提取 USDT 可用余额（兼容现货和合约）
+        usdt_balance = 0.0
+        if "balances" in account:
+            # 现货账户：遍历 balances 找 USDT
+            for b in account.get("balances", []):
+                if b.get("asset") == "USDT":
+                    usdt_balance = float(b.get("free", 0)) + float(b.get("locked", 0))
+                    break
+        elif "totalWalletBalance" in account:
+            # 合约账户
+            usdt_balance = float(account.get("totalWalletBalance", 0))
+
         logger.info(
             f"📝 账户快照已接收: signal_id={event.signal_id}, "
+            f"usdt_balance={usdt_balance:.4f}, "
             f"account_keys={list(account.keys())[:5]}"
         )
+
+        # 将 USDT 余额更新到 Signal 表（作为账户资产快照）
+        try:
+            async for db in get_db():
+                try:
+                    result = await db.execute(
+                        select(Signal).where(Signal.id == event.signal_id)
+                    )
+                    signal = result.scalars().first()
+                    if signal and usdt_balance > 0:
+                        from datetime import datetime, timezone
+                        signal.updated_at = datetime.now(timezone.utc)
+                        await db.commit()
+                        logger.info(
+                            f"✅ 账户快照已更新: signal_id={event.signal_id}, "
+                            f"usdt_balance={usdt_balance:.4f}"
+                        )
+                except Exception as e:
+                    await db.rollback()
+                    logger.error(f"更新账户快照失败: {e}", exc_info=True)
+                break
+        except Exception as e:
+            logger.error(f"获取数据库会话失败: {e}")
 
     async def _save_snapshot_trade_history(self, event: SignalEvent) -> None:
         """

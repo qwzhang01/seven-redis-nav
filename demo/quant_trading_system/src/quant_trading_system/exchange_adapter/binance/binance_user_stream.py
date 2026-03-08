@@ -347,19 +347,43 @@ class BinanceUserStreamManager:
             self._safe_fetch(self._rest_client.async_get_account_info, "account")
         )
 
-        results = await asyncio.gather(open_orders_task, positions_task, account_task)
+        # 并发拉取各交易对的历史成交记录
+        async def _fetch_trades_for_all_symbols() -> list:
+            all_trades = []
+            tasks = [
+                self._safe_fetch(
+                    lambda s=symbol: self._rest_client.async_get_my_trades(symbol=s),
+                    f"trades_{symbol}",
+                )
+                for symbol in DefaultTradingPair.values()
+            ]
+            results = await asyncio.gather(*tasks)
+            for trades in results:
+                if trades:
+                    all_trades.extend(trades)
+            return all_trades
+
+        trade_history_task = asyncio.create_task(
+            _fetch_trades_for_all_symbols()
+        )
+
+        results = await asyncio.gather(
+            open_orders_task, positions_task, account_task, trade_history_task
+        )
 
         snapshot = {
             "open_orders": results[0] or [],
             "positions": results[1] or [],
             "account": results[2] or {},
+            "trade_history": results[3] or [],
         }
 
         logger.info(
             f"📸 初始快照拉取完成: account_type={self.account_type}, "
             f"open_orders={len(snapshot['open_orders'])}, "
             f"positions={len(snapshot['positions'])}, "
-            f"has_account={'yes' if snapshot['account'] else 'no'}"
+            f"has_account={'yes' if snapshot['account'] else 'no'}, "
+            f"trade_history={len(snapshot['trade_history'])}"
         )
 
         # 通知上层
@@ -406,13 +430,6 @@ class BinanceUserStreamManager:
 
         try:
             await self.fetch_initial_snapshot()
-
-            for symbol in DefaultTradingPair.values():
-                trade = self._rest_client.get_my_trades(symbol=symbol)
-                logger.info(f"trade: {trade}")
-                orders = self._rest_client.get_all_orders(symbol=symbol)
-                logger.info(f"orders: {orders}")
-
         except Exception as e:
             logger.error(f"启动时拉取历史快照失败（不影响实时流）: {e}", exc_info=True)
 

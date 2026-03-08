@@ -250,3 +250,12 @@ class SignalStreamEngine:
                 data={"account": snapshot["account"]},
                 exchange=self.exchange,
             ))
+
+        # 发布成交历史快照
+        if snapshot.get("trade_history"):
+            await self._event_bus.publish(SignalEvent(
+                type=SignalEventType.SNAPSHOT_TRADE_HISTORY,
+                signal_id=self.signal_id,
+                data={"trades": snapshot["trade_history"]},
+                exchange=self.exchange,
+            ))
