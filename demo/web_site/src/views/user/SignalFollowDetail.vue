@@ -630,15 +630,24 @@ async function fetchKlineData() {
     })
     if (isUnmounted.value) return
     // 接口返回 data 数组（字段为 timestamp 毫秒），需要转换为组件期望的格式
-    // 时间戳从 UTC 转换为东八区（UTC+8），加上 8 小时的秒数偏移
-    klineData.value = rawData.map((item: any) => ({
-      time: (item.time ?? Math.floor((item.timestamp || 0) / 1000)) + 8 * 3600,
+    // lightweight-charts 内部使用 UTC 时间，不需要手动加时区偏移
+    const mapped = rawData.map((item: any) => ({
+      time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
       open: item.open,
       high: item.high,
       low: item.low,
       close: item.close,
       volume: item.volume || 0,
     }))
+    // 按时间升序排序，并去除重复时间戳（lightweight-charts 要求时间严格递增）
+    mapped.sort((a, b) => a.time - b.time)
+    const deduplicated: typeof mapped = []
+    for (const item of mapped) {
+      if (deduplicated.length === 0 || item.time > deduplicated[deduplicated.length - 1].time) {
+        deduplicated.push(item)
+      }
+    }
+    klineData.value = deduplicated
   } catch (e) {
     console.error('获取K线数据失败，使用模拟数据', e)
     if (!isUnmounted.value) klineData.value = generateMockKline()
@@ -728,9 +737,9 @@ function initMarketWebSocket() {
           // 实时K线更新（K线数据加载中时跳过，防止新旧数据混合导致图表崩溃）
           if (msg.channel === currentKlineChannel && msg.data && !isKlineLoading.value) {
             const kline = msg.data
-            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级，并加上东八区偏移（+8h）
+            // WebSocket 返回的 timestamp 为毫秒级，需要转换为秒级（东八区偏移在 TradingChart 显示层处理）
             const klinePoint: KlineDataPoint = {
-              time: Math.floor(kline.timestamp / 1000) + 8 * 3600,
+              time: Math.floor(kline.timestamp / 1000),
               open: kline.open,
               high: kline.high,
               low: kline.low,
@@ -739,6 +748,12 @@ function initMarketWebSocket() {
             }
             // 通过 TradingChart 暴露的 appendKline 方法实时更新图表
             tradingChartRef.value?.appendKline(klinePoint)
+          } else if (msg.data) {
+            // 调试日志：被过滤掉的 kline 消息（频道不匹配或正在加载中）
+            console.debug('[FollowDetail] kline消息被过滤 | channel:', msg.channel,
+              '| current:', currentKlineChannel,
+              '| loading:', isKlineLoading.value,
+              '| matched:', msg.channel === currentKlineChannel)
           }
           break
 
@@ -855,15 +870,26 @@ function toggleIndicator(key: string) {
 }
 
 // 时间周期切换时重新加载K线，并切换WebSocket频道订阅（复用连接）
-// 注意：必须先等待 K线数据加载完成后再切换 WebSocket 频道，
-// 否则新频道的实时推送会在图表尚未重建完成时触发 appendKline，导致 lightweight-charts 内部 null 引用错误
+// 修复竞态条件：必须先取消旧频道订阅，避免旧频道的 WebSocket 推送在图表重建期间触发 appendKline
+// 导致 lightweight-charts 内部 CandlestickSeries null 引用错误
 watch(selectedPeriod, async () => {
   if (isUnmounted.value) return
-  // 1. 先加载新周期的 K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息会被忽略）
+
+  // 1. 立即取消旧的K线频道订阅，停止旧频道推送（防止旧数据在图表重建时触发 update 导致崩溃）
+  if (marketWs?.isConnected && currentKlineChannel) {
+    marketWs.unsubscribe([currentKlineChannel])
+    currentKlineChannel = '' // 清空，确保任何残留消息也不会匹配
+  }
+
+  // 2. 加载新周期的K线历史数据（加载期间 isKlineLoading=true，WebSocket kline 消息也会被忽略）
   await fetchKlineData()
-  // 2. 数据加载完成、图表已更新后，再切换 WebSocket 订阅频道
-  if (!isUnmounted.value) {
-    switchKlineChannel()
+
+  // 3. 数据加载完成、图表已更新后，订阅新的K线频道
+  if (!isUnmounted.value && marketWs?.isConnected && followDetail.value) {
+    const wsSymbol = formatSymbolForChannel(followDetail.value.tradingPair || 'BTC/USDT')
+    const wsTf = mapTimeframeForWs(selectedPeriod.value)
+    currentKlineChannel = klineChannel(wsSymbol, wsTf)
+    marketWs.subscribe([currentKlineChannel])
   }
 })
 
