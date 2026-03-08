@@ -407,14 +407,6 @@ class BinanceUserStreamManager:
         try:
             await self.fetch_initial_snapshot()
 
-            self._rest_client.__setattr__("market_type", "futures")
-            for symbol in DefaultTradingPair.values():
-                trade = self._rest_client.get_my_trades(symbol=symbol)
-                logger.info(f"trade: {trade}")
-                orders = self._rest_client.get_all_orders(symbol=symbol)
-                logger.info(f"orders: {orders}")
-
-            self._rest_client.__setattr__("market_type", "spot")
             for symbol in DefaultTradingPair.values():
                 trade = self._rest_client.get_my_trades(symbol=symbol)
                 logger.info(f"trade: {trade}")
