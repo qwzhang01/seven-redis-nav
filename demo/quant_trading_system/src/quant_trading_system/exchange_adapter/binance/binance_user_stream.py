@@ -471,21 +471,6 @@ class BinanceUserStreamManager:
         return self._running and self._connected_since is not None
 
     def get_status(self) -> dict[str, Any]:
-        """
-        获取当前状态摘要
-
-        Returns:
-            {
-                running: bool,
-                connected: bool,
-                account_type: str,
-                connected_since: float,
-                uptime_seconds: float,
-                events_received: int,
-                last_event_time: float,
-                reconnect_count: int,
-            }
-        """
         now = time.time()
         uptime = (now - self._connected_since) if self._connected_since else 0
 

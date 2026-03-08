@@ -1,8 +1,11 @@
 """
 币安交易所网关
 ==============
+核心功能
+1. BinanceGateway 委托 BinanceRestClient 执行实际的 REST 请求，避免重复实现。
+2. 换换接口参数和返回结果，适配系统参数和返回结果与币安的返回结果和入参
 
-BinanceGateway 委托 BinanceRestClient 执行实际的 REST 请求，避免重复实现。
+以后再加交易所，只需要加对应的网关，调用层只通过网关调用，不需要修改调用层代码
 """
 
 from typing import Any

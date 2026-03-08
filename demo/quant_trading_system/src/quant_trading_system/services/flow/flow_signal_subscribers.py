@@ -85,8 +85,6 @@ FOLLOW_ORDER_EVENTS = {
 # ═══════════════════════════════════════════════════════════════
 # 跟单上下文 — 单个跟单订单的运行时数据
 # ═══════════════════════════════════════════════════════════════
-
-
 @dataclass
 class FollowContext:
     """
@@ -118,26 +116,9 @@ class FollowContext:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 跟单交易订阅器
+# 跟单，信号出来后下单
 # ═══════════════════════════════════════════════════════════════
-
-
 class FollowTradeSubscriber(SignalSubscriber):
-    """
-    跟单交易订阅器
-
-    作为 SignalEventBus 的订阅器，监听信号源的订单事件，
-    按 signal_follow_orders 的跟单配置发起下单操作，
-    并将订单状态变化保存到数据库。
-
-    生命周期：
-        subscriber = FollowTradeSubscriber()
-        await subscriber.start()   # 扫描DB加载跟单配置
-        # 注册到事件总线后自动处理事件
-        ...
-        await subscriber.stop()    # 清理资源
-    """
-
     def __init__(self):
         # 内存中的跟单映射：{signal_id(int): [FollowContext, ...]}
         self._follow_map: dict[int, list[FollowContext]] = {}
@@ -874,7 +855,9 @@ class FollowTradeSubscriber(SignalSubscriber):
             "follows": follow_details,
         }
 
-
+# ═══════════════════════════════════════════════════════════════
+# 跟单，信号出来后保存
+# ═══════════════════════════════════════════════════════════════
 class SignalRecordSubscriber(SignalSubscriber):
     """
     信号记录存储订阅器
@@ -1372,7 +1355,9 @@ class SignalRecordSubscriber(SignalSubscriber):
         except Exception as e:
             logger.error(f"获取数据库会话失败: {e}")
 
-
+# ═══════════════════════════════════════════════════════════════
+# 跟单，信号出来后发送到前端页面
+# ═══════════════════════════════════════════════════════════════
 class SignalWsSubscriber(SignalSubscriber):
     """
     信号 WebSocket 推送订阅器
