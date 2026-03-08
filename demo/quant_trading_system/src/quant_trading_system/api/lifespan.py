@@ -184,14 +184,14 @@ async def _startup_flow_engines(app: FastAPI) -> None:
     4. FlowSignalStream（WebSocket 监听大佬账户）
     """
     try:
-        from quant_trading_system.services.flow.signal_stream_engine import \
-            SignalStreamEngine
+        from quant_trading_system.services.flow.flow_signal_engine import \
+            FlowSignalEngine
 
         if settings.is_development:
             logger.info("🎭 开发环境：信号引擎使用 Mock 模式（不连接真实 Binance API）")
 
         # 创建并启动信号监听引擎（内部自动注册所有订阅器）
-        signal_stream_engine = SignalStreamEngine()
+        signal_stream_engine = FlowSignalEngine()
         await signal_stream_engine.start()
         app.state.signal_stream_engine = signal_stream_engine
         logger.info("✅ 信号监听引擎已启动",

@@ -26,7 +26,8 @@ import time
 from typing import Any, Callable, Coroutine, Optional
 
 import structlog
-from binance import AsyncClient, BinanceSocketManager
+from binance.async_client import AsyncClient
+from binance.ws.streams import BinanceSocketManager
 
 from quant_trading_system.exchange_adapter.binance.binance_rest_client import \
     BinanceRestClient

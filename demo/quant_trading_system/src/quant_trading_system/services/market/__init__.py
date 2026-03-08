@@ -15,28 +15,29 @@
 - HistoricalKlineSyncer：历史数据同步器
 """
 
-# ── 本模块核心类 ──
-from quant_trading_system.services.market.market_service import MarketService
-from quant_trading_system.services.market.kline_engine import KLineEngine, KLineBuffer
-from quant_trading_system.services.market.kline_history_loader import KLineHistoryLoader
-from quant_trading_system.services.market.market_data_writer import (
-    MarketDataWriter,
-    get_market_data_writer,
+from quant_trading_system.services.market.historical_kline_syncer import (
+    HistoricalKlineSyncer,
 )
+from quant_trading_system.services.market.kline_engine import KLineEngine, \
+    KLineBuffer
+from quant_trading_system.services.market.kline_history_loader import \
+    KLineHistoryLoader
 from quant_trading_system.services.market.market_data_reader import (
     MarketDataReader,
     get_market_data_reader,
 )
+from quant_trading_system.services.market.market_data_writer import (
+    MarketDataWriter,
+    get_market_data_writer,
+)
+# ── 本模块核心类 ──
+from quant_trading_system.services.market.market_service import MarketService
 from quant_trading_system.services.market.market_subscribers import (
     DatabaseSubscriber,
     WebSocketSubscriber,
     MarketDataDispatcher,
+    IndicatorSubscriber
 )
-from quant_trading_system.services.market.indicator_subscriber import IndicatorSubscriber
-from quant_trading_system.services.market.historical_kline_syncer import (
-    HistoricalKlineSyncer,
-)
-
 
 __all__ = [
     # 对外服务

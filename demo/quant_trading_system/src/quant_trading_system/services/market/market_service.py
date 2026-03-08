@@ -50,7 +50,7 @@ from quant_trading_system.services.market.market_subscribers import (
     MarketDataDispatcher,
     WebSocketSubscriber,
 )
-from quant_trading_system.services.market.indicator_subscriber import IndicatorSubscriber
+from quant_trading_system.services.market.market_subscribers import IndicatorSubscriber
 
 # 历史数据同步器
 from quant_trading_system.services.market.historical_kline_syncer import (

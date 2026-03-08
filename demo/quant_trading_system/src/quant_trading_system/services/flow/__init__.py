@@ -11,19 +11,15 @@
 引擎层（SignalStreamEngine）已迁移至 engines/ 模块统一管理。
 """
 
-from quant_trading_system.services.flow.flow_signal_stream import FlowSignalStream
-from quant_trading_system.services.flow.signal_record_subscriber import (
+from quant_trading_system.services.flow.signal_stream_engine import SignalStreamEngine
+from quant_trading_system.services.flow.flow_signal_subscribers import (
     SignalRecordSubscriber,
-)
-from quant_trading_system.services.flow.signal_ws_subscriber import (
     SignalWsSubscriber,
-)
-from quant_trading_system.services.flow.follow_trade_subscriber import (
     FollowTradeSubscriber,
 )
 
 __all__ = [
-    "FlowSignalStream",
+    "SignalStreamEngine",
     "SignalRecordSubscriber",
     "SignalWsSubscriber",
     "FollowTradeSubscriber",
