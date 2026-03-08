@@ -11,7 +11,7 @@
 - ExchangeCopyAccount: 交易所跟单账户
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, \
     BigInteger, \
@@ -49,13 +49,13 @@ class SignalFollowOrder(Base):
     profit_factor = Column(Numeric(10, 4), default=0)
     risk_level = Column(String(16), default="low")
     status = Column(String(16), default="following")
-    start_time = Column(DateTime, default=datetime.utcnow)
-    stop_time = Column(DateTime)
+    start_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    stop_time = Column(DateTime(timezone=True))
     return_curve = Column(JSONB)
     return_curve_labels = Column(JSONB)
     create_by = Column(String(64))
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_time = Column(DateTime, default=datetime.utcnow)
+    create_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    update_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     enable_flag = Column(Boolean, default=True)
 
     # 关系
@@ -84,10 +84,10 @@ class SignalFollowPosition(Base):
     pnl = Column(Numeric(20, 8), default=0)
     pnl_percent = Column(Numeric(10, 6), default=0)
     status = Column(String(16), default="open")
-    open_time = Column(DateTime, default=datetime.utcnow)
-    close_time = Column(DateTime)
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_time = Column(DateTime, default=datetime.utcnow)
+    open_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    close_time = Column(DateTime(timezone=True))
+    create_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    update_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # 关系
     follow_order = relationship("SignalFollowOrder", back_populates="positions",
@@ -111,10 +111,10 @@ class SignalFollowTrade(Base):
     pnl = Column(Numeric(20, 8))
     fee = Column(Numeric(20, 8), default=0)
     signal_record_id = Column(BigInteger)
-    signal_time = Column(DateTime)
+    signal_time = Column(DateTime(timezone=True))
     slippage = Column(Numeric(10, 6), default=0)
-    trade_time = Column(DateTime, default=datetime.utcnow)
-    create_time = Column(DateTime, default=datetime.utcnow)
+    trade_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    create_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # 关系
     follow_order = relationship("SignalFollowOrder", back_populates="trades",
@@ -133,8 +133,8 @@ class SignalFollowEvent(Base):
     type_label = Column(String(32), nullable=False)
     message = Column(Text, nullable=False)
     event_meta = Column(JSONB)
-    event_time = Column(DateTime, default=datetime.utcnow)
-    create_time = Column(DateTime, default=datetime.utcnow)
+    event_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    create_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class SignalFollowReturnCurve(Base):
@@ -142,7 +142,7 @@ class SignalFollowReturnCurve(Base):
     __tablename__ = "signal_follow_return_curve"
 
     follow_id = Column(BigInteger, primary_key=True)
-    time = Column(DateTime, primary_key=True)
+    time = Column(DateTime(timezone=True), primary_key=True)
     return_value = Column(Numeric(12, 4), nullable=False)
     signal_return = Column(Numeric(12, 4))
 
@@ -160,14 +160,14 @@ class ExchangeCopyAccount(Base):
     api_key_id = Column(BigInteger)
     follow_order_id = Column(BigInteger)
     sync_interval = Column(Integer, default=5)
-    last_sync_time = Column(DateTime)
+    last_sync_time = Column(DateTime(timezone=True))
     last_sync_order_id = Column(String(256))
     status = Column(String(16), default="active")
     error_count = Column(Integer, default=0)
     last_error = Column(Text)
     config = Column(JSONB, default={})
-    create_time = Column(DateTime, default=datetime.utcnow)
-    update_time = Column(DateTime, default=datetime.utcnow)
+    create_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    update_time = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     enable_flag = Column(Boolean, default=True)
 
     # 关系
