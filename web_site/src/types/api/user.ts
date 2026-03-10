@@ -454,3 +454,97 @@ export interface UpdateUserStatusResponse {
   data: UserResponse
   message: string
 }
+
+// ==================== 邀请系统相关 ====================
+
+/**
+ * 邀请用户信息
+ */
+export interface InvitedUser {
+  id: string
+  username: string
+  email: string
+  phone?: string
+  invited_at: string
+  level: number
+  reward?: number
+  status: 'active' | 'inactive' | 'locked'
+}
+
+/**
+ * 获取邀请用户列表参数
+ */
+export interface GetInvitedUsersParams {
+  page?: number
+  page_size?: number
+  status?: 'active' | 'inactive' | 'locked'
+}
+
+/**
+ * 获取邀请用户列表响应
+ */
+export interface GetInvitedUsersResponse {
+    items: InvitedUser[]
+    total: number
+    page: number
+    page_size: number
+}
+
+/**
+ * 用户邀请统计信息
+ */
+export interface UserInvitationStats {
+  invitation_code: string
+  total_invited: number
+  total_reward: number
+  active_invited: number
+  pending_reward: number
+}
+
+/**
+ * 获取用户邀请统计响应
+ */
+export interface GetUserInvitationStatsResponse {
+  success: boolean
+  data: UserInvitationStats
+}
+
+/**
+ * 邀请人信息
+ */
+export interface InviterInfo {
+  id: string
+  username: string
+  email: string
+  phone?: string
+  level?: string
+  invitedAt: string
+  reward?: number
+}
+
+/**
+ * 获取邀请人信息响应
+ */
+export interface GetInviterInfoResponse {
+  success: boolean
+  data: InviterInfo | null
+}
+
+/**
+ * 合并邀请统计信息（包含邀请码、统计数据和邀请人信息）
+ */
+export interface CombinedInvitationStats {
+  invitation_code: string
+  total_invited_users: number
+  active_invited_users: number
+  total_reward: number
+  inviter_info?: InviterInfo | null
+}
+
+/**
+ * 获取合并邀请统计信息响应
+ */
+export interface GetCombinedInvitationStatsResponse {
+  success: boolean
+  data: CombinedInvitationStats
+}

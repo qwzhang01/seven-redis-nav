@@ -8,8 +8,8 @@
             <UserIcon :size="32" class="text-primary-400" />
           </div>
           <div>
-            <h1 class="text-2xl md:text-3xl font-extrabold text-white">我的账户</h1>
-            <p class="text-dark-100">管理您的策略、信号跟单与账户设置</p>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-white">账户管理</h1>
+            <p class="text-dark-100">管理您的策略、信号跟单与API设置</p>
           </div>
         </div>
       </div>
@@ -247,15 +247,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound, AlertTriangle, Loader2 } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
 import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
 import { getFollowList } from '@/utils/signalApi'
 import type { FollowListItem } from '@/utils/signalApi'
 
+const route = useRoute()
 const activeTab = ref('strategies')
 const strategyFilter = ref('all')
 const signalFilter = ref('all')
+
+// 根据URL参数设置默认标签页
+if (route.query.tab === 'strategies') {
+  activeTab.value = 'strategies'
+}
 
 const tabs = [
   { label: '我的策略', value: 'strategies' },
@@ -358,9 +365,46 @@ const maskApiKey = (key: string) => {
   return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
 }
 
-// ==================== 初始化加载 ====================
-onMounted(() => {
-  // 加载跟单列表
-  fetchFollowList()
+// Initialize data
+onMounted(async () => {
+  await fetchFollowList()
 })
 </script>
+
+<style scoped>
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.glass-card-hover {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  transform: translateY(-1px);
+}
+</style>

@@ -4,13 +4,38 @@
     <div class="bg-dark-800 border-b border-white/[0.06] px-6 py-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-6">
+          <!-- 交易对选择 -->
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-              <span class="text-xs font-bold text-white">BTC</span>
+            <div class="relative">
+              <select 
+                v-model="selectedSymbol"
+                @change="onSymbolChange"
+                class="appearance-none bg-dark-700 border border-white/[0.06] rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors cursor-pointer"
+              >
+                <option value="">选择交易对...</option>
+                <option 
+                  v-for="symbol in availableSymbols" 
+                  :key="symbol.symbol"
+                  :value="symbol.symbol"
+                >
+                  {{ symbol.base_asset }}/{{ symbol.quote_asset }}
+                </option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-100">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                </svg>
+              </div>
             </div>
-            <div>
-              <h1 class="text-xl font-bold text-white">BTC/USDT</h1>
-              <p class="text-xs text-dark-100">Bitcoin</p>
+            
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                <span class="text-xs font-bold text-white">{{ selectedSymbolInfo?.base_asset?.substring(0, 3) || 'BTC' }}</span>
+              </div>
+              <div>
+                <h1 class="text-xl font-bold text-white">{{ selectedSymbolInfo?.base_asset || 'BTC' }}/{{ selectedSymbolInfo?.quote_asset || 'USDT' }}</h1>
+                <p class="text-xs text-dark-100">{{ getSymbolDisplayName(selectedSymbolInfo?.base_asset) }}</p>
+              </div>
             </div>
           </div>
           
@@ -80,7 +105,7 @@
                 <button 
                   v-for="period in timePeriods" 
                   :key="period"
-                  @click="selectedPeriod = period"
+                  @click="changeTimePeriod(period)"
                   class="px-3 py-1 text-sm rounded transition-colors"
                   :class="selectedPeriod === period 
                     ? 'bg-primary-500 text-white' 
@@ -92,11 +117,12 @@
               
               <div class="flex items-center gap-2 text-sm text-dark-100">
                 <span>指标：</span>
-                <select class="bg-dark-700 border border-white/[0.06] rounded px-2 py-1 text-white">
-                  <option>MA(10,20)</option>
-                  <option>EMA(12,26)</option>
-                  <option>BOLL</option>
-                  <option>MACD</option>
+                <select v-model="selectedIndicator" class="bg-dark-700 border border-white/[0.06] rounded px-2 py-1 text-white">
+                  <option value="">无指标</option>
+                  <option value="MA">MA(10,20)</option>
+                  <option value="EMA">EMA(12,26)</option>
+                  <option value="BOLL">BOLL</option>
+                  <option value="MACD">MACD</option>
                 </select>
               </div>
             </div>
@@ -113,15 +139,17 @@
         </div>
 
         <!-- K线图表区域 -->
-        <div class="bg-dark-800 rounded-lg border border-white/[0.06] min-h-[500px] flex items-center justify-center">
-          <div class="text-center">
-            <div class="w-20 h-20 bg-primary-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <TrendingUp :size="40" class="text-primary-500" />
-            </div>
-            <h3 class="text-lg font-semibold text-white mb-2">BTC/USDT K线图</h3>
-            <p class="text-dark-100 text-sm">集成专业K线图表组件</p>
-            <p class="text-xs text-dark-200 mt-1">支持蜡烛图、技术指标、画线工具等</p>
-          </div>
+        <div class="bg-dark-800 rounded-lg border border-white/[0.06] min-h-[500px]">
+          <TradingChart
+            ref="tradingChartRef"
+            :kline-data="klineData"
+            :indicators="indicators"
+            :trade-marks="tradeMarks"
+            :height="520"
+            :show-volume="true"
+            @load-more="loadMoreKlineData"
+            @time-range-change="handleTimeRangeChange"
+          />
         </div>
 
         <!-- 深度图和成交量 -->
@@ -235,7 +263,7 @@
                 ? 'bg-green-500 hover:bg-green-600 text-white' 
                 : 'bg-red-500 hover:bg-red-600 text-white'"
             >
-              {{ activeTradeTab }} BTC
+              {{ activeTradeTab }} {{ selectedSymbolInfo?.base_asset || 'BTC' }}
             </button>
           </div>
         </div>
@@ -362,16 +390,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { TrendingUp, Clock, X, FileText } from 'lucide-vue-next'
 import { MessagePlugin } from 'tdesign-vue-next'
 import marketApi from '@/utils/marketApi'
 import tradingApi from '@/utils/tradingApi'
+import websocketApi from '@/utils/websocketApi'
+import TradingChart from '@/components/charts/TradingChart.vue'
+import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/types'
+
+// TradingChart组件引用
+const tradingChartRef = ref<InstanceType<typeof TradingChart>>()
+
+// K线数据相关
+const klineData = ref<KlineDataPoint[]>([])
+const indicators = ref<IndicatorData[]>([])
+const tradeMarks = ref<TradeMarkData[]>([])
+const selectedPeriod = ref('1H')
+const selectedIndicator = ref('')
+const activeChartType = ref('蜡烛图')
+
+// 时间周期选项
+const timePeriods = ['1m', '5m', '15m', '1H', '4H', '1D', '1W', '1M']
 
 // 响应式数据
 const currentTime = ref('')
-const selectedPeriod = ref('1H')
-const activeChartType = ref('蜡烛图')
 const activeTradeTab = ref('买入')
 const selectedLeverage = ref(1)
 const tradePrice = ref('91476')
@@ -391,9 +434,6 @@ const volume24h = ref('12,345 BTC')
 const accountBalance = ref('10,000')
 const accountInfo = ref<any>(null)
 
-// 时间周期选项
-const timePeriods = ['1m', '5m', '15m', '1H', '4H', '1D', '1W', '1M']
-
 // 交易选项卡
 const tradeTabs = ['买入', '卖出']
 
@@ -403,10 +443,361 @@ const currentOrders = ref<any[]>([])
 // 历史订单
 const historyOrders = ref<any[]>([])
 
-// WebSocket连接
-let ws: WebSocket | null = null
+// WebSocket连接管理器
+let wsManager: any = null
 
-// 加载账户信息
+// 交易对相关
+const selectedSymbol = ref('BTCUSDT')
+const availableSymbols = ref<any[]>([])
+const selectedSymbolInfo = ref<any>(null)
+
+// 交易对显示名称映射
+const symbolDisplayNames: Record<string, string> = {
+  'BTC': 'Bitcoin',
+  'ETH': 'Ethereum',
+  'BNB': 'Binance Coin',
+  'ADA': 'Cardano',
+  'DOT': 'Polkadot',
+  'SOL': 'Solana',
+  'MATIC': 'Polygon',
+  'LTC': 'Litecoin',
+  'XRP': 'Ripple',
+  'DOGE': 'Dogecoin',
+  'AVAX': 'Avalanche',
+  'LINK': 'Chainlink',
+  'ATOM': 'Cosmos',
+  'UNI': 'Uniswap',
+  'AAVE': 'Aave',
+  'ALGO': 'Algorand',
+  'FIL': 'Filecoin',
+  'XLM': 'Stellar',
+  'EOS': 'EOS',
+  'TRX': 'TRON',
+  'XMR': 'Monero',
+  'ZEC': 'Zcash',
+  'DASH': 'Dash',
+  'NEO': 'NEO',
+  'ONT': 'Ontology',
+  'VET': 'VeChain',
+  'ICX': 'ICON',
+  'WAVES': 'Waves',
+  'QTUM': 'Qtum',
+  'ZIL': 'Zilliqa',
+  'BAT': 'Basic Attention Token',
+  'OMG': 'OMG Network',
+  'IOST': 'IOST',
+  'THETA': 'Theta',
+  'ENJ': 'Enjin Coin',
+  'HOT': 'Holo',
+  'ZRX': '0x',
+  'REP': 'Augur',
+  'KNC': 'Kyber Network',
+  'MANA': 'Decentraland',
+  'LOOM': 'Loom Network',
+  'CVC': 'Civic',
+  'SNT': 'Status',
+  'FUN': 'FunFair',
+  'STORJ': 'Storj',
+  'KMD': 'Komodo',
+  'LSK': 'Lisk',
+  'ARK': 'Ark',
+  'PIVX': 'PIVX',
+  'STEEM': 'Steem',
+  'ARDR': 'Ardor',
+  'STRAT': 'Stratis',
+  'WAN': 'Wanchain',
+  'POWR': 'Power Ledger',
+  'REQ': 'Request Network',
+  'ENG': 'Enigma',
+  'CND': 'Cindicator',
+  'RLC': 'iExec RLC',
+  'DTA': 'Data',
+  'TNB': 'Time New Bank',
+  'TNT': 'Tierion',
+  'FUEL': 'Etherparty',
+  'BCPT': 'BlockMason Credit Protocol',
+  'MCO': 'Crypto.com',
+  'MTL': 'Metal',
+  'SUB': 'Substratum',
+  'EVX': 'Everex',
+  'SNGLS': 'SingularDTV',
+  'WINGS': 'Wings',
+  'TRIG': 'Triggers',
+  'EDG': 'Edgeless',
+  'TAAS': 'TaaS',
+  'QSP': 'Quantstamp',
+  'BTS': 'BitShares',
+  'XEM': 'NEM',
+  'VEN': 'VeChain (旧)',
+  'ANT': 'Aragon',
+  'RCN': 'Ripio Credit Network',
+  'DLT': 'Agrello',
+  'AMB': 'Ambrosus',
+  'BQX': 'Ethos',
+  'AST': 'AirSwap',
+  'DNT': 'district0x',
+  'GVT': 'Genesis Vision',
+  'CDT': 'Blox',
+  'POE': 'Po.et',
+  'WTC': 'Waltonchain',
+  'GTO': 'Gifto',
+  'INS': 'INS Ecosystem',
+  'IOTA': 'IOTA',
+  'QASH': 'Liquid',
+  'YOYO': 'YOYOW',
+  'OST': 'Simple Token',
+  'ELF': 'aelf',
+  'AION': 'Aion',
+  'BRD': 'Bread',
+  'CMT': 'CyberMiles',
+  'TUSD': 'TrueUSD',
+  'USDC': 'USD Coin',
+  'PAX': 'Paxos Standard',
+  'BUSD': 'Binance USD',
+  'HUSD': 'HUSD',
+  'USDS': 'StableUSD',
+  'GUSD': 'Gemini Dollar',
+  'DAI': 'Dai',
+  'SUSD': 'sUSD',
+  'USDP': 'Pax Dollar',
+  'FEI': 'Fei USD',
+  'FRAX': 'Frax',
+  'MIM': 'Magic Internet Money',
+  'UST': 'TerraUSD',
+  'USDD': 'USDD',
+  'USDT': 'Tether'
+}
+
+// ==================== K线数据相关方法 ====================
+
+/**
+ * 加载K线数据
+ */
+async function loadKlineData() {
+  try {
+    const response = await marketApi.getKlines({
+      exchange_id: 'binance',
+      symbol: selectedSymbol.value,
+      interval: selectedPeriod.value.toLowerCase() as any,
+      limit: 1000
+    })
+    
+    if (response.data && response.data.length > 0) {
+      klineData.value = response.data.map((item: any) => ({
+        time: Math.floor(item.open_time / 1000),
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+        volume: item.volume
+      }))
+    }
+  } catch (error) {
+    console.error('加载K线数据失败:', error)
+    MessagePlugin.error('加载K线数据失败')
+  }
+}
+
+/**
+ * 加载更多历史K线数据
+ */
+async function loadMoreKlineData(endTime: number) {
+  try {
+    const response = await marketApi.getKlines({
+      exchange_id: 'binance',
+      symbol: selectedSymbol.value,
+      interval: selectedPeriod.value.toLowerCase() as any,
+      limit: 500,
+      end_time: endTime * 1000
+    })
+    
+    if (response.data && response.data.length > 0) {
+      const newData = response.data.map((item: any) => ({
+        time: Math.floor(item.open_time / 1000),
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+        volume: item.volume
+      }))
+      
+      const mergedData = [...newData, ...klineData.value]
+      const uniqueMap = new Map<number, KlineDataPoint>()
+      mergedData.forEach(d => uniqueMap.set(d.time, d))
+      klineData.value = Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time)
+    }
+  } catch (error) {
+    console.error('加载更多K线数据失败:', error)
+  }
+}
+
+/**
+ * 切换时间周期
+ */
+async function changeTimePeriod(period: string) {
+  selectedPeriod.value = period
+  await loadKlineData()
+  changeWebSocketSubscription()
+}
+
+/**
+ * 处理时间范围变化
+ */
+function handleTimeRangeChange(from: number, to: number) {
+  console.log('时间范围变化:', new Date(from * 1000), new Date(to * 1000))
+}
+
+// ==================== WebSocket实时数据 ====================
+
+/**
+ * 初始化WebSocket连接
+ */
+function initWebSocket() {
+  try {
+    wsManager = websocketApi.createMarketWebSocket({
+      onOpen: () => {
+        console.log('WebSocket连接已建立')
+        subscribeToChannels()
+      },
+      onMessage: handleWebSocketMessage,
+      onError: (error) => {
+        console.error('WebSocket错误:', error)
+      },
+      onClose: (event) => {
+        console.log('WebSocket连接已关闭:', event.code, event.reason)
+      },
+      reconnect: true,
+      reconnectInterval: 3000,
+      maxReconnectAttempts: 5,
+      heartbeatInterval: 30000
+    })
+    
+    wsManager.connect()
+  } catch (error) {
+    console.error('初始化WebSocket失败:', error)
+  }
+}
+
+/**
+ * 订阅频道
+ */
+function subscribeToChannels() {
+  if (wsManager && wsManager.isConnected) {
+    wsManager.subscribe([`kline/${selectedSymbol.value}/${selectedPeriod.value}`])
+  }
+}
+
+/**
+ * 切换WebSocket订阅频道
+ */
+function changeWebSocketSubscription() {
+  if (wsManager && wsManager.isConnected) {
+    wsManager.subscribe([`kline/${selectedSymbol.value}/${selectedPeriod.value}`])
+  }
+}
+
+/**
+ * 处理WebSocket消息
+ */
+function handleWebSocketMessage(data: any) {
+  if (data.type === 'kline' && data.symbol === selectedSymbol.value) {
+    const klinePoint: KlineDataPoint = {
+      time: Math.floor(new Date(data.timestamp).getTime() / 1000),
+      open: data.open,
+      high: data.high,
+      low: data.low,
+      close: data.close,
+      volume: data.volume
+    }
+    
+    if (tradingChartRef.value) {
+      tradingChartRef.value.appendKline(klinePoint)
+    }
+    
+    currentPrice.value = data.close.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    
+  } else if (data.type === 'ticker' && data.symbol === selectedSymbol.value) {
+    currentPrice.value = data.last_price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    priceChange.value = `${data.price_change_percent >= 0 ? '+' : ''}${data.price_change_percent.toFixed(2)}%`
+  }
+}
+
+// ==================== 交易对相关方法 ====================
+
+/**
+ * 获取交易对显示名称
+ */
+function getSymbolDisplayName(symbol: string | undefined): string {
+  if (!symbol) return 'Cryptocurrency'
+  return symbolDisplayNames[symbol] || symbol
+}
+
+/**
+ * 加载可用的交易对列表
+ */
+async function loadAvailableSymbols() {
+  try {
+    const response = await marketApi.getSymbols({
+      exchange_id: 'binance',
+      status: 'trading'
+    })
+    
+    if (response.symbols && response.symbols.length > 0) {
+      availableSymbols.value = response.symbols
+      
+      // 设置默认选中的交易对信息
+      const defaultSymbol = response.symbols.find(s => s.symbol === selectedSymbol.value)
+      if (defaultSymbol) {
+        selectedSymbolInfo.value = defaultSymbol
+      } else if (response.symbols.length > 0) {
+        // 如果没有找到默认交易对，使用第一个
+        selectedSymbol.value = response.symbols[0].symbol
+        selectedSymbolInfo.value = response.symbols[0]
+      }
+    }
+  } catch (error) {
+    console.error('加载交易对列表失败:', error)
+    MessagePlugin.error('加载交易对列表失败')
+  }
+}
+
+/**
+ * 处理交易对变更
+ */
+async function onSymbolChange() {
+  if (!selectedSymbol.value) return
+  
+  // 更新选中的交易对信息
+  const symbolInfo = availableSymbols.value.find(s => s.symbol === selectedSymbol.value)
+  if (symbolInfo) {
+    selectedSymbolInfo.value = symbolInfo
+    
+    // 重新加载所有数据
+    await Promise.all([
+      loadMarketData(),
+      loadKlineData(),
+      loadOrders(),
+      loadHistoryOrders()
+    ])
+    
+    // 更新WebSocket订阅
+    changeWebSocketSubscription()
+    
+    MessagePlugin.success(`已切换到 ${symbolInfo.base_asset}/${symbolInfo.quote_asset}`)
+  }
+}
+
+// ==================== 现有方法 ====================
+
+/**
+ * 加载账户信息
+ */
 async function loadAccountInfo() {
   try {
     const account = await tradingApi.getAccount()
@@ -420,11 +811,13 @@ async function loadAccountInfo() {
   }
 }
 
-// 加载订单列表
+/**
+ * 加载订单列表
+ */
 async function loadOrders() {
   try {
     const response = await tradingApi.getOrders({
-      symbol: 'BTCUSDT',
+      symbol: selectedSymbol.value,
       status: 'active',
       limit: 20
     })
@@ -433,7 +826,7 @@ async function loadOrders() {
       pair: order.symbol,
       type: order.side === 'buy' ? '买入' : '卖出',
       price: order.price.toLocaleString('en-US'),
-      amount: `${order.quantity} BTC`,
+      amount: `${order.quantity} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`,
       time: new Date(order.created_at).toLocaleTimeString('zh-CN', { hour12: false })
     }))
   } catch (error) {
@@ -441,11 +834,13 @@ async function loadOrders() {
   }
 }
 
-// 加载历史订单
+/**
+ * 加载历史订单
+ */
 async function loadHistoryOrders() {
   try {
     const response = await tradingApi.getOrders({
-      symbol: 'BTCUSDT',
+      symbol: selectedSymbol.value,
       limit: 20
     })
     historyOrders.value = response.orders.map((order: any) => ({
@@ -455,7 +850,7 @@ async function loadHistoryOrders() {
       direction: order.side === 'buy' ? '买入' : '卖出',
       type: order.type === 'limit' ? '限价单' : '市价单',
       price: order.price.toLocaleString('en-US'),
-      amount: `${order.quantity} BTC`,
+      amount: `${order.quantity} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`,
       filled: order.filled_quantity || 0,
       status: order.status === 'filled' ? '已完成' : order.status === 'partially_filled' ? '部分成交' : order.status === 'open' ? '待成交' : '已撤销'
     }))
@@ -464,12 +859,14 @@ async function loadHistoryOrders() {
   }
 }
 
-// 加载市场行情
+/**
+ * 加载市场行情
+ */
 async function loadMarketData() {
   try {
     const ticker = await marketApi.getTicker({
       exchange_id: 'binance',
-      symbol: 'BTCUSDT'
+      symbol: selectedSymbol.value
     })
     currentPrice.value = ticker.last_price.toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -484,57 +881,10 @@ async function loadMarketData() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
-    volume24h.value = `${ticker.volume.toLocaleString('en-US')} BTC`
+    volume24h.value = `${ticker.volume.toLocaleString('en-US')} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`
     tradePrice.value = ticker.last_price.toFixed(2)
   } catch (error) {
     console.error('加载市场数据失败:', error)
-  }
-}
-
-// 初始化WebSocket连接
-function initWebSocket() {
-  try {
-    ws = marketApi.createWebSocket({
-      url: 'ws://127.0.0.1:8000/api/v1/c/market/ws',
-      reconnect: true
-    })
-    
-    if (ws) {
-      ws.onopen = () => {
-        console.log('WebSocket连接已建立')
-        // 订阅行情数据
-        marketApi.subscribeWebSocket(ws!, {
-          exchange_id: 'binance',
-          symbol: 'BTCUSDT',
-          type: 'ticker'
-        })
-      }
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === 'ticker') {
-            currentPrice.value = data.last_price.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })
-            priceChange.value = `${data.price_change_percent >= 0 ? '+' : ''}${data.price_change_percent.toFixed(2)}%`
-          }
-        } catch (error) {
-          console.error('处理WebSocket消息失败:', error)
-        }
-      }
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket错误:', error)
-      }
-      
-      ws.onclose = () => {
-        console.log('WebSocket连接已关闭')
-      }
-    }
-  } catch (error) {
-    console.error('初始化WebSocket失败:', error)
   }
 }
 
@@ -563,7 +913,7 @@ async function placeOrder() {
   loading.value = true
   try {
     const order = await tradingApi.placeOrder({
-      symbol: 'BTCUSDT',
+      symbol: selectedSymbol.value,
       side: activeTradeTab.value === '买入' ? 'buy' : 'sell',
       order_type: 'limit',
       quantity: parseFloat(tradeAmount.value),
@@ -572,11 +922,9 @@ async function placeOrder() {
     
     MessagePlugin.success(`${activeTradeTab.value}订单已提交`)
     
-    // 重新加载订单列表
     await loadOrders()
     await loadHistoryOrders()
     
-    // 重置表单
     tradePrice.value = currentPrice.value
     tradeAmount.value = '0.1'
   } catch (error: any) {
@@ -607,7 +955,7 @@ async function cancelAllOrders() {
   
   try {
     await tradingApi.cancelAllOrders({
-      symbol: 'BTCUSDT'
+      symbol: selectedSymbol.value
     })
     MessagePlugin.success('所有订单已撤销')
     await loadOrders()
@@ -645,8 +993,10 @@ onMounted(async () => {
   
   // 加载初始数据
   await Promise.all([
+    loadAvailableSymbols(),
     loadAccountInfo(),
     loadMarketData(),
+    loadKlineData(),
     loadOrders(),
     loadHistoryOrders()
   ])
@@ -656,10 +1006,22 @@ onMounted(async () => {
   
   onUnmounted(() => {
     clearInterval(timer)
-    if (ws) {
-      ws.close()
+    if (wsManager) {
+      wsManager.disconnect()
     }
   })
+})
+
+// 监听交易对变化
+watch(() => selectedSymbol.value, (newSymbol, oldSymbol) => {
+  if (newSymbol && newSymbol !== oldSymbol) {
+    onSymbolChange()
+  }
+})
+
+// 监听时间周期变化
+watch(() => selectedPeriod.value, () => {
+  changeWebSocketSubscription()
 })
 </script>
 

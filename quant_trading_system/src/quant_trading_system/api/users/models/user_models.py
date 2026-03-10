@@ -117,3 +117,30 @@ class APIKeyListResponse(BaseModel):
 class UpdateAPIKeyRequest(BaseModel):
     """更新API密钥请求模型"""
     label: Optional[str] = None
+
+
+class InvitationStatsResponse(BaseModel):
+    """邀请统计响应模型"""
+    invitation_code: str
+    total_invited_users: int
+    active_invited_users: int
+    total_reward: Optional[float] = None
+
+
+class InvitedUserResponse(BaseModel):
+    """被邀请用户信息响应模型"""
+    id: str
+    username: str
+    email: str
+    phone: Optional[str] = None
+    level: Optional[str] = None
+    invited_at: str
+    reward: Optional[float] = None
+
+
+class InvitedUserListResponse(BaseModel):
+    """被邀请用户列表响应模型"""
+    items: list[InvitedUserResponse]
+    total: int
+    page: int
+    page_size: int

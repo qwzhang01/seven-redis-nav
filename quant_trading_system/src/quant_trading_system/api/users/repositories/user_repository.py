@@ -99,6 +99,16 @@ class UserRepository:
         await self.db.commit()
         return True
 
+    async def get_invited_users(self, inviter_id: int) -> List[User]:
+        """获取指定用户邀请的所有用户列表"""
+        result = await self.db.execute(
+            select(User).where(
+                User.inviter_id == inviter_id,
+                User.enable_flag == True
+            ).order_by(User.registration_time.desc())
+        )
+        return result.scalars().all()
+
 
 class ExchangeRepository:
     """交易所数据访问类"""

@@ -44,6 +44,15 @@ import type {
   GetUserDetailResponse,
   UpdateUserResponse,
   UpdateUserStatusResponse,
+  InvitedUser,
+  GetInvitedUsersParams,
+  GetInvitedUsersResponse,
+  UserInvitationStats,
+  GetUserInvitationStatsResponse,
+  InviterInfo,
+  GetInviterInfoResponse,
+  CombinedInvitationStats,
+  GetCombinedInvitationStatsResponse,
 } from '../types'
 
 // 重新导出类型，保持向后兼容
@@ -63,6 +72,13 @@ export type {
   GetUserDetailResponse,
   UpdateUserResponse,
   UpdateUserStatusResponse,
+  InvitedUser,
+  GetInvitedUsersParams,
+  GetInvitedUsersResponse,
+  UserInvitationStats,
+  GetUserInvitationStatsResponse,
+  InviterInfo,
+  GetInviterInfoResponse,
 }
 // 向后兼容别名
 export type { CreateSignalFollowApiResponse as CreateSignalFollowResponse }
@@ -227,6 +243,36 @@ export function updateUserStatus(userId: number, data: UpdateUserStatusRequest):
   return put<UpdateUserStatusResponse>(`/api/v1/m/users/${userId}/status`, data)
 }
 
+// ==================== 邀请系统接口 ====================
+
+/**
+ * 获取邀请用户列表
+ */
+export function getInvitedUsers(params?: GetInvitedUsersParams): Promise<GetInvitedUsersResponse> {
+  return get<GetInvitedUsersResponse>('/api/v1/c/user/invitation/users', params)
+}
+
+/**
+ * 获取用户邀请统计信息
+ */
+export function getUserInvitationStats(): Promise<GetUserInvitationStatsResponse> {
+  return get<GetUserInvitationStatsResponse>('/api/v1/c/user/invitation-stats')
+}
+
+/**
+ * 获取邀请人信息
+ */
+export function getInviterInfo(): Promise<GetInviterInfoResponse> {
+  return get<GetInviterInfoResponse>('/api/v1/c/user/inviter-info')
+}
+
+/**
+ * 获取合并邀请统计信息（包含邀请码、统计数据和邀请人信息）
+ */
+export function getCombinedInvitationStats(): Promise<CombinedInvitationStats> {
+  return get<CombinedInvitationStats>('/api/v1/c/user/invitation/stats')
+}
+
 // 导出所有API
 export default {
   // 用户认证
@@ -256,4 +302,9 @@ export default {
   getUserDetail,
   updateUser,
   updateUserStatus,
+  // 邀请系统
+  getInvitedUsers,
+  getUserInvitationStats,
+  getInviterInfo,
+  getCombinedInvitationStats,
 }

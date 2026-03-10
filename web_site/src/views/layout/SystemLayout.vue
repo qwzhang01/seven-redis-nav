@@ -51,7 +51,7 @@
                   class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors"
                 >
                   <User :size="14" />
-                  个人中心
+                  我的账户
                 </router-link>
                 <router-link 
                   to="/system/running-strategies" 
@@ -59,6 +59,20 @@
                 >
                   <Activity :size="14" />
                   策略实盘
+                </router-link>
+                <router-link to="/system/user/personal"
+                             class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors">
+                  <Settings :size="14" />
+                  个人中心
+                </router-link>
+                <router-link
+                    v-if="authStore.isAdmin"
+                    to="/admin"
+                    class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all"
+                    @click="userDropdownOpen = false"
+                >
+                  <ShieldCheck :size="16" />
+                  <span>管理后台</span>
                 </router-link>
                 <div class="h-px bg-white/[0.06] my-1"></div>
                 <button class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors w-full text-left">
@@ -102,7 +116,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, ChevronDown, Activity, LogOut } from 'lucide-vue-next'
+import {
+  User,
+  ChevronDown,
+  Activity,
+  LogOut,
+  Settings,
+  ShieldCheck
+} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()

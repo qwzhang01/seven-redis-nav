@@ -95,6 +95,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '我的', requiresAuth: true },
       },
       {
+        path: 'user/personal',
+        name: 'PersonalCenter',
+        component: () => import('@/views/user/PersonalCenter.vue'),
+        meta: { title: '个人中心', requiresAuth: true },
+      },
+      {
         path: 'user/signal-follow/:id',
         name: 'SignalFollowDetail',
         component: () => import('@/views/user/SignalFollowDetail.vue'),

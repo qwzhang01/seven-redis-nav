@@ -410,3 +410,60 @@ class UserService:
             return False
 
         return await self.api_key_repo.delete_api_key(api_key_id)
+
+    async def get_invitation_stats(self, user_id: int) -> Dict[str, Any]:
+        """获取用户邀请统计信息"""
+        user = await self.user_repo.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+
+        # 获取被邀请用户列表
+        invited_users = await self.user_repo.get_invited_users(user_id)
+        total_invited = len(invited_users)
+
+        # 计算活跃用户数（这里简单定义为有登录记录的用户）
+        active_invited = sum(1 for u in invited_users if u.last_login_time)
+
+        # 计算总奖励（这里需要根据业务逻辑计算）
+        total_reward = None  # 实际项目中需要根据业务规则计算
+
+        return {
+            "invitation_code": user.invitation_code,
+            "total_invited_users": total_invited,
+            "active_invited_users": active_invited,
+            "total_reward": total_reward
+        }
+
+    async def get_invited_users_list(self, user_id: int, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """获取被邀请用户分页列表"""
+        user = await self.user_repo.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+
+        # 获取被邀请用户列表
+        invited_users = await self.user_repo.get_invited_users(user_id)
+
+        # 分页处理
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        paginated_users = invited_users[start_index:end_index]
+
+        # 格式化响应数据
+        items = []
+        for user in paginated_users:
+            items.append({
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "phone": user.phone,
+                "level": user.user_type,  # 使用user_type作为level
+                "invited_at": user.registration_time.isoformat(),
+                "reward": None  # 实际项目中需要根据业务规则计算
+            })
+
+        return {
+            "items": items,
+            "total": len(invited_users),
+            "page": page,
+            "page_size": page_size
+        }
