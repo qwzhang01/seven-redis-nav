@@ -29,21 +29,21 @@ C 端用户路由模块
 - 数据验证使用models层的Pydantic模型
 """
 
-import structlog
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from quant_trading_system.core.database import get_db
-from quant_trading_system.api.users.services.user_service import UserService
 from quant_trading_system.api.users.models.user_models import (
     UserResponse, RegisterRequest, LoginRequest, LoginResponse,
     ChangePasswordRequest, ResetPasswordRequest, UpdateProfileRequest,
     ExchangeInfo, CreateAPIKeyRequest, APIKeyResponse, APIKeyListResponse,
     UpdateAPIKeyRequest, RefreshTokenRequest, RefreshTokenResponse
 )
+from quant_trading_system.api.users.services.user_service import UserService
+from quant_trading_system.core.database import get_db
 
 logger = structlog.get_logger(__name__)
 
@@ -51,7 +51,8 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+async def get_current_user(request: Request,
+                           db: AsyncSession = Depends(get_db)) -> dict:
     """从拦截器验证后的request.state中获取当前用户信息"""
     username = getattr(request.state, 'username', None)
     if not username:
@@ -73,11 +74,13 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 # 1. 注册与登录（公开接口）
 # ─────────────────────────────────────────────
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register",
+             response_model=str,
+             status_code=status.HTTP_201_CREATED)
 async def register_user(
     request: RegisterRequest,
     db: AsyncSession = Depends(get_db),
-) -> UserResponse:
+) -> str:
     """
     用户注册
 
@@ -97,16 +100,16 @@ async def register_user(
     user_service = UserService(db)
 
     try:
-        user_info = await user_service.register_user(
+        await user_service.register_user(
             username=request.username,
             password=request.password,
             email=request.email,
             invitation_code=request.invitation_code,
             phone=request.phone
         )
-        return UserResponse(**user_info)
+        return ""
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return str(e)
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -124,13 +127,12 @@ async def login(
     - **expires_in**: access_token 的有效时长（秒）
     """
     user_service = UserService(db)
-
-    auth_result = await user_service.authenticate_user(request.username, request.password)
-    if not auth_result:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
-
-    return LoginResponse(**auth_result)
-
+    try:
+        auth_result = await user_service.authenticate_user(request.username,
+                                                           request.password)
+        return LoginResponse(**auth_result)
+    except ValueError as e:
+        return LoginResponse(remark=str(e))
 
 @router.post("/token/refresh", response_model=RefreshTokenResponse)
 async def refresh_token(
@@ -216,7 +218,8 @@ async def reset_password(
     user_service = UserService(db)
 
     try:
-        success = await user_service.reset_password(request.username, request.new_password)
+        success = await user_service.reset_password(request.username,
+                                                    request.new_password)
         if not success:
             raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -288,7 +291,8 @@ async def get_exchange_info(
     return ExchangeInfo(**exchange_info)
 
 
-@router.post("/api-keys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api-keys", response_model=APIKeyResponse,
+             status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     request: CreateAPIKeyRequest,
     current_user: dict = Depends(get_current_user),
@@ -372,7 +376,8 @@ async def update_api_key(
     """
     user_service = UserService(db)
 
-    api_key_info = await user_service.update_api_key(current_user["id"], api_key_id, request.label)
+    api_key_info = await user_service.update_api_key(current_user["id"], api_key_id,
+                                                     request.label)
     if not api_key_info:
         raise HTTPException(status_code=404, detail="API 密钥不存在或无权修改")
 

@@ -39,11 +39,12 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     """登录响应模型"""
-    access_token: str
-    refresh_token: str
+    access_token: str = ""
+    refresh_token: str= ""
     token_type: str = "bearer"
-    expires_in: int  # access_token 过期时间（秒）
-    user: UserResponse
+    expires_in: int = 0 # access_token 过期时间（秒）
+    remark: str = "登录成功"
+    user: UserResponse = None
 
 
 class RefreshTokenRequest(BaseModel):

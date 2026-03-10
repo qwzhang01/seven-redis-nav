@@ -75,8 +75,8 @@ export type { StopSignalFollowResponse }
 /**
  * 用户注册
  */
-export function register(data: RegisterRequest): Promise<UserResponse> {
-  return post<UserResponse>('/api/v1/c/user/register', data, { skipAuth: true })
+export function register(data: RegisterRequest): Promise<string> {
+  return post<string>('/api/v1/c/user/register', data, { skipAuth: true })
 }
 
 /**

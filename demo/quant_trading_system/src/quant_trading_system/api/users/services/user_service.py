@@ -31,7 +31,7 @@ class UserService:
         self.api_key_repo = APIKeyRepository(db)
 
     async def register_user(self, username: str, password: str, email: str,
-                     invitation_code: str, phone: Optional[str] = None) -> Dict[str, Any]:
+                            invitation_code: str, phone: Optional[str] = None) -> Dict[str, Any]:
         """用户注册业务逻辑"""
         # 检查用户名是否已存在
         if await self.user_repo.get_user_by_username(username):
@@ -114,11 +114,10 @@ class UserService:
         """用户认证业务逻辑"""
         user = await self.user_repo.get_user_by_username(username)
         if not user:
-            return None
+            raise ValueError("用户不存在，请注册后登录！")  # 改为抛出异常
 
-        # 验证密码
         if not PasswordUtils.verify_password(password, user.password_hash):
-            return None
+            raise ValueError("密码错误，请重新输入")  # 改为抛出异常
 
         # 更新最后登录时间
         await self.user_repo.update_last_login_time(user.id)
