@@ -78,7 +78,7 @@
                 <span class="text-dark-100">状态:</span>
                 <div class="mt-1">
                   <StatusDot :status="apiKey.status" />
-                  <span class="ml-2 text-white">{{ apiKey.status === 'active' ? '已激活' : '已禁用' }}</span>
+                  <span class="ml-2 text-white">{{ apiKey.status === 'approved' ? '已激活' : '已禁用' }}</span>
                 </div>
               </div>
             </div>

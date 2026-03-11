@@ -281,7 +281,7 @@ export interface GetAdminApiKeysParams {
  * Admin端API密钥详情（含用户信息）
  */
 export interface AdminAPIKeyResponse {
-  id: string
+  id: string  // 服务端返回integer，前端用string接收避免长整型溢出
   user_id: string
   user_name: string
   exchange_id: string
@@ -289,7 +289,7 @@ export interface AdminAPIKeyResponse {
   label: string
   api_key: string
   secret_key_masked: string
-  status: 'active' | 'disabled'
+  status: 'pending' | 'approved' | 'rejected'  // 与 review_status 使用同一字段
   review_status: 'pending' | 'approved' | 'rejected'
   review_reason?: string | null
   reviewed_by?: string | null
@@ -305,6 +305,15 @@ export interface AdminAPIKeyResponse {
 }
 
 /**
+ * Admin端API密钥列表统计
+ */
+export interface AdminApiKeysStatistics {
+  pending_count: number
+  approved_count: number
+  rejected_count: number
+}
+
+/**
  * Admin端API密钥列表响应
  */
 export interface GetAdminApiKeysResponse {
@@ -312,6 +321,7 @@ export interface GetAdminApiKeysResponse {
   page: number
   page_size: number
   items: AdminAPIKeyResponse[]
+  statistics?: AdminApiKeysStatistics
 }
 
 /**
