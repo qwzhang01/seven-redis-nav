@@ -5,8 +5,10 @@
         <!-- Brand -->
         <div class="lg:col-span-1">
           <router-link to="/" class="flex items-center gap-3 mb-5">
-            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-blue flex items-center justify-center text-dark-900 font-extrabold text-sm">QM</div>
-            <span class="text-white font-bold text-xl">Quant<span class="gradient-text ml-1">Meta</span></span>
+            <div
+                class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-blue flex items-center justify-center text-dark-900 font-extrabold text-sm">QA</div>
+            <span class="text-white font-bold text-xl">Quanta<span
+                class="gradient-text ml-1">量元</span></span>
           </router-link>
           <p class="text-dark-100 text-sm leading-relaxed mb-5">
             专业的量化交易策略与信号跟单平台，助力您的数字资产投资决策。

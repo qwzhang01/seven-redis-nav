@@ -255,21 +255,21 @@ export function updateUserStatus(userId: number, data: UpdateUserStatusRequest):
  * 获取API密钥审核列表（Admin）
  */
 export function getAdminApiKeys(params?: GetAdminApiKeysParams): Promise<GetAdminApiKeysResponse> {
-  return get<GetAdminApiKeysResponse>('/api/v1/m/api-keys', params)
+  return get<GetAdminApiKeysResponse>('/api/v1/m/users/api-keys', params)
 }
 
 /**
  * 获取API密钥详情（Admin）
  */
 export function getAdminApiKeyById(keyId: string): Promise<AdminAPIKeyResponse> {
-  return get<AdminAPIKeyResponse>(`/api/v1/m/api-keys/${keyId}`)
+  return get<AdminAPIKeyResponse>(`/api/v1/m/users/api-keys/${keyId}`)
 }
 
 /**
  * 审核API密钥（通过/拒绝）
  */
 export function reviewApiKey(keyId: string, data: ReviewAPIKeyRequest): Promise<ReviewAPIKeyResponse> {
-  return put<ReviewAPIKeyResponse>(`/api/v1/m/api-keys/${keyId}/review`, data)
+  return put<ReviewAPIKeyResponse>(`/api/v1/m/users/api-keys/${keyId}/review`, data)
 }
 
 // ==================== 邀请系统接口 ====================
