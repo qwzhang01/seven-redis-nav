@@ -1,16 +1,16 @@
 <template>
   <footer class="bg-dark-800 border-t border-white/[0.06] mt-auto">
-    <div class="page-container py-16">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+    <div class="page-container py-10 md:py-16">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-10">
         <!-- Brand -->
-        <div class="lg:col-span-1">
-          <router-link to="/" class="flex items-center gap-3 mb-5">
+        <div class="lg:col-span-1 flex flex-col items-center md:items-start">
+          <router-link to="/" class="flex items-center gap-3 mb-4 md:mb-5">
             <div
                 class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-blue flex items-center justify-center text-dark-900 font-extrabold text-sm">QA</div>
             <span class="text-white font-bold text-xl">Quanta<span
                 class="gradient-text ml-1">量元</span></span>
           </router-link>
-          <p class="text-dark-100 text-sm leading-relaxed mb-5">
+          <p class="text-dark-100 text-sm leading-relaxed mb-4 md:mb-5 text-center md:text-left">
             专业的量化交易策略与信号跟单平台，助力您的数字资产投资决策。
           </p>
           <div class="flex items-center gap-3">
@@ -27,9 +27,9 @@
         </div>
 
         <!-- Links -->
-        <div v-for="group in footerLinks" :key="group.title">
-          <h4 class="text-white font-semibold mb-4">{{ group.title }}</h4>
-          <ul class="space-y-2.5">
+        <div v-for="group in footerLinks" :key="group.title" class="flex flex-col items-center md:items-start">
+          <h4 class="text-white font-semibold mb-3 md:mb-4">{{ group.title }}</h4>
+          <ul class="space-y-2 md:space-y-2.5 text-center md:text-left">
             <li v-for="link in group.links" :key="link.label">
               <router-link :to="link.to" class="text-sm text-dark-100 hover:text-primary-500 transition-colors">
                 {{ link.label }}
@@ -40,10 +40,10 @@
       </div>
 
       <!-- Bottom -->
-      <div class="mt-12 pt-8 border-t border-white/[0.06] flex flex-col md:flex-row items-center justify-between gap-4">
-        <p class="text-sm text-dark-200">© {{ new Date().getFullYear() }}
+      <div class="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-white/[0.06] flex flex-col items-center md:flex-row md:justify-between gap-3 md:gap-4">
+        <p class="text-sm text-dark-200 text-center md:text-left">© {{ new Date().getFullYear() }}
           Quanta. All rights reserved.</p>
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-4 md:gap-6">
           <a href="#" class="text-sm text-dark-200 hover:text-primary-500 transition-colors">隐私政策</a>
           <a href="#" class="text-sm text-dark-200 hover:text-primary-500 transition-colors">服务条款</a>
           <a href="#" class="text-sm text-dark-200 hover:text-primary-500 transition-colors">风险提示</a>

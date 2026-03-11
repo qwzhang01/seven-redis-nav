@@ -14,8 +14,8 @@
         </div>
       </div>
 
-      <!-- 中间：功能菜单 -->
-      <div class="flex items-center gap-1">
+      <!-- 中间：功能菜单（桌面端） -->
+      <div class="hidden lg:flex items-center gap-1">
         <router-link
           v-for="item in navItems"
           :key="item.path"
@@ -35,7 +35,7 @@
       <div class="flex items-center gap-4">
         <!-- 个人中心跳转 -->
         <template v-if="authStore.isLoggedIn">
-          <div class="relative group">
+          <div class="relative group hidden lg:block">
             <button class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
               <User :size="16" />
               <span>{{ authStore.user?.username || '我的' }}</span>
@@ -83,14 +83,13 @@
           </div>
         </template>
         <template v-else>
-          <router-link to="/login" class="px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
+          <router-link to="/login" class="hidden lg:block px-4 py-2 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all">
             登录
           </router-link>
         </template>
         
-        <!-- 操作提示 -->
-        <!-- 状态信息 -->
-        <div class="flex items-center gap-4">
+        <!-- 全屏按钮（桌面端） -->
+        <div class="hidden lg:flex items-center gap-4">
           <button 
             @click="toggleFullscreen"
             class="px-3 py-1 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] rounded-lg transition-colors"
@@ -98,8 +97,69 @@
             {{ isFullscreen ? '退出全屏' : '全屏' }}
           </button>
         </div>
+
+        <!-- 移动端汉堡菜单按钮 -->
+        <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden p-2 rounded-lg text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors">
+          <Menu v-if="!mobileMenuOpen" :size="22" />
+          <X v-else :size="22" />
+        </button>
       </div>
     </div>
+
+    <!-- 移动端菜单 -->
+    <transition name="slide-down">
+      <div v-if="mobileMenuOpen" class="lg:hidden bg-dark-800/95 backdrop-blur-xl border-b border-white/[0.06] z-40">
+        <div class="px-4 py-4 space-y-1">
+          <!-- 导航菜单项 -->
+          <router-link
+            v-for="item in navItems"
+            :key="item.path"
+            :to="item.path"
+            class="block px-4 py-3 rounded-lg text-sm font-medium transition-all"
+            :class="[
+              isActive(item.path) ? 'text-primary-500 bg-primary-500/10' : 'text-dark-100 hover:text-white hover:bg-white/[0.04]'
+            ]"
+            @click="mobileMenuOpen = false"
+          >
+            {{ item.label }}
+          </router-link>
+
+          <!-- 分割线 -->
+          <div class="h-px bg-white/[0.06] my-2"></div>
+
+          <!-- 用户相关菜单 -->
+          <template v-if="authStore.isLoggedIn">
+            <router-link to="/system/user" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all" @click="mobileMenuOpen = false">
+              <User :size="16" />
+              我的账户
+            </router-link>
+            <router-link to="/system/running-strategies" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all" @click="mobileMenuOpen = false">
+              <Activity :size="16" />
+              策略实盘
+            </router-link>
+            <router-link to="/system/user/personal" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all" @click="mobileMenuOpen = false">
+              <Settings :size="16" />
+              个人中心
+            </router-link>
+            <router-link v-if="authStore.isAdmin" to="/admin" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all" @click="mobileMenuOpen = false">
+              <ShieldCheck :size="16" />
+              管理后台
+            </router-link>
+            <div class="pt-2 px-4">
+              <button @click="handleLogout" class="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-sm text-dark-100 border border-white/[0.08] hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all">
+                <LogOut :size="16" />
+                退出登录
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="px-4 space-y-2">
+              <router-link to="/login" class="block text-center py-2.5 rounded-lg text-sm text-dark-100 border border-white/[0.08] hover:text-white hover:bg-white/[0.04] transition-all" @click="mobileMenuOpen = false">登录</router-link>
+            </div>
+          </template>
+        </div>
+      </div>
+    </transition>
     
     <!-- 主要内容区域 -->
     <div class="flex-1 overflow-auto">
@@ -121,7 +181,9 @@ import {
   Activity,
   LogOut,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import {MessagePlugin} from "tdesign-vue-next";
@@ -133,6 +195,7 @@ const authStore = useAuthStore()
 const currentTime = ref('')
 const isFullscreen = ref(false)
 const userDropdownOpen = ref(false)
+const mobileMenuOpen = ref(false)
 
 const navItems = [
   { path: '/index', label: '首页' },
@@ -198,6 +261,16 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
 }
 
 .gradient-text {
