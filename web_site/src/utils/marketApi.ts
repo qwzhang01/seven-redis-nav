@@ -92,7 +92,7 @@ export function getKlines(params: KlineParams): Promise<SignalKlineResponse[]> {
 export function getTicker(params: TickerParams): Promise<TickerData> {
     let {symbol} = params
     symbol = symbol.replace('/', '-')
-    return get<TickerData>(`/api/v1/c/market/ticker/${encodeURIComponent(symbol)}`)
+    return get<TickerData>(`/api/v1/c/market/tick/${encodeURIComponent(symbol)}`)
 }
 
 /**

@@ -487,6 +487,29 @@ class BinanceRestClient(BinanceRestBase):
         result = self._request("GET", path, params, signed=False)
         return float(result.get("price", 0))
 
+    def get_depth_data(self, symbol: str, limit: int = 20) -> dict[str, Any]:
+        """获取深度数据
+
+        Args:
+            symbol: 交易对符号，如 "BTCUSDT"
+            limit: 深度档位数，可选值：5, 10, 20, 50, 100, 500, 1000，默认20
+
+        Returns:
+            dict: 包含深度数据的字典，格式为：
+            {
+                "lastUpdateId": int,  # 最后更新ID
+                "bids": list,        # 买单深度 [[价格, 数量], ...]
+                "asks": list         # 卖单深度 [[价格, 数量], ...]
+            }
+        """
+        params = {
+            "symbol": symbol.replace("/", "").upper(),
+            "limit": limit
+        }
+        path = self._get_path("/api/v3/depth", "/fapi/v1/depth")
+        result = self._request("GET", path, params, signed=False)
+        return result
+
     # ══════════════════════════════════════════════════════════
     # 跟单逻辑工具方法（同步）
     # ══════════════════════════════════════════════════════════

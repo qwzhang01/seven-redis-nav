@@ -373,6 +373,44 @@ class MockBinanceRestClient:
         """返回模拟当前价格"""
         return _get_mock_price(symbol)
 
+    def get_depth_data(self, symbol: str, limit: int = 20) -> dict[str, Any]:
+        """获取深度数据
+
+        Args:
+            symbol: 交易对符号，如 "BTCUSDT"
+            limit: 深度档位数，可选值：5, 10, 20, 50, 100, 500, 1000，默认20
+
+        Returns:
+            dict: 包含深度数据的字典，格式为：
+            {
+                "lastUpdateId": int,  # 最后更新ID
+                "bids": list,        # 买单深度 [[价格, 数量], ...]
+                "asks": list         # 卖单深度 [[价格, 数量], ...]
+            }
+        """
+        symbol_upper = symbol.replace("/", "").upper()
+        base_price = _get_mock_price(symbol_upper)
+
+        # 生成买单深度（价格从高到低）
+        bids = []
+        for i in range(min(limit, 20)):
+            price = round(base_price * (1 - (i + 1) * 0.001), 2)
+            volume = round(random.uniform(0.1, 5.0), 6)
+            bids.append([str(price), str(volume)])
+
+        # 生成卖单深度（价格从低到高）
+        asks = []
+        for i in range(min(limit, 20)):
+            price = round(base_price * (1 + (i + 1) * 0.001), 2)
+            volume = round(random.uniform(0.1, 5.0), 6)
+            asks.append([str(price), str(volume)])
+
+        return {
+            "lastUpdateId": int(time.time() * 1000),
+            "bids": bids,
+            "asks": asks
+        }
+
     def close(self) -> None:
         """关闭客户端（Mock 无需清理）"""
         logger.debug("🎭 [Mock] 币安 REST 客户端已关闭")

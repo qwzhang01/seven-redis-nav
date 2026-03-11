@@ -397,6 +397,7 @@ import marketApi from '@/utils/marketApi'
 import tradingApi from '@/utils/tradingApi'
 import websocketApi from '@/utils/websocketApi'
 import TradingChart from '@/components/charts/TradingChart.vue'
+import DepthChart from '@/components/charts/DepthChart.vue'
 import {KlineDataPoint, IndicatorData, TradeMarkData, EnumItem} from '@/types'
 
 // TradingChart组件引用
@@ -451,12 +452,27 @@ const selectedSymbol = ref<string>("")
 const availableSymbols = ref<EnumItem[]>([])
 const selectedSymbolInfo = ref<EnumItem>()
 
+// 深度图数据
+const depthData = ref({
+  bids: [],
+  asks: []
+})
+
+// 成交量数据
+const volumeData = ref([])
+
+// 深度图组件引用
+const depthChartRef = ref<InstanceType<typeof DepthChart>>()
+
 // ==================== K线数据相关方法 ====================
 /**
  * 加载K线数据
  */
 async function loadKlineData() {
   try {
+    if(!selectedSymbol || !selectedSymbol.value){
+      return
+    }
     const rawData = await marketApi.getKlines({
       symbol: selectedSymbol.value,
       interval: selectedPeriod.value.toLowerCase() as any,
@@ -738,6 +754,9 @@ async function loadHistoryOrders() {
  */
 async function loadMarketData() {
   try {
+    if(!selectedSymbol || !selectedSymbol.value){
+      return
+    }
     const ticker = await marketApi.getTicker({
       exchange_id: 'binance',
       symbol: selectedSymbol.value
