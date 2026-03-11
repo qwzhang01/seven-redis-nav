@@ -31,7 +31,6 @@ export interface KlineData {
  * K线查询参数
  */
 export interface KlineParams {
-  exchange_id: string
   symbol: string
   interval: KlineInterval
   start_time?: number
@@ -195,16 +194,6 @@ export interface SymbolInfo {
   min_notional?: number
   is_spot_trading_allowed: boolean
   is_margin_trading_allowed: boolean
-}
-
-/**
- * 交易对列表查询参数
- */
-export interface SymbolsParams {
-  exchange_id: string
-  base_asset?: string
-  quote_asset?: string
-  status?: string
 }
 
 /**

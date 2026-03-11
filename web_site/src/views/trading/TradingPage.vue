@@ -12,13 +12,12 @@
                 @change="onSymbolChange"
                 class="appearance-none bg-dark-700 border border-white/[0.06] rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:border-primary-500 transition-colors cursor-pointer"
               >
-                <option value="">选择交易对...</option>
-                <option 
+                <option
                   v-for="symbol in availableSymbols" 
-                  :key="symbol.symbol"
-                  :value="symbol.symbol"
+                  :key="symbol.value"
+                  :value="symbol.value"
                 >
-                  {{ symbol.base_asset }}/{{ symbol.quote_asset }}
+                  {{ symbol.value }}
                 </option>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-100">
@@ -30,11 +29,12 @@
             
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                <span class="text-xs font-bold text-white">{{ selectedSymbolInfo?.base_asset?.substring(0, 3) || 'BTC' }}</span>
+                <span
+                    class="text-xs font-bold text-white">{{selectedSymbolInfo?selectedSymbolInfo.value.split('\/')[0] : "BTC"}}</span>
               </div>
               <div>
-                <h1 class="text-xl font-bold text-white">{{ selectedSymbolInfo?.base_asset || 'BTC' }}/{{ selectedSymbolInfo?.quote_asset || 'USDT' }}</h1>
-                <p class="text-xs text-dark-100">{{ getSymbolDisplayName(selectedSymbolInfo?.base_asset) }}</p>
+                <h1 class="text-xl font-bold text-white">{{selectedSymbolInfo?selectedSymbolInfo.value : "BTC/USDT"}}</h1>
+                <p class="text-xs text-dark-100">$87987</p>
               </div>
             </div>
           </div>
@@ -263,7 +263,7 @@
                 ? 'bg-green-500 hover:bg-green-600 text-white' 
                 : 'bg-red-500 hover:bg-red-600 text-white'"
             >
-              {{ activeTradeTab }} {{ selectedSymbolInfo?.base_asset || 'BTC' }}
+              {{ activeTradeTab }} {{ selectedSymbolInfo?.value || 'BTC' }}
             </button>
           </div>
         </div>
@@ -397,7 +397,7 @@ import marketApi from '@/utils/marketApi'
 import tradingApi from '@/utils/tradingApi'
 import websocketApi from '@/utils/websocketApi'
 import TradingChart from '@/components/charts/TradingChart.vue'
-import type { KlineDataPoint, IndicatorData, TradeMarkData } from '@/types'
+import {KlineDataPoint, IndicatorData, TradeMarkData, EnumItem} from '@/types'
 
 // TradingChart组件引用
 const tradingChartRef = ref<InstanceType<typeof TradingChart>>()
@@ -447,150 +447,40 @@ const historyOrders = ref<any[]>([])
 let wsManager: any = null
 
 // 交易对相关
-const selectedSymbol = ref('BTCUSDT')
-const availableSymbols = ref<any[]>([])
-const selectedSymbolInfo = ref<any>(null)
-
-// 交易对显示名称映射
-const symbolDisplayNames: Record<string, string> = {
-  'BTC': 'Bitcoin',
-  'ETH': 'Ethereum',
-  'BNB': 'Binance Coin',
-  'ADA': 'Cardano',
-  'DOT': 'Polkadot',
-  'SOL': 'Solana',
-  'MATIC': 'Polygon',
-  'LTC': 'Litecoin',
-  'XRP': 'Ripple',
-  'DOGE': 'Dogecoin',
-  'AVAX': 'Avalanche',
-  'LINK': 'Chainlink',
-  'ATOM': 'Cosmos',
-  'UNI': 'Uniswap',
-  'AAVE': 'Aave',
-  'ALGO': 'Algorand',
-  'FIL': 'Filecoin',
-  'XLM': 'Stellar',
-  'EOS': 'EOS',
-  'TRX': 'TRON',
-  'XMR': 'Monero',
-  'ZEC': 'Zcash',
-  'DASH': 'Dash',
-  'NEO': 'NEO',
-  'ONT': 'Ontology',
-  'VET': 'VeChain',
-  'ICX': 'ICON',
-  'WAVES': 'Waves',
-  'QTUM': 'Qtum',
-  'ZIL': 'Zilliqa',
-  'BAT': 'Basic Attention Token',
-  'OMG': 'OMG Network',
-  'IOST': 'IOST',
-  'THETA': 'Theta',
-  'ENJ': 'Enjin Coin',
-  'HOT': 'Holo',
-  'ZRX': '0x',
-  'REP': 'Augur',
-  'KNC': 'Kyber Network',
-  'MANA': 'Decentraland',
-  'LOOM': 'Loom Network',
-  'CVC': 'Civic',
-  'SNT': 'Status',
-  'FUN': 'FunFair',
-  'STORJ': 'Storj',
-  'KMD': 'Komodo',
-  'LSK': 'Lisk',
-  'ARK': 'Ark',
-  'PIVX': 'PIVX',
-  'STEEM': 'Steem',
-  'ARDR': 'Ardor',
-  'STRAT': 'Stratis',
-  'WAN': 'Wanchain',
-  'POWR': 'Power Ledger',
-  'REQ': 'Request Network',
-  'ENG': 'Enigma',
-  'CND': 'Cindicator',
-  'RLC': 'iExec RLC',
-  'DTA': 'Data',
-  'TNB': 'Time New Bank',
-  'TNT': 'Tierion',
-  'FUEL': 'Etherparty',
-  'BCPT': 'BlockMason Credit Protocol',
-  'MCO': 'Crypto.com',
-  'MTL': 'Metal',
-  'SUB': 'Substratum',
-  'EVX': 'Everex',
-  'SNGLS': 'SingularDTV',
-  'WINGS': 'Wings',
-  'TRIG': 'Triggers',
-  'EDG': 'Edgeless',
-  'TAAS': 'TaaS',
-  'QSP': 'Quantstamp',
-  'BTS': 'BitShares',
-  'XEM': 'NEM',
-  'VEN': 'VeChain (旧)',
-  'ANT': 'Aragon',
-  'RCN': 'Ripio Credit Network',
-  'DLT': 'Agrello',
-  'AMB': 'Ambrosus',
-  'BQX': 'Ethos',
-  'AST': 'AirSwap',
-  'DNT': 'district0x',
-  'GVT': 'Genesis Vision',
-  'CDT': 'Blox',
-  'POE': 'Po.et',
-  'WTC': 'Waltonchain',
-  'GTO': 'Gifto',
-  'INS': 'INS Ecosystem',
-  'IOTA': 'IOTA',
-  'QASH': 'Liquid',
-  'YOYO': 'YOYOW',
-  'OST': 'Simple Token',
-  'ELF': 'aelf',
-  'AION': 'Aion',
-  'BRD': 'Bread',
-  'CMT': 'CyberMiles',
-  'TUSD': 'TrueUSD',
-  'USDC': 'USD Coin',
-  'PAX': 'Paxos Standard',
-  'BUSD': 'Binance USD',
-  'HUSD': 'HUSD',
-  'USDS': 'StableUSD',
-  'GUSD': 'Gemini Dollar',
-  'DAI': 'Dai',
-  'SUSD': 'sUSD',
-  'USDP': 'Pax Dollar',
-  'FEI': 'Fei USD',
-  'FRAX': 'Frax',
-  'MIM': 'Magic Internet Money',
-  'UST': 'TerraUSD',
-  'USDD': 'USDD',
-  'USDT': 'Tether'
-}
+const selectedSymbol = ref<string>("")
+const availableSymbols = ref<EnumItem[]>([])
+const selectedSymbolInfo = ref<EnumItem>()
 
 // ==================== K线数据相关方法 ====================
-
 /**
  * 加载K线数据
  */
 async function loadKlineData() {
   try {
-    const response = await marketApi.getKlines({
-      exchange_id: 'binance',
+    const rawData = await marketApi.getKlines({
       symbol: selectedSymbol.value,
       interval: selectedPeriod.value.toLowerCase() as any,
       limit: 1000
     })
     
-    if (response.data && response.data.length > 0) {
-      klineData.value = response.data.map((item: any) => ({
-        time: Math.floor(item.open_time / 1000),
+    if (rawData && rawData.length > 0) {
+      const mapped = rawData.map((item: any) => ({
+        time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
         open: item.open,
         high: item.high,
         low: item.low,
         close: item.close,
-        volume: item.volume
+        volume: item.volume || 0,
       }))
+      // 按时间升序排序，并去除重复时间戳（lightweight-charts 要求时间严格递增）
+      mapped.sort((a, b) => a.time - b.time)
+      const deduplicated: typeof mapped = []
+      for (const item of mapped) {
+        if (deduplicated.length === 0 || item.time > deduplicated[deduplicated.length - 1].time) {
+          deduplicated.push(item)
+        }
+      }
+      klineData.value = deduplicated
     }
   } catch (error) {
     console.error('加载K线数据失败:', error)
@@ -603,28 +493,31 @@ async function loadKlineData() {
  */
 async function loadMoreKlineData(endTime: number) {
   try {
-    const response = await marketApi.getKlines({
-      exchange_id: 'binance',
+    const rawData = await marketApi.getKlines({
       symbol: selectedSymbol.value,
       interval: selectedPeriod.value.toLowerCase() as any,
       limit: 500,
       end_time: endTime * 1000
     })
     
-    if (response.data && response.data.length > 0) {
-      const newData = response.data.map((item: any) => ({
-        time: Math.floor(item.open_time / 1000),
+    if (rawData && rawData.length > 0) {
+      const mapped = rawData.map((item: any) => ({
+        time: item.time ?? Math.floor((item.timestamp || 0) / 1000),
         open: item.open,
         high: item.high,
         low: item.low,
         close: item.close,
-        volume: item.volume
+        volume: item.volume || 0,
       }))
-      
-      const mergedData = [...newData, ...klineData.value]
-      const uniqueMap = new Map<number, KlineDataPoint>()
-      mergedData.forEach(d => uniqueMap.set(d.time, d))
-      klineData.value = Array.from(uniqueMap.values()).sort((a, b) => a.time - b.time)
+      // 按时间升序排序，并去除重复时间戳（lightweight-charts 要求时间严格递增）
+      mapped.sort((a, b) => a.time - b.time)
+      const deduplicated: typeof mapped = []
+      for (const item of mapped) {
+        if (deduplicated.length === 0 || item.time > deduplicated[deduplicated.length - 1].time) {
+          deduplicated.push(item)
+        }
+      }
+      klineData.value = Array.from(deduplicated.values()).sort((a, b) => a.time - b.time)
     }
   } catch (error) {
     console.error('加载更多K线数据失败:', error)
@@ -731,35 +624,17 @@ function handleWebSocketMessage(data: any) {
 // ==================== 交易对相关方法 ====================
 
 /**
- * 获取交易对显示名称
- */
-function getSymbolDisplayName(symbol: string | undefined): string {
-  if (!symbol) return 'Cryptocurrency'
-  return symbolDisplayNames[symbol] || symbol
-}
-
-/**
  * 加载可用的交易对列表
  */
 async function loadAvailableSymbols() {
   try {
-    const response = await marketApi.getSymbols({
-      exchange_id: 'binance',
-      status: 'trading'
-    })
+    const response = await marketApi.getSymbols()
     
-    if (response.symbols && response.symbols.length > 0) {
-      availableSymbols.value = response.symbols
-      
-      // 设置默认选中的交易对信息
-      const defaultSymbol = response.symbols.find(s => s.symbol === selectedSymbol.value)
-      if (defaultSymbol) {
-        selectedSymbolInfo.value = defaultSymbol
-      } else if (response.symbols.length > 0) {
-        // 如果没有找到默认交易对，使用第一个
-        selectedSymbol.value = response.symbols[0].symbol
-        selectedSymbolInfo.value = response.symbols[0]
-      }
+    if (response.items && response.items.length > 0) {
+      availableSymbols.value = response.items
+
+      selectedSymbol.value = response.items[0].value
+      selectedSymbolInfo.value = response.items[0]
     }
   } catch (error) {
     console.error('加载交易对列表失败:', error)
@@ -774,7 +649,8 @@ async function onSymbolChange() {
   if (!selectedSymbol.value) return
   
   // 更新选中的交易对信息
-  const symbolInfo = availableSymbols.value.find(s => s.symbol === selectedSymbol.value)
+  const symbolInfo = availableSymbols.value.find(s => s.value ===
+      selectedSymbol.value)
   if (symbolInfo) {
     selectedSymbolInfo.value = symbolInfo
     
@@ -788,8 +664,6 @@ async function onSymbolChange() {
     
     // 更新WebSocket订阅
     changeWebSocketSubscription()
-    
-    MessagePlugin.success(`已切换到 ${symbolInfo.base_asset}/${symbolInfo.quote_asset}`)
   }
 }
 
@@ -826,7 +700,7 @@ async function loadOrders() {
       pair: order.symbol,
       type: order.side === 'buy' ? '买入' : '卖出',
       price: order.price.toLocaleString('en-US'),
-      amount: `${order.quantity} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`,
+      amount: `${order.quantity} ${selectedSymbolInfo.value?.value || 'BTC'}`,
       time: new Date(order.created_at).toLocaleTimeString('zh-CN', { hour12: false })
     }))
   } catch (error) {
@@ -850,7 +724,7 @@ async function loadHistoryOrders() {
       direction: order.side === 'buy' ? '买入' : '卖出',
       type: order.type === 'limit' ? '限价单' : '市价单',
       price: order.price.toLocaleString('en-US'),
-      amount: `${order.quantity} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`,
+      amount: `${order.quantity} ${selectedSymbolInfo.value || 'BTC'}`,
       filled: order.filled_quantity || 0,
       status: order.status === 'filled' ? '已完成' : order.status === 'partially_filled' ? '部分成交' : order.status === 'open' ? '待成交' : '已撤销'
     }))
@@ -881,7 +755,8 @@ async function loadMarketData() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
-    volume24h.value = `${ticker.volume.toLocaleString('en-US')} ${selectedSymbolInfo.value?.base_asset || 'BTC'}`
+    volume24h.value =
+        `${ticker.volume.toLocaleString('en-US')} ${selectedSymbolInfo?selectedSymbolInfo.value : 'BTC'}`
     tradePrice.value = ticker.last_price.toFixed(2)
   } catch (error) {
     console.error('加载市场数据失败:', error)
