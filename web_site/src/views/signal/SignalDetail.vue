@@ -523,11 +523,7 @@
                   <t-option v-for="ex in exchangeOptions" :key="ex.value" :label="ex.label" :value="ex.value" />
                 </t-select>
                 <div v-if="exchangeOptions.length === 0" class="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
-                  <span>暂无可用交易所，请先</span>
-                  <router-link to="/system/user/api-keys" class="underline underline-offset-2 hover:text-amber-300 transition-colors">
-                    前往我的账户添加交易所 API 密钥
-                  </router-link>
-                  <span>后再来跟单</span>
+                  <span>暂无可用交易所，请先前往我的账户添加交易所 API 密钥后再来跟单</span>
                 </div>
               </div>
               <div>
