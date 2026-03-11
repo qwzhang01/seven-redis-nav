@@ -592,8 +592,12 @@ const getReviewStatusText = (status: string) => {
 }
 
 const maskApiKey = (key: string) => {
-  if (key.length <= 8) return key
-  return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
+
+  if (key && key.length <= 8) return key
+  if(key){
+    return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
+  }
+  return ''
 }
 
 // Initialize data

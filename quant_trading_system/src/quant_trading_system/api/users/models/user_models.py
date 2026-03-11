@@ -101,8 +101,8 @@ class CreateAPIKeyRequest(BaseModel):
 
 class APIKeyResponse(BaseModel):
     """API密钥响应模型"""
-    id: int
-    exchange_id: int
+    id: str
+    exchange_id: str
     label: str
     status: str
     created_at: str

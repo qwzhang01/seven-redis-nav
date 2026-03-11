@@ -353,8 +353,8 @@ class UserService:
 
         items = [
             {
-                "id": ak.id,
-                "exchange_id": ak.exchange_id,
+                "id": str(ak.id),
+                "exchange_id": str(ak.exchange_id),
                 "label": ak.label,
                 "status": ak.status,
                 "created_at": ak.create_time.isoformat(),
@@ -374,8 +374,8 @@ class UserService:
             return None
 
         return {
-            "id": api_key.id,
-            "exchange_id": api_key.exchange_id,
+            "id": str(api_key.id),
+            "exchange_id": str(api_key.exchange_id),
             "label": api_key.label,
             "status": api_key.status,
             "created_at": api_key.create_time.isoformat(),
