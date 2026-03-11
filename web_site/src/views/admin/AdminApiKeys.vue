@@ -23,7 +23,7 @@
       <!-- API Keys List -->
       <div class="space-y-4">
         <div
-          v-for="apiKey in filteredApiKeys"
+          v-for="apiKey in apiKeys"
           :key="apiKey.id"
           class="glass-card-hover p-6"
         >
@@ -35,24 +35,24 @@
               <div>
                 <div class="flex items-center gap-2 mb-1">
                   <h3 class="text-white font-semibold">{{ apiKey.label }}</h3>
-                  <span class="text-xs px-2 py-0.5 rounded bg-dark-600 text-dark-100">{{ apiKey.exchange }}</span>
+                  <span class="text-xs px-2 py-0.5 rounded bg-dark-600 text-dark-100">{{ apiKey.exchange_name }}</span>
                   <span
                     class="text-xs px-2 py-0.5 rounded font-medium"
-                    :class="getStatusClass(apiKey.reviewStatus)"
+                    :class="getStatusClass(apiKey.review_status)"
                   >
-                    {{ getStatusText(apiKey.reviewStatus) }}
+                    {{ getStatusText(apiKey.review_status) }}
                   </span>
                 </div>
                 <div class="text-sm text-dark-100">
-                  <span>用户: {{ apiKey.userName }}</span>
+                  <span>用户: {{ apiKey.user_name }}</span>
                   <span class="mx-2">•</span>
-                  <span>提交时间: {{ formatDate(apiKey.createdAt) }}</span>
+                  <span>提交时间: {{ formatDate(apiKey.created_at) }}</span>
                 </div>
               </div>
             </div>
             <div class="flex items-center gap-2">
               <button
-                v-if="apiKey.reviewStatus === 'pending'"
+              v-if="apiKey.review_status === 'pending'"
                 @click="showReviewDialog(apiKey)"
                 class="btn-primary !py-2 !px-4 text-sm"
               >
@@ -72,7 +72,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <span class="text-dark-100">API Key:</span>
-                <div class="font-mono text-white mt-1">{{ maskApiKey(apiKey.apiKey) }}</div>
+                <div class="font-mono text-white mt-1">{{ maskApiKey(apiKey.api_key) }}</div>
               </div>
               <div>
                 <span class="text-dark-100">状态:</span>
@@ -85,25 +85,25 @@
           </div>
 
           <!-- Review Info -->
-          <div v-if="apiKey.reviewStatus !== 'pending'" class="bg-dark-800/30 rounded-lg p-4">
+          <div v-if="apiKey.review_status !== 'pending'" class="bg-dark-800/30 rounded-lg p-4">
             <div class="text-sm">
               <div class="flex items-center gap-4">
                 <span class="text-dark-100">审核结果:</span>
-                <span :class="getStatusColor(apiKey.reviewStatus)" class="font-medium">
-                  {{ getStatusText(apiKey.reviewStatus) }}
+                <span :class="getStatusColor(apiKey.review_status)" class="font-medium">
+                  {{ getStatusText(apiKey.review_status) }}
                 </span>
-                <span class="text-dark-100">审核人: {{ apiKey.reviewedBy || '系统' }}</span>
-                <span class="text-dark-100">审核时间: {{ formatDate(apiKey.reviewedAt) }}</span>
+                <span class="text-dark-100">审核人: {{ apiKey.reviewed_by || '系统' }}</span>
+                <span class="text-dark-100">审核时间: {{ formatDate(apiKey.reviewed_at) }}</span>
               </div>
-              <div v-if="apiKey.reviewReason" class="mt-2">
+              <div v-if="apiKey.review_reason" class="mt-2">
                 <span class="text-dark-100">审核原因:</span>
-                <p class="text-white mt-1">{{ apiKey.reviewReason }}</p>
+                <p class="text-white mt-1">{{ apiKey.review_reason }}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if="filteredApiKeys.length === 0" class="text-center py-12 text-dark-100">
+        <div v-if="apiKeys.length === 0" class="text-center py-12 text-dark-100">
           <Key :size="48" class="mx-auto mb-4 text-dark-300" />
           <p>暂无API密钥申请</p>
         </div>
@@ -145,7 +145,14 @@
           </div>
           <div class="flex gap-3 pt-2">
             <button @click="closeReviewDialog" class="btn-secondary flex-1">取消</button>
-            <button @click="submitReview" class="btn-primary flex-1">提交审核</button>
+            <button 
+              @click="submitReview" 
+              class="btn-primary flex-1"
+              :disabled="reviewDialog.submitting"
+            >
+              <span v-if="!reviewDialog.submitting">提交审核</span>
+              <span v-else>提交中...</span>
+            </button>
           </div>
         </div>
       </div>
@@ -154,71 +161,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Key } from 'lucide-vue-next'
 import StatusDot from '@/components/common/StatusDot.vue'
-import type { ApiKey } from '@/types'
+import { getAdminApiKeys, reviewApiKey } from '@/utils/userApi'
+import type { AdminAPIKeyResponse, ReviewAPIKeyRequest } from '@/types'
 
-const activeTab = ref('pending')
+const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
 
 const tabs = [
-  { label: '待审核', value: 'pending' },
-  { label: '已通过', value: 'approved' },
-  { label: '已拒绝', value: 'rejected' },
+  { label: '待审核', value: 'pending' as const },
+  { label: '已通过', value: 'approved' as const },
+  { label: '已拒绝', value: 'rejected' as const },
 ]
 
-// Mock data for API keys
-const apiKeys: ApiKey[] = [
-  {
-    id: '1',
-    exchange: 'Binance',
-    label: '主交易账户',
-    apiKey: 'aBc123dEf456gHi789jKl012mNo345pQr678',
-    createdAt: '2025-02-10T10:30:00Z',
-    status: 'active',
-    reviewStatus: 'pending',
-    userId: 'user1',
-    userName: '张三',
-  },
-  {
-    id: '2',
-    exchange: 'OKX',
-    label: '跟单账户',
-    apiKey: 'xYz987uVw654tSr321qPo098nMl765kIj432',
-    createdAt: '2025-02-11T14:20:00Z',
-    status: 'active',
-    reviewStatus: 'approved',
-    reviewReason: '密钥格式正确，权限设置合理',
-    reviewedBy: '管理员A',
-    reviewedAt: '2025-02-11T15:00:00Z',
-    userId: 'user2',
-    userName: '李四',
-  },
-  {
-    id: '3',
-    exchange: 'Binance',
-    label: '测试账户',
-    apiKey: 'mNo345pQr678sTu901vWx234yZa567bCd890',
-    createdAt: '2025-02-12T09:15:00Z',
-    status: 'disabled',
-    reviewStatus: 'rejected',
-    reviewReason: '密钥权限过大，存在安全风险',
-    reviewedBy: '管理员B',
-    reviewedAt: '2025-02-12T10:30:00Z',
-    userId: 'user3',
-    userName: '王五',
-  },
-]
+// 列表数据
+const apiKeys = ref<AdminAPIKeyResponse[]>([])
+const total = ref(0)
+const loading = ref(false)
+
+// 加载 API 密钥列表
+async function loadApiKeys() {
+  loading.value = true
+  try {
+    const res = await getAdminApiKeys({ review_status: activeTab.value, page: 1, page_size: 50 })
+    apiKeys.value = res.items
+    total.value = res.total
+  } finally {
+    loading.value = false
+  }
+}
+
+// 切换 Tab 时重新加载
+watch(activeTab, () => {
+  loadApiKeys()
+})
+
+onMounted(() => {
+  loadApiKeys()
+})
 
 const reviewDialog = ref({
   show: false,
-  apiKey: null as ApiKey | null,
+  apiKey: null as AdminAPIKeyResponse | null,
   result: 'approved' as 'approved' | 'rejected',
   reason: '',
-})
-
-const filteredApiKeys = computed(() => {
-  return apiKeys.filter(key => key.reviewStatus === activeTab.value)
+  submitting: false,
 })
 
 const getStatusClass = (status: string) => {
@@ -253,17 +241,18 @@ const maskApiKey = (key: string) => {
   return key.substring(0, 6) + '*'.repeat(key.length - 10) + key.substring(key.length - 4)
 }
 
-const formatDate = (dateString?: string) => {
+const formatDate = (dateString?: string | null) => {
   if (!dateString) return '--'
   return new Date(dateString).toLocaleString('zh-CN')
 }
 
-const showReviewDialog = (apiKey: ApiKey) => {
+const showReviewDialog = (apiKey: AdminAPIKeyResponse) => {
   reviewDialog.value = {
     show: true,
     apiKey,
     result: 'approved',
     reason: '',
+    submitting: false,
   }
 }
 
@@ -271,24 +260,25 @@ const closeReviewDialog = () => {
   reviewDialog.value.show = false
 }
 
-const submitReview = () => {
+const submitReview = async () => {
   if (!reviewDialog.value.apiKey) return
 
-  const apiKeyIndex = apiKeys.findIndex(k => k.id === reviewDialog.value.apiKey!.id)
-  if (apiKeyIndex !== -1) {
-    apiKeys[apiKeyIndex] = {
-      ...apiKeys[apiKeyIndex],
-      reviewStatus: reviewDialog.value.result,
-      reviewReason: reviewDialog.value.reason,
-      reviewedBy: '当前管理员',
-      reviewedAt: new Date().toISOString(),
+  reviewDialog.value.submitting = true
+  try {
+    const req: ReviewAPIKeyRequest = {
+      result: reviewDialog.value.result,
+      reason: reviewDialog.value.reason || undefined,
     }
+    await reviewApiKey(reviewDialog.value.apiKey.id, req)
+    closeReviewDialog()
+    // 审核完成后刷新列表
+    await loadApiKeys()
+  } finally {
+    reviewDialog.value.submitting = false
   }
-
-  closeReviewDialog()
 }
 
-const showDetail = (apiKey: ApiKey) => {
+const showDetail = (apiKey: AdminAPIKeyResponse) => {
   // 显示详细信息的逻辑
   console.log('查看详情:', apiKey)
 }

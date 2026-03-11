@@ -28,6 +28,11 @@ import type {
   UserStatistics,
   UpdateUserRequest,
   UpdateUserStatusRequest,
+  GetAdminApiKeysParams,
+  AdminAPIKeyResponse,
+  GetAdminApiKeysResponse,
+  ReviewAPIKeyRequest,
+  ReviewAPIKeyResponse,
   // 扩展类型
   GetSignalFollowsParams,
   GetSignalFollowsResponse,
@@ -244,6 +249,29 @@ export function updateUserStatus(userId: number, data: UpdateUserStatusRequest):
   return put<UpdateUserStatusResponse>(`/api/v1/m/users/${userId}/status`, data)
 }
 
+// ==================== Admin端API密钥审核接口 ====================
+
+/**
+ * 获取API密钥审核列表（Admin）
+ */
+export function getAdminApiKeys(params?: GetAdminApiKeysParams): Promise<GetAdminApiKeysResponse> {
+  return get<GetAdminApiKeysResponse>('/api/v1/m/api-keys', params)
+}
+
+/**
+ * 获取API密钥详情（Admin）
+ */
+export function getAdminApiKeyById(keyId: string): Promise<AdminAPIKeyResponse> {
+  return get<AdminAPIKeyResponse>(`/api/v1/m/api-keys/${keyId}`)
+}
+
+/**
+ * 审核API密钥（通过/拒绝）
+ */
+export function reviewApiKey(keyId: string, data: ReviewAPIKeyRequest): Promise<ReviewAPIKeyResponse> {
+  return put<ReviewAPIKeyResponse>(`/api/v1/m/api-keys/${keyId}/review`, data)
+}
+
 // ==================== 邀请系统接口 ====================
 
 /**
@@ -303,6 +331,10 @@ export default {
   getUserDetail,
   updateUser,
   updateUserStatus,
+  // Admin端API密钥审核
+  getAdminApiKeys,
+  getAdminApiKeyById,
+  reviewApiKey,
   // 邀请系统
   getInvitedUsers,
   getUserInvitationStats,

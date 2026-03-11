@@ -10,12 +10,12 @@
       <!-- Filters -->
       <div class="glass-card p-5 mb-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div>
-            <label class="text-xs text-white-100 mb-1.5 block">来源平台</label>
-            <t-select v-model="filters.platform" placeholder="全部平台" clearable size="medium" class="text-white" style="color: white !important;">
-              <t-option v-for="p in platforms" :key="p" :label="p" :value="p" />
-            </t-select>
-          </div>
+<!--          <div>-->
+<!--            <label class="text-xs text-white-100 mb-1.5 block">来源平台</label>-->
+<!--            <t-select v-model="filters.platform" placeholder="全部平台" clearable size="medium" class="text-white" style="color: white !important;">-->
+<!--              <t-option v-for="p in platforms" :key="p" :label="p" :value="p" />-->
+<!--            </t-select>-->
+<!--          </div>-->
           <div>
             <label class="text-xs text-white-100 mb-1.5 block">信号类型</label>
             <t-select v-model="filters.type" placeholder="全部类型" clearable size="medium" class="text-white" style="color: white !important;">

@@ -266,6 +266,71 @@ export interface SignalFollowTrade {
   trade_time: string
 }
 
+// ==================== Admin端API密钥审核 ====================
+
+/**
+ * Admin端查询API密钥列表参数
+ */
+export interface GetAdminApiKeysParams {
+  review_status?: 'pending' | 'approved' | 'rejected'
+  page?: number
+  page_size?: number
+}
+
+/**
+ * Admin端API密钥详情（含用户信息）
+ */
+export interface AdminAPIKeyResponse {
+  id: string
+  user_id: string
+  user_name: string
+  exchange_id: string
+  exchange_name: string
+  label: string
+  api_key: string
+  secret_key_masked: string
+  status: 'active' | 'disabled'
+  review_status: 'pending' | 'approved' | 'rejected'
+  review_reason?: string | null
+  reviewed_by?: string | null
+  reviewed_at?: string | null
+  permissions?: {
+    spot_trading?: boolean
+    margin_trading?: boolean
+    futures_trading?: boolean
+    withdraw?: boolean
+  } | null
+  created_at: string
+  updated_at?: string | null
+}
+
+/**
+ * Admin端API密钥列表响应
+ */
+export interface GetAdminApiKeysResponse {
+  total: number
+  page: number
+  page_size: number
+  items: AdminAPIKeyResponse[]
+}
+
+/**
+ * 审核API密钥请求
+ */
+export interface ReviewAPIKeyRequest {
+  result: 'approved' | 'rejected'
+  reason?: string
+}
+
+/**
+ * 审核API密钥响应
+ */
+export interface ReviewAPIKeyResponse {
+  success: boolean
+  data: AdminAPIKeyResponse
+  message: string
+}
+
 // ==================== Admin端用户管理 ====================
 
 /**
