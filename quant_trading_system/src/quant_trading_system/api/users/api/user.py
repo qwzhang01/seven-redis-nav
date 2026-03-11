@@ -342,7 +342,15 @@ async def list_api_keys(
 
     api_keys_info = await user_service.get_user_api_keys(current_user["id"])
 
-
+    # 根据status参数过滤数据
+    if status:
+        # 过滤items列表中的API密钥
+        filtered_items = [
+            item for item in api_keys_info["items"]
+            if item.get("status") == status
+        ]
+        api_keys_info["items"] = filtered_items
+        api_keys_info["total"] = len(filtered_items)
 
     return APIKeyListResponse(**api_keys_info)
 

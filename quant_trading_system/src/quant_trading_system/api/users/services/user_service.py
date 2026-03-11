@@ -348,16 +348,18 @@ class UserService:
         }
 
     async def get_user_api_keys(self, user_id: int) -> Dict[str, Any]:
-        """获取用户API密钥列表业务逻辑"""
+        """获取用户API密钥列表业务逻辑（包含交易所信息）"""
         api_keys = await self.api_key_repo.get_user_api_keys(user_id)
 
         items = [
             {
-                "id": str(ak.id),
-                "exchange_id": str(ak.exchange_id),
-                "label": ak.label,
-                "status": ak.status,
-                "created_at": ak.create_time.isoformat(),
+                "id": str(ak["id"]),
+                "exchange_id": str(ak["exchange_id"]),
+                "exchange_code": ak["exchange_code"],
+                "exchange_name": ak["exchange_name"],
+                "label": ak["label"],
+                "status": ak["status"],
+                "created_at": ak["create_time"].isoformat(),
             }
             for ak in api_keys
         ]
@@ -373,9 +375,16 @@ class UserService:
         if not api_key or api_key.user_id != user_id:
             return None
 
+        # 获取交易所信息
+        exchange = await self.exchange_repo.get_exchange_by_id(api_key.exchange_id)
+        if not exchange:
+            return None
+
         return {
             "id": str(api_key.id),
             "exchange_id": str(api_key.exchange_id),
+            "exchange_code": exchange.exchange_code,
+            "exchange_name": exchange.exchange_name,
             "label": api_key.label,
             "status": api_key.status,
             "created_at": api_key.create_time.isoformat(),

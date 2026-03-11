@@ -151,19 +151,60 @@ class APIKeyRepository:
     async def get_api_key_by_id(self, api_key_id: int) -> Optional[UserExchangeAPI]:
         """根据ID获取API密钥"""
         result = await self.db.execute(
-            select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id)
+            select(UserExchangeAPI, Exchange.exchange_code,
+                   Exchange.exchange_name).join(
+                Exchange, UserExchangeAPI.exchange_id == Exchange.id
+            ).where(
+                UserExchangeAPI.id == api_key_id
+            )
         )
         return result.scalars().first()
 
     async def get_user_api_keys(self, user_id: int) -> List[UserExchangeAPI]:
-        """获取用户的所有API密钥"""
+        """获取用户的所有API密钥（包含交易所信息）"""
         result = await self.db.execute(
-            select(UserExchangeAPI).where(
+            select(UserExchangeAPI, Exchange.exchange_code, Exchange.exchange_name).join(
+                Exchange, UserExchangeAPI.exchange_id == Exchange.id
+            ).where(
                 UserExchangeAPI.user_id == user_id,
                 UserExchangeAPI.enable_flag == True,
+                Exchange.enable_flag == True
             )
         )
-        return result.scalars().all()
+
+        # 将查询结果转换为包含交易所信息的字典格式
+        api_keys_with_exchange = []
+        for row in result.all():
+            api_key = row[0]
+            exchange_code = row[1]
+            exchange_name = row[2]
+
+            # 将API密钥对象转换为字典并添加交易所信息
+            api_key_dict = {
+                'id': api_key.id,
+                'user_id': api_key.user_id,
+                'exchange_id': api_key.exchange_id,
+                'label': api_key.label,
+                'api_key': api_key.api_key,
+                'secret_key': api_key.secret_key,
+                'passphrase': api_key.passphrase,
+                'permissions': api_key.permissions,
+                'status': api_key.status,
+                'review_reason': api_key.review_reason,
+                'approved_by': api_key.approved_by,
+                'approved_time': api_key.approved_time,
+                'last_used_time': api_key.last_used_time,
+                'create_by': api_key.create_by,
+                'create_time': api_key.create_time,
+                'update_by': api_key.update_by,
+                'update_time': api_key.update_time,
+                'enable_flag': api_key.enable_flag,
+                'exchange_code': exchange_code,
+                'exchange_name': exchange_name
+            }
+            api_keys_with_exchange.append(api_key_dict)
+
+        return api_keys_with_exchange
 
     async def get_api_key_by_exchange(self, user_id: int, exchange_id: int) -> Optional[UserExchangeAPI]:
         """根据用户和交易所获取API密钥"""

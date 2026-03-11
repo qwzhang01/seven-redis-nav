@@ -153,6 +153,8 @@ export interface APIKeyResponse {
   exchange_id: string
   label: string
   api_key: string
+  exchange_code: string
+  exchange_name: string
   secret_key_masked: string
   status: 'pending' | 'approved' | 'rejected' | 'disabled'
   review_reason?: string | null

@@ -615,6 +615,7 @@ import {
   createFollow,
   getKlineData,
 } from '@/utils/signalApi'
+import { getApiKeys } from '@/utils/userApi'
 import type {
   SignalDetailResponse,
   SignalProvider,
@@ -660,19 +661,33 @@ const followConfig = ref({
   stopLoss: 10,
 })
 
-// 交易所选项
-const exchangeOptions = [
-  { label: 'Binance（币安）', value: 'binance' },
-  { label: 'OKX（欧易）', value: 'okx' },
-  { label: 'Bybit', value: 'bybit' },
-  { label: 'Bitget', value: 'bitget' },
-  { label: 'Gate.io', value: 'gateio' },
-]
+// 交易所选项（从已审核通过的 API 密钥中提取，去重）
+const exchangeOptions = ref<{ value: string; label: string }[]>([])
 
 const exchangeLabel = computed(() => {
-  const opt = exchangeOptions.find(e => e.value === followConfig.value.exchange)
+  const opt = exchangeOptions.value.find(e => e.value === followConfig.value.exchange)
   return opt ? opt.label : ''
 })
+
+/** 加载已审核通过的交易所选项 */
+async function fetchExchangeOptions() {
+  try {
+    const res = await getApiKeys('approved')
+    if (isUnmounted.value) return
+    // 按 exchange_id 去重，label 展示为「交易所ID - 密钥备注」
+    const seen = new Set<string>()
+    const options: { value: string; label: string }[] = []
+    for (const item of res.items || []) {
+      if (!seen.has(item.exchange_id)) {
+        seen.add(item.exchange_id)
+        options.push({ value: item.exchange_code, label: item.exchange_name })
+      }
+    }
+    exchangeOptions.value = options
+  } catch (e) {
+    console.error('获取交易所选项失败', e)
+  }
+}
 
 // ==================== 数据加载 ====================
 
@@ -1027,6 +1042,7 @@ onMounted(async () => {
     fetchDrawdown(),
     fetchReviews(),
     fetchKlineData(),
+    fetchExchangeOptions(),
   ])
 
   // 所有数据加载完成后，如果组件仍然存活，才初始化 WebSocket

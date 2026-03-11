@@ -103,6 +103,8 @@ class APIKeyResponse(BaseModel):
     """API密钥响应模型"""
     id: str
     exchange_id: str
+    exchange_code: str
+    exchange_name: str
     label: str
     status: str
     created_at: str
