@@ -18,9 +18,9 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from quant_trading_system.core.database import get_db
 from quant_trading_system.models.user import User, UserExchangeAPI, Exchange
 from quant_trading_system.models.user_schema import UserType, UserStatus
-from quant_trading_system.core.database import get_db
 
 router = APIRouter()
 
@@ -124,7 +124,8 @@ def _user_to_response(user: User) -> dict[str, Any]:
     }
 
 
-def _api_key_to_admin_response(api_key: UserExchangeAPI, user: User, exchange_name: str) -> dict[str, Any]:
+def _api_key_to_admin_response(api_key: UserExchangeAPI, user: User,
+                               exchange_name: str) -> dict[str, Any]:
     """将 API 密钥 ORM 对象转换为管理员响应字典"""
     # 对 secret_key 进行脱敏处理
     secret_key = api_key.secret_key
@@ -134,10 +135,10 @@ def _api_key_to_admin_response(api_key: UserExchangeAPI, user: User, exchange_na
         secret_key_masked = "***"
 
     return {
-        "id": api_key.id,
-        "user_id": api_key.user_id,
+        "id": str(api_key.id),
+        "user_id": str(api_key.user_id),
         "user_name": user.username,
-        "exchange_id": api_key.exchange_id,
+        "exchange_id": str(api_key.exchange_id),
         "exchange_name": exchange_name,
         "label": api_key.label,
         "api_key": api_key.api_key,
@@ -155,10 +156,183 @@ def _api_key_to_admin_response(api_key: UserExchangeAPI, user: User, exchange_na
 
 # ── 接口实现 ──────────────────────────────────────────────────────────────────
 
+# ── API密钥审核接口 ───────────────────────────────────────────────────────────
+
+@router.get("/api-keys")
+async def list_api_keys(
+    review_status: Optional[str] = Query(None,
+                                         description="审核状态筛选：pending/approved/rejected"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    获取API密钥审核列表
+
+    支持按审核状态筛选，分页返回API密钥列表。
+    同时返回统计数据：待审核数、已通过数、已拒绝数。
+    """
+    stmt = select(UserExchangeAPI).where(UserExchangeAPI.enable_flag == True)
+    count_stmt = select(func.count()).select_from(UserExchangeAPI).where(
+        UserExchangeAPI.enable_flag == True)
+
+    # 审核状态筛选
+    if review_status:
+        stmt = stmt.where(UserExchangeAPI.status == review_status)
+        count_stmt = count_stmt.where(UserExchangeAPI.status == review_status)
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(
+        stmt.order_by(desc(UserExchangeAPI.create_time))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    api_keys = result.scalars().all()
+
+    # 获取用户和交易所信息
+    items = []
+    for api_key in api_keys:
+        # 获取用户信息
+        user_result = await db.execute(select(User).where(User.id == api_key.user_id))
+        user = user_result.scalars().first()
+
+        # 获取交易所信息
+        exchange_result = await db.execute(
+            select(Exchange).where(Exchange.id == api_key.exchange_id))
+        exchange = exchange_result.scalars().first()
+        exchange_name = exchange.exchange_name if exchange else "未知交易所"
+
+        items.append(_api_key_to_admin_response(api_key, user, exchange_name))
+
+    # 统计数据
+    base_where = UserExchangeAPI.enable_flag == True
+    pending_count = (await db.execute(
+        select(func.count()).select_from(UserExchangeAPI).where(base_where,
+                                                                UserExchangeAPI.status == "pending"))).scalar() or 0
+    approved_count = (await db.execute(
+        select(func.count()).select_from(UserExchangeAPI).where(base_where,
+                                                                UserExchangeAPI.status == "approved"))).scalar() or 0
+    rejected_count = (await db.execute(
+        select(func.count()).select_from(UserExchangeAPI).where(base_where,
+                                                                UserExchangeAPI.status == "rejected"))).scalar() or 0
+
+    return {
+        "success": True,
+        "data": {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": items,
+            "statistics": {
+                "pending_count": pending_count,
+                "approved_count": approved_count,
+                "rejected_count": rejected_count,
+            },
+        },
+    }
+
+
+@router.get("/api-keys/{api_key_id}")
+async def get_api_key(
+    api_key_id: int,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    获取API密钥详情
+
+    根据API密钥ID返回完整的密钥信息（包含明文API Key）。
+    """
+    result = await db.execute(
+        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id,
+                                      UserExchangeAPI.enable_flag == True)
+    )
+    api_key = result.scalars().first()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API密钥不存在")
+
+    # 获取用户信息
+    user_result = await db.execute(select(User).where(User.id == api_key.user_id))
+    user = user_result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 获取交易所信息
+    exchange_result = await db.execute(
+        select(Exchange).where(Exchange.id == api_key.exchange_id))
+    exchange = exchange_result.scalars().first()
+    exchange_name = exchange.exchange_name if exchange else "未知交易所"
+
+    return {
+        "success": True,
+        "data": _api_key_to_admin_response(api_key, user, exchange_name)
+    }
+
+
+@router.put("/api-keys/{api_key_id}/review")
+async def review_api_key(
+    api_key_id: int,
+    body: APIKeyReviewRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(_require_admin),
+) -> dict[str, Any]:
+    """
+    提交API密钥审核结果
+
+    管理员可对API密钥进行审核，通过或拒绝。
+    审核后记录审核人、审核时间和审核原因。
+    """
+    # 验证审核结果
+    if body.result not in ["approved", "rejected"]:
+        raise HTTPException(status_code=400,
+                            detail="审核结果必须是 'approved' 或 'rejected'")
+
+    result = await db.execute(
+        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id,
+                                      UserExchangeAPI.enable_flag == True)
+    )
+    api_key = result.scalars().first()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API密钥不存在")
+
+    # 检查是否已审核
+    if api_key.status in ["approved", "rejected"]:
+        raise HTTPException(status_code=409, detail="该API密钥已被审核，不可重复操作")
+
+    # 更新审核信息
+    api_key.status = body.result
+    api_key.review_reason = body.reason
+    api_key.approved_by = admin.username
+    api_key.approved_time = datetime.utcnow()
+    api_key.update_time = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(api_key)
+
+    # 获取用户和交易所信息
+    user_result = await db.execute(select(User).where(User.id == api_key.user_id))
+    user = user_result.scalars().first()
+    exchange_result = await db.execute(
+        select(Exchange).where(Exchange.id == api_key.exchange_id))
+    exchange = exchange_result.scalars().first()
+    exchange_name = exchange.exchange_name if exchange else "未知交易所"
+
+    action = "通过" if body.result == "approved" else "拒绝"
+    return {
+        "success": True,
+        "data": _api_key_to_admin_response(api_key, user, exchange_name),
+        "message": f"API密钥审核{action}成功",
+    }
+
+
+# ── 用户管理接口 ────────────────────────────────────────────────────────────────
+
 @router.get("")
 async def list_users(
     search: Optional[str] = Query(None, description="按用户名、邮箱或昵称模糊搜索"),
-    user_status: Optional[str] = Query(None, alias="status", description="状态筛选：active/inactive/locked"),
+    user_status: Optional[str] = Query(None, alias="status",
+                                       description="状态筛选：active/inactive/locked"),
     user_type: Optional[str] = Query(None, description="类型筛选：customer/admin"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -205,11 +379,18 @@ async def list_users(
 
     # 统计数据（不受筛选条件影响，基于全量数据）
     base_where = User.enable_flag == True
-    total_users = (await db.execute(select(func.count()).select_from(User).where(base_where))).scalar() or 0
-    active_users = (await db.execute(select(func.count()).select_from(User).where(base_where, User.status == "active"))).scalar() or 0
-    locked_users = (await db.execute(select(func.count()).select_from(User).where(base_where, User.status == "locked"))).scalar() or 0
+    total_users = (await db.execute(
+        select(func.count()).select_from(User).where(base_where))).scalar() or 0
+    active_users = (await db.execute(
+        select(func.count()).select_from(User).where(base_where,
+                                                     User.status == "active"))).scalar() or 0
+    locked_users = (await db.execute(
+        select(func.count()).select_from(User).where(base_where,
+                                                     User.status == "locked"))).scalar() or 0
     today = date.today()
-    today_new = (await db.execute(select(func.count()).select_from(User).where(base_where, func.date(User.registration_time) == today))).scalar() or 0
+    today_new = (await db.execute(
+        select(func.count()).select_from(User).where(base_where, func.date(
+            User.registration_time) == today))).scalar() or 0
 
     return {
         "success": True,
@@ -293,7 +474,8 @@ async def update_user(
     await db.commit()
     await db.refresh(user)
 
-    return {"success": True, "data": _user_to_response(user), "message": "用户信息更新成功"}
+    return {"success": True, "data": _user_to_response(user),
+            "message": "用户信息更新成功"}
 
 
 @router.put("/{user_id}/status")
@@ -333,75 +515,6 @@ async def update_user_status(
     }
 
 
-# ── API密钥审核接口 ───────────────────────────────────────────────────────────
-
-@router.get("/api-keys")
-async def list_api_keys(
-    review_status: Optional[str] = Query(None, description="审核状态筛选：pending/approved/rejected"),
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
-    db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
-) -> dict[str, Any]:
-
-    """
-    获取API密钥审核列表
-
-    支持按审核状态筛选，分页返回API密钥列表。
-    同时返回统计数据：待审核数、已通过数、已拒绝数。
-    """
-    stmt = select(UserExchangeAPI).where(UserExchangeAPI.enable_flag == True)
-    count_stmt = select(func.count()).select_from(UserExchangeAPI).where(UserExchangeAPI.enable_flag == True)
-
-    # 审核状态筛选
-    if review_status:
-        stmt = stmt.where(UserExchangeAPI.status == review_status)
-        count_stmt = count_stmt.where(UserExchangeAPI.status == review_status)
-
-    total = (await db.execute(count_stmt)).scalar() or 0
-    result = await db.execute(
-        stmt.order_by(desc(UserExchangeAPI.create_time))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    api_keys = result.scalars().all()
-
-    # 获取用户和交易所信息
-    items = []
-    for api_key in api_keys:
-        # 获取用户信息
-        user_result = await db.execute(select(User).where(User.id == api_key.user_id))
-        user = user_result.scalars().first()
-
-        # 获取交易所信息
-        exchange_result = await db.execute(select(Exchange).where(Exchange.id == api_key.exchange_id))
-        exchange = exchange_result.scalars().first()
-        exchange_name = exchange.exchange_name if exchange else "未知交易所"
-
-        items.append(_api_key_to_admin_response(api_key, user, exchange_name))
-
-    # 统计数据
-    base_where = UserExchangeAPI.enable_flag == True
-    pending_count = (await db.execute(select(func.count()).select_from(UserExchangeAPI).where(base_where, UserExchangeAPI.status == "pending"))).scalar() or 0
-    approved_count = (await db.execute(select(func.count()).select_from(UserExchangeAPI).where(base_where, UserExchangeAPI.status == "approved"))).scalar() or 0
-    rejected_count = (await db.execute(select(func.count()).select_from(UserExchangeAPI).where(base_where, UserExchangeAPI.status == "rejected"))).scalar() or 0
-
-    return {
-        "success": True,
-        "data": {
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "items": items,
-            "statistics": {
-                "pending_count": pending_count,
-                "approved_count": approved_count,
-                "rejected_count": rejected_count,
-            },
-        },
-    }
-
-
 @router.get("/api-keys/{api_key_id}")
 async def get_api_key(
     api_key_id: int,
@@ -414,7 +527,8 @@ async def get_api_key(
     根据API密钥ID返回完整的密钥信息（包含明文API Key）。
     """
     result = await db.execute(
-        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id, UserExchangeAPI.enable_flag == True)
+        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id,
+                                      UserExchangeAPI.enable_flag == True)
     )
     api_key = result.scalars().first()
     if not api_key:
@@ -427,7 +541,8 @@ async def get_api_key(
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # 获取交易所信息
-    exchange_result = await db.execute(select(Exchange).where(Exchange.id == api_key.exchange_id))
+    exchange_result = await db.execute(
+        select(Exchange).where(Exchange.id == api_key.exchange_id))
     exchange = exchange_result.scalars().first()
     exchange_name = exchange.exchange_name if exchange else "未知交易所"
 
@@ -452,10 +567,12 @@ async def review_api_key(
     """
     # 验证审核结果
     if body.result not in ["approved", "rejected"]:
-        raise HTTPException(status_code=400, detail="审核结果必须是 'approved' 或 'rejected'")
+        raise HTTPException(status_code=400,
+                            detail="审核结果必须是 'approved' 或 'rejected'")
 
     result = await db.execute(
-        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id, UserExchangeAPI.enable_flag == True)
+        select(UserExchangeAPI).where(UserExchangeAPI.id == api_key_id,
+                                      UserExchangeAPI.enable_flag == True)
     )
     api_key = result.scalars().first()
     if not api_key:
@@ -478,7 +595,8 @@ async def review_api_key(
     # 获取用户和交易所信息
     user_result = await db.execute(select(User).where(User.id == api_key.user_id))
     user = user_result.scalars().first()
-    exchange_result = await db.execute(select(Exchange).where(Exchange.id == api_key.exchange_id))
+    exchange_result = await db.execute(
+        select(Exchange).where(Exchange.id == api_key.exchange_id))
     exchange = exchange_result.scalars().first()
     exchange_name = exchange.exchange_name if exchange else "未知交易所"
 

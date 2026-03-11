@@ -29,7 +29,7 @@ C 端用户路由模块
 - 数据验证使用models层的Pydantic模型
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException, status, Depends, Request
@@ -330,6 +330,7 @@ async def create_api_key(
 @router.get("/api-keys", response_model=APIKeyListResponse)
 async def list_api_keys(
     current_user: dict = Depends(get_current_user),
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ) -> APIKeyListResponse:
     """
@@ -340,6 +341,9 @@ async def list_api_keys(
     user_service = UserService(db)
 
     api_keys_info = await user_service.get_user_api_keys(current_user["id"])
+
+
+
     return APIKeyListResponse(**api_keys_info)
 
 
