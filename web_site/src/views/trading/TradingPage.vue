@@ -146,7 +146,7 @@
             :indicators="indicators"
             :trade-marks="tradeMarks"
             :height="520"
-            :show-volume="true"
+            :show-volume="false"
             @load-more="loadMoreKlineData"
             @time-range-change="handleTimeRangeChange"
           />
@@ -160,14 +160,16 @@
               ref="depthChartRef"
               :depth-data="depthData"
               :height="160"
-              @crosshair-move="handleDepthCrosshairMove"
+              @crosshairMove="handleDepthCrosshairMove"
             />
           </div>
           <div class="bg-dark-800 rounded-lg border border-white/[0.06] p-4">
             <h3 class="text-sm font-semibold text-white mb-3">成交量</h3>
-            <div class="h-32 bg-dark-700/50 rounded flex items-center justify-center">
-              <span class="text-dark-100 text-sm">成交量图表区域</span>
-            </div>
+            <VolumeChart
+              :volume-data="volumeData"
+              :height="160"
+              @crosshairMove="handleVolumeCrosshairMove"
+            />
           </div>
         </div>
       </div>
@@ -401,6 +403,7 @@ import tradingApi from '@/utils/tradingApi'
 import websocketApi from '@/utils/websocketApi'
 import TradingChart from '@/components/charts/TradingChart.vue'
 import DepthChart from '@/components/charts/DepthChart.vue'
+import VolumeChart from '@/components/charts/VolumeChart.vue'
 import {KlineDataPoint, IndicatorData, TradeMarkData, EnumItem} from '@/types'
 
 // TradingChart组件引用
@@ -456,16 +459,43 @@ const availableSymbols = ref<EnumItem[]>([])
 const selectedSymbolInfo = ref<EnumItem>()
 
 // 深度图数据
-const depthData = ref({
+const depthData = ref<{
+  bids: Array<{ price: number; amount: number }>
+  asks: Array<{ price: number; amount: number }>
+}>({
   bids: [],
   asks: []
 })
 
 // 成交量数据
-const volumeData = ref([])
+const volumeData = ref<Array<{ time: number; value: number }>>([])
 
 // 深度图组件引用
 const depthChartRef = ref<InstanceType<typeof DepthChart>>()
+
+// 生成模拟深度数据
+function generateMockDepthData(): { bids: Array<{ price: number; amount: number }>; asks: Array<{ price: number; amount: number }> } {
+  const currentPriceNum = parseFloat(currentPrice.value.replace(/,/g, '')) || 91476
+  return {
+    bids: Array.from({ length: 20 }, (_, i) => ({
+      price: currentPriceNum * (1 - (i + 1) * 0.001),
+      amount: Math.random() * 100 + 50
+    })).sort((a, b) => b.price - a.price),
+    asks: Array.from({ length: 20 }, (_, i) => ({
+      price: currentPriceNum * (1 + (i + 1) * 0.001),
+      amount: Math.random() * 100 + 50
+    })).sort((a, b) => a.price - b.price)
+  }
+}
+
+// 生成模拟成交量数据
+function generateMockVolumeData(): Array<{ time: number; value: number }> {
+  const baseTime = Math.floor(Date.now() / 1000) - 3600 // 1小时前开始
+  return Array.from({ length: 60 }, (_, i) => ({
+    time: baseTime + i * 60, // 每分钟一个数据点
+    value: Math.random() * 1000 + 500
+  }))
+}
 
 // ==================== K线数据相关方法 ====================
 /**
@@ -694,6 +724,14 @@ function handleDepthCrosshairMove(price: number, amount: number) {
   console.log('深度图十字线移动:', { price, amount })
 }
 
+/**
+ * 处理成交量图十字线移动
+ */
+function handleVolumeCrosshairMove(time: number, value: number) {
+  // 可以在这里显示成交量的详细信息
+  console.log('成交量图十字线移动:', { time, value })
+}
+
 // ==================== 现有方法 ====================
 
 /**
@@ -830,23 +868,6 @@ async function loadDepthData() {
   }
 }
 
-/**
- * 生成模拟深度数据
- */
-function generateMockDepthData() {
-  const currentPriceNum = parseFloat(currentPrice.value.replace(/,/g, ''))
-  return {
-    bids: Array.from({ length: 10 }, (_, i) => ({
-      price: currentPriceNum * (1 - (i + 1) * 0.001),
-      amount: Math.random() * 10
-    })),
-    asks: Array.from({ length: 10 }, (_, i) => ({
-      price: currentPriceNum * (1 + (i + 1) * 0.001),
-      amount: Math.random() * 10
-    }))
-  }
-}
-
 // 计算属性
 const totalAmount = computed(() => {
   const price = parseFloat(tradePrice.value.replace(/,/g, '')) || 0
@@ -957,8 +978,13 @@ onMounted(async () => {
     loadMarketData(),
     loadKlineData(),
     loadOrders(),
-    loadHistoryOrders()
+    loadHistoryOrders(),
+    loadDepthData()
   ])
+  
+  // 初始化mock数据用于测试
+  depthData.value = generateMockDepthData()
+  volumeData.value = generateMockVolumeData()
   
   // 初始化WebSocket
   initWebSocket()

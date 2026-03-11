@@ -165,7 +165,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        max_requests: int = 200,
+        max_requests: int = 20000,
         window_seconds: int = 60,
     ):
         super().__init__(app)

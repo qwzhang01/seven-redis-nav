@@ -8,10 +8,10 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import {
   createChart,
-  LineSeries,
+  AreaSeries,
   type IChartApi,
   type ISeriesApi,
-  type LineData,
+  type AreaData,
   type Time,
   ColorType,
   CrosshairMode,
@@ -31,8 +31,8 @@ const emit = defineEmits<{
 
 const chartRef = ref<HTMLElement>()
 let chart: IChartApi | null = null
-let bidSeries: ISeriesApi<'Line'> | null = null
-let askSeries: ISeriesApi<'Line'> | null = null
+let bidSeries: ISeriesApi<'Area'> | null = null
+let askSeries: ISeriesApi<'Area'> | null = null
 
 // 默认高度
 const height = ref(props.height || 200)
@@ -75,16 +75,20 @@ function initChart() {
     },
   })
 
-  // 创建买单深度系列（绿色）
-  bidSeries = chart.addSeries(LineSeries, {
-    color: '#26a69a',
+  // 创建买单深度系列（绿色）- 使用面积图
+  bidSeries = chart.addSeries(AreaSeries, {
+    lineColor: '#26a69a',
+    topColor: 'rgba(38, 166, 154, 0.4)',
+    bottomColor: 'rgba(38, 166, 154, 0.1)',
     lineWidth: 2,
     title: '买单深度',
   })
 
-  // 创建卖单深度系列（红色）
-  askSeries = chart.addSeries(LineSeries, {
-    color: '#ef5350',
+  // 创建卖单深度系列（红色）- 使用面积图
+  askSeries = chart.addSeries(AreaSeries, {
+    lineColor: '#ef5350',
+    topColor: 'rgba(239, 83, 80, 0.4)',
+    bottomColor: 'rgba(239, 83, 80, 0.1)',
     lineWidth: 2,
     title: '卖单深度',
   })
@@ -97,9 +101,11 @@ function initChart() {
     const askPoint = param.seriesData.get(askSeries!)
     
     if (bidPoint) {
-      emit('crosshairMove', (bidPoint as LineData).value, param.time as number)
+      // 对于买单：Y轴是价格，X轴是累积数量
+      emit('crosshairMove', (bidPoint as AreaData).value, param.time as number)
     } else if (askPoint) {
-      emit('crosshairMove', (askPoint as LineData).value, param.time as number)
+      // 对于卖单：Y轴是价格，X轴是累积数量
+      emit('crosshairMove', (askPoint as AreaData).value, param.time as number)
     }
   })
 
@@ -118,46 +124,49 @@ function updateDepthData() {
 
   const { bids, asks } = props.depthData
 
-  // 处理买单深度数据（按价格升序排列，累加数量）
-  const bidData: LineData[] = []
+  // 处理买单深度数据（按价格降序排列，累加数量）
+  const bidData: AreaData[] = []
   let bidTotal = 0
+  
+  // 为买单创建时间戳（累积数量作为时间轴，确保升序排列）
   bids
-    .sort((a, b) => a.price - b.price)
-    .forEach(bid => {
+    .sort((a, b) => b.price - a.price) // 价格降序排列（从高到低）
+    .forEach((bid) => {
       bidTotal += bid.amount
       bidData.push({
-        time: bid.price as Time,
-        value: bidTotal,
+        time: bidTotal as Time, // 累积数量作为时间轴（X轴）
+        value: bid.price,        // 价格作为Y轴
       })
     })
 
   // 处理卖单深度数据（按价格升序排列，累加数量）
-  const askData: LineData[] = []
+  const askData: AreaData[] = []
   let askTotal = 0
+  
+  // 为卖单创建时间戳（累积数量作为时间轴，确保升序排列）
   asks
-    .sort((a, b) => a.price - b.price)
-    .forEach(ask => {
+    .sort((a, b) => a.price - b.price) // 价格升序排列（从低到高）
+    .forEach((ask) => {
       askTotal += ask.amount
       askData.push({
-        time: ask.price as Time,
-        value: askTotal,
+        time: askTotal as Time, // 累积数量作为时间轴（X轴）
+        value: ask.price,       // 价格作为Y轴
       })
     })
 
   bidSeries.setData(bidData)
   askSeries.setData(askData)
 
-  // 自动调整价格范围以显示所有数据
+  // 自动调整数量范围以显示所有数据
   if (bidData.length > 0 && askData.length > 0) {
-    const minPrice = Math.min(bidData[0].time as number, askData[0].time as number)
-    const maxPrice = Math.max(
+    const maxAmount = Math.max(
       bidData[bidData.length - 1].time as number,
       askData[askData.length - 1].time as number
     )
     
     chart?.timeScale().setVisibleLogicalRange({
-      from: minPrice - (maxPrice - minPrice) * 0.1,
-      to: maxPrice + (maxPrice - minPrice) * 0.1,
+      from: -maxAmount * 0.1,
+      to: maxAmount + maxAmount * 0.1,
     })
   }
 }

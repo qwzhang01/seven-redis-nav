@@ -131,7 +131,6 @@ export interface DepthData {
  * 深度查询参数
  */
 export interface DepthParams {
-  exchange_id: string
   symbol: string
   limit?: number
 }

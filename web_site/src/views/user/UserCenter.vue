@@ -200,15 +200,19 @@
               <label class="block text-sm text-dark-100 mb-2">权限设置</label>
               <div class="flex flex-wrap gap-2">
                 <label class="flex items-center gap-2 text-sm text-dark-100">
-                  <input type="checkbox" v-model="formData.permissions" value="trade" class="rounded border-dark-500 bg-dark-600">
-                  交易权限
+                  <input type="checkbox" v-model="formData.permissions.spot_trading" class="rounded border-dark-500 bg-dark-600">
+                  现货交易权限
                 </label>
                 <label class="flex items-center gap-2 text-sm text-dark-100">
-                  <input type="checkbox" v-model="formData.permissions" value="read" class="rounded border-dark-500 bg-dark-600">
-                  读取权限
+                  <input type="checkbox" v-model="formData.permissions.margin_trading" class="rounded border-dark-500 bg-dark-600">
+                  杠杆交易权限
                 </label>
                 <label class="flex items-center gap-2 text-sm text-dark-100">
-                  <input type="checkbox" v-model="formData.permissions" value="withdraw" class="rounded border-dark-500 bg-dark-600">
+                  <input type="checkbox" v-model="formData.permissions.futures_trading" class="rounded border-dark-500 bg-dark-600">
+                  合约交易权限
+                </label>
+                <label class="flex items-center gap-2 text-sm text-dark-100">
+                  <input type="checkbox" v-model="formData.permissions.withdraw" class="rounded border-dark-500 bg-dark-600">
                   提现权限
                 </label>
               </div>
@@ -223,9 +227,9 @@
               </div>
             </div>
           </div>
-          <button class="btn-primary w-full" :disabled="formLoading" @click="handleAddApiKey">
+          <button class="btn-primary w-full" :disabled="formLoading" @click="editingKeyId ? handleUpdateApiKey() : handleAddApiKey()">
             <Loader2 v-if="formLoading" :size="16" class="text-white animate-spin mr-2" />
-            提交审核
+            {{ editingKeyId ? '更新密钥' : '提交审核' }}
           </button>
         </div>
 
@@ -259,8 +263,15 @@
                 审核原因: {{ key.review_reason }}
               </div>
             </div>
+            <!-- API密钥列表操作按钮 -->
             <div class="flex items-center gap-2">
               <StatusDot :status="key.status" />
+              <button class="p-2 rounded-lg text-dark-100 hover:text-blue-400 hover:bg-blue-500/10 transition-all" @click="handleViewApiKey(key.id)">
+                <Eye :size="14" />
+              </button>
+              <button class="p-2 rounded-lg text-dark-100 hover:text-primary-400 hover:bg-primary-500/10 transition-all" @click="handleEditApiKey(key.id)">
+                <Edit :size="14" />
+              </button>
               <button class="p-2 rounded-lg text-dark-100 hover:text-red-400 hover:bg-red-500/10 transition-all" @click="handleDeleteApiKey(key.id)">
                 <Trash2 :size="14" />
               </button>
@@ -296,6 +307,8 @@ const signalFilter = ref('all')
 const apiKeys = ref<APIKeyResponse[]>([])
 const apiLoading = ref(false)
 const showAddForm = ref(false)
+const editingKeyId = ref<string | null>(null)
+const viewingKeyId = ref<string | null>(null)
 const formData = reactive({
   exchange_id: '',
   label: '',
@@ -401,7 +414,7 @@ async function handleAddApiKey() {
       api_key: formData.api_key,
       secret_key: formData.secret_key,
       passphrase: formData.passphrase || undefined,
-      permissions: Object.values(formData.permissions).some(v => v) ? formData.permissions : undefined
+      permissions: formData.permissions
     }
     
     await addApiKey(request)
@@ -426,6 +439,92 @@ async function handleAddApiKey() {
     await fetchApiKeys()
   } catch (e) {
     console.error('添加API密钥失败', e)
+  } finally {
+    formLoading.value = false
+  }
+}
+
+/** 查看API密钥详情 */
+async function handleViewApiKey(keyId: string) {
+  viewingKeyId.value = keyId
+  try {
+    const keyDetail = await getApiKeyById(keyId)
+    // 显示详情弹窗或跳转到详情页面
+    MessagePlugin.info(`查看密钥详情: ${keyDetail.label}`)
+  } catch (e) {
+    console.error('获取API密钥详情失败', e)
+    MessagePlugin.error('获取密钥详情失败')
+  } finally {
+    viewingKeyId.value = null
+  }
+}
+
+/** 编辑API密钥 */
+async function handleEditApiKey(keyId: string) {
+  editingKeyId.value = keyId
+  try {
+    const keyDetail = await getApiKeyById(keyId)
+    
+    // 填充表单数据
+    Object.assign(formData, {
+      exchange_id: keyDetail.exchange_id,
+      label: keyDetail.label,
+      api_key: keyDetail.api_key,
+      secret_key: '', // 不显示原始密钥
+      passphrase: '',
+      permissions: keyDetail.permissions || {
+        spot_trading: false,
+        margin_trading: false,
+        futures_trading: false,
+        withdraw: false
+      }
+    })
+    
+    showAddForm.value = true
+  } catch (e) {
+    console.error('获取API密钥详情失败', e)
+    MessagePlugin.error('获取密钥详情失败')
+  } finally {
+    editingKeyId.value = null
+  }
+}
+
+/** 更新API密钥 */
+async function handleUpdateApiKey() {
+  if (!editingKeyId.value) return
+  
+  formLoading.value = true
+  try {
+    const request: UpdateAPIKeyRequest = {
+      label: formData.label,
+      permissions: formData.permissions
+    }
+    
+    await updateApiKey(editingKeyId.value, request)
+    
+    // 重置表单
+    Object.assign(formData, {
+      exchange_id: '',
+      label: '',
+      api_key: '',
+      secret_key: '',
+      passphrase: '',
+      permissions: {
+        spot_trading: false,
+        margin_trading: false,
+        futures_trading: false,
+        withdraw: false
+      }
+    })
+    showAddForm.value = false
+    editingKeyId.value = null
+    
+    // 重新获取列表
+    await fetchApiKeys()
+    MessagePlugin.success('API密钥更新成功')
+  } catch (e) {
+    console.error('更新API密钥失败', e)
+    MessagePlugin.error('更新失败，请重试')
   } finally {
     formLoading.value = false
   }
