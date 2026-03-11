@@ -162,35 +162,56 @@
       <div v-if="activeTab === 'api'" class="space-y-6">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-white font-bold">API 密钥管理</h3>
-          <button class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5">
-            <Plus :size="14" /> 添加密钥
+          <button class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5" @click="showAddForm = !showAddForm">
+            <Plus :size="14" /> {{ showAddForm ? '取消添加' : '添加密钥' }}
           </button>
         </div>
         
         <!-- Add API Key Form -->
-        <div class="glass-card p-6 mb-6">
+        <div v-if="showAddForm" class="glass-card p-6 mb-6">
           <h4 class="text-white font-semibold mb-4">添加API密钥</h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-sm text-dark-100 mb-2">交易所</label>
-              <select class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm focus:border-primary-500 focus:outline-none">
+              <select v-model="formData.exchange_id" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm focus:border-primary-500 focus:outline-none">
                 <option value="">选择交易所</option>
-                <option value="binance">Binance</option>
-                <option value="okx">OKX</option>
-                <option value="huobi">Huobi</option>
+                <option value="1">Binance</option>
+                <option value="2">OKX</option>
+                <option value="3">Huobi</option>
               </select>
             </div>
             <div>
               <label class="block text-sm text-dark-100 mb-2">标签</label>
-              <input type="text" placeholder="请输入密钥标签" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+              <input v-model="formData.label" type="text" placeholder="请输入密钥标签" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
             </div>
             <div class="md:col-span-2">
               <label class="block text-sm text-dark-100 mb-2">API Key</label>
-              <input type="text" placeholder="请输入API Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+              <input v-model="formData.api_key" type="text" placeholder="请输入API Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
             </div>
             <div class="md:col-span-2">
               <label class="block text-sm text-dark-100 mb-2">Secret Key</label>
-              <input type="password" placeholder="请输入Secret Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+              <input v-model="formData.secret_key" type="password" placeholder="请输入Secret Key" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm text-dark-100 mb-2">密码短语（部分交易所需要）</label>
+              <input v-model="formData.passphrase" type="password" placeholder="请输入密码短语" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm placeholder-dark-300 focus:border-primary-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm text-dark-100 mb-2">权限设置</label>
+              <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-2 text-sm text-dark-100">
+                  <input type="checkbox" v-model="formData.permissions" value="trade" class="rounded border-dark-500 bg-dark-600">
+                  交易权限
+                </label>
+                <label class="flex items-center gap-2 text-sm text-dark-100">
+                  <input type="checkbox" v-model="formData.permissions" value="read" class="rounded border-dark-500 bg-dark-600">
+                  读取权限
+                </label>
+                <label class="flex items-center gap-2 text-sm text-dark-100">
+                  <input type="checkbox" v-model="formData.permissions" value="withdraw" class="rounded border-dark-500 bg-dark-600">
+                  提现权限
+                </label>
+              </div>
             </div>
           </div>
           <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4">
@@ -202,43 +223,52 @@
               </div>
             </div>
           </div>
-          <button class="btn-primary w-full">提交审核</button>
+          <button class="btn-primary w-full" :disabled="formLoading" @click="handleAddApiKey">
+            <Loader2 v-if="formLoading" :size="16" class="text-white animate-spin mr-2" />
+            提交审核
+          </button>
         </div>
 
         <!-- API Keys List -->
-        <div
-          v-for="key in apiKeys"
-          :key="key.id"
-          class="glass-card p-6 flex items-center gap-6"
-        >
-          <div class="w-10 h-10 rounded-lg bg-dark-600 flex items-center justify-center shrink-0">
-            <Key :size="18" class="text-primary-400" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              <h4 class="text-white font-semibold text-sm">{{ key.label }}</h4>
-              <span class="text-xs px-2 py-0.5 rounded bg-dark-600 text-dark-100">{{ key.exchange }}</span>
-              <span
-                class="text-xs px-2 py-0.5 rounded font-medium"
-                :class="getReviewStatusClass(key.reviewStatus)"
-              >
-                {{ getReviewStatusText(key.reviewStatus) }}
-              </span>
-            </div>
-            <div class="text-xs text-dark-200 font-mono">{{ maskApiKey(key.apiKey) }}</div>
-            <div v-if="key.reviewStatus !== 'pending' && key.reviewReason" class="text-xs text-dark-100 mt-1">
-              审核原因: {{ key.reviewReason }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <StatusDot :status="key.status" />
-            <button class="p-2 rounded-lg text-dark-100 hover:text-red-400 hover:bg-red-500/10 transition-all">
-              <Trash2 :size="14" />
-            </button>
-          </div>
+        <div v-if="apiLoading" class="text-center py-12">
+          <Loader2 :size="24" class="text-primary-400 animate-spin mx-auto mb-2" />
+          <span class="text-dark-100 text-sm">加载中...</span>
         </div>
-        <div v-if="apiKeys.length === 0" class="text-center py-12 text-dark-100">
-          暂未绑定 API 密钥
+        <div v-else>
+          <div
+            v-for="key in apiKeys"
+            :key="key.id"
+            class="glass-card p-6 flex items-center gap-6 mb-4"
+          >
+            <div class="w-10 h-10 rounded-lg bg-dark-600 flex items-center justify-center shrink-0">
+              <Key :size="18" class="text-primary-400" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <h4 class="text-white font-semibold text-sm">{{ key.label }}</h4>
+                <span class="text-xs px-2 py-0.5 rounded bg-dark-600 text-dark-100">{{ key.exchange_id }}</span>
+                <span
+                  class="text-xs px-2 py-0.5 rounded font-medium"
+                  :class="getReviewStatusClass(key.status)"
+                >
+                  {{ getReviewStatusText(key.status) }}
+                </span>
+              </div>
+              <div class="text-xs text-dark-200 font-mono">{{ maskApiKey(key.api_key) }}</div>
+              <div v-if="key.status !== 'pending' && key.review_reason" class="text-xs text-dark-100 mt-1">
+                审核原因: {{ key.review_reason }}
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <StatusDot :status="key.status" />
+              <button class="p-2 rounded-lg text-dark-100 hover:text-red-400 hover:bg-red-500/10 transition-all" @click="handleDeleteApiKey(key.id)">
+                <Trash2 :size="14" />
+              </button>
+            </div>
+          </div>
+          <div v-if="apiKeys.length === 0" class="text-center py-12 text-dark-100">
+            暂未绑定 API 密钥
+          </div>
         </div>
       </div>
     </div>
@@ -246,18 +276,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { User as UserIcon, Zap, Radio, ChevronRight, Plus, Key, Trash2, TrendingUp, Wallet, BarChart3, KeyRound, AlertTriangle, Loader2 } from 'lucide-vue-next'
-import StatusDot from '@/components/common/StatusDot.vue'
-import ReturnCurveChart from '@/components/charts/ReturnCurveChart.vue'
+import { User, Zap, Radio, ChevronRight, Plus, Key, Trash2, Edit, Eye, EyeOff, CheckCircle, XCircle, Clock, Settings, Bell, Shield, CreditCard, BarChart3, Users, Activity, TrendingUp, Star, HelpCircle, Mail, Phone, MapPin, Globe, Calendar, Download, Upload, Filter, Search, Menu, X, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Home, LogOut, User as UserIcon, Wallet } from 'lucide-vue-next'
+import { MessagePlugin } from 'tdesign-vue-next'
+import { useAuthStore } from '@/stores/auth'
+import { getApiKeys, addApiKey, updateApiKey, deleteApiKey, getApiKeyById } from '@/utils/userApi'
+import type { APIKeyResponse, CreateAPIKeyRequest, UpdateAPIKeyRequest } from '@/types/api/user'
+import type { FollowListItem } from '@/types/api/signal'
 import { getFollowList } from '@/utils/signalApi'
-import type { FollowListItem } from '@/utils/signalApi'
 
+const authStore = useAuthStore()
 const route = useRoute()
 const activeTab = ref('strategies')
 const strategyFilter = ref('all')
 const signalFilter = ref('all')
+
+// API密钥管理相关状态
+const apiKeys = ref<APIKeyResponse[]>([])
+const apiLoading = ref(false)
+const showAddForm = ref(false)
+const formData = reactive({
+  exchange_id: '',
+  label: '',
+  api_key: '',
+  secret_key: '',
+  passphrase: '',
+  permissions: {
+    spot_trading: false,
+    margin_trading: false,
+    futures_trading: false,
+    withdraw: false
+  }
+})
+const formLoading = ref(false)
+
+// 收益统计相关数据
+const profitCurve = ref<number[]>(Array.from({ length: 60 }, (_, i) => {
+  return parseFloat((Math.sin(i / 10) * 5 + i * 0.4 + (Math.random() - 0.3) * 3).toFixed(2))
+}))
+
+const profitLabels = ref<string[]>(Array.from({ length: 60 }, (_, i) => {
+  const date = new Date()
+  date.setDate(date.getDate() - (59 - i))
+  return date.toISOString().split('T')[0]
+}))
 
 // 根据URL参数设置默认标签页
 if (route.query.tab === 'strategies') {
@@ -312,26 +375,89 @@ async function fetchFollowList() {
   }
 }
 
+// ==================== API密钥管理 ====================
+
+/** 获取API密钥列表 */
+async function fetchApiKeys() {
+  apiLoading.value = true
+  try {
+    const response = await getApiKeys()
+    apiKeys.value = response.items || []
+  } catch (e) {
+    console.error('获取API密钥列表失败', e)
+    apiKeys.value = []
+  } finally {
+    apiLoading.value = false
+  }
+}
+
+/** 添加API密钥 */
+async function handleAddApiKey() {
+  formLoading.value = true
+  try {
+    const request: CreateAPIKeyRequest = {
+      exchange_id: formData.exchange_id,
+      label: formData.label,
+      api_key: formData.api_key,
+      secret_key: formData.secret_key,
+      passphrase: formData.passphrase || undefined,
+      permissions: Object.values(formData.permissions).some(v => v) ? formData.permissions : undefined
+    }
+    
+    await addApiKey(request)
+    
+    // 重置表单
+    Object.assign(formData, {
+      exchange_id: '',
+      label: '',
+      api_key: '',
+      secret_key: '',
+      passphrase: '',
+      permissions: {
+        spot_trading: false,
+        margin_trading: false,
+        futures_trading: false,
+        withdraw: false
+      }
+    })
+    showAddForm.value = false
+    
+    // 重新获取列表
+    await fetchApiKeys()
+  } catch (e) {
+    console.error('添加API密钥失败', e)
+  } finally {
+    formLoading.value = false
+  }
+}
+
+/** 删除API密钥 */
+async function handleDeleteApiKey(keyId: string) {
+  if (!confirm('确定要删除这个API密钥吗？此操作不可撤销。')) {
+    return
+  }
+  
+  try {
+    await deleteApiKey(keyId)
+    MessagePlugin.success('API密钥删除成功')
+    await fetchApiKeys()
+  } catch (error) {
+    console.error('删除API密钥失败', error)
+    MessagePlugin.error('删除失败，请重试')
+  }
+}
+
 // 筛选状态变化时重新请求（因为接口支持 status 筛选，直接走接口过滤）
 watch(signalFilter, () => {
   signalPage.value = 1
   fetchFollowList()
 })
 
-const apiKeys = [
-  { id: '1', label: 'Binance 主账户', exchange: 'Binance', apiKey: 'aBc***...***xYz', status: 'active', reviewStatus: 'pending' },
-  { id: '2', label: 'OKX 跟单账户', exchange: 'OKX', apiKey: 'dEf***...***uVw', status: 'active', reviewStatus: 'approved' },
-  { id: '3', label: 'Huobi 测试账户', exchange: 'Huobi', apiKey: 'gHi***...***jKl', status: 'disabled', reviewStatus: 'rejected', reviewReason: '密钥权限过大，存在安全风险' },
-]
-
-const profitCurve = Array.from({ length: 60 }, (_, i) => {
-  return parseFloat((Math.sin(i / 10) * 5 + i * 0.4 + (Math.random() - 0.3) * 3).toFixed(2))
-})
-
-const profitLabels = Array.from({ length: 60 }, (_, i) => {
-  const date = new Date()
-  date.setDate(date.getDate() - (59 - i))
-  return date.toISOString().split('T')[0]
+// 监听API标签页激活，自动加载数据
+watch(activeTab, (newTab) => {
+  if (newTab === 'api') {
+    fetchApiKeys()
+  }
 })
 
 const filteredUserStrategies = computed(() => {

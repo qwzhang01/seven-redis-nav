@@ -79,6 +79,7 @@ export type {
   GetUserInvitationStatsResponse,
   InviterInfo,
   GetInviterInfoResponse,
+  CombinedInvitationStats,
 }
 // 向后兼容别名
 export type { CreateSignalFollowApiResponse as CreateSignalFollowResponse }

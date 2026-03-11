@@ -69,7 +69,6 @@
                     v-if="authStore.isAdmin"
                     to="/admin"
                     class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-all"
-                    @click="userDropdownOpen = false"
                 >
                   <ShieldCheck :size="16" />
                   <span>管理后台</span>
@@ -132,6 +131,7 @@ const authStore = useAuthStore()
 
 const currentTime = ref('')
 const isFullscreen = ref(false)
+const userDropdownOpen = ref(false)
 
 const navItems = [
   { path: '/index', label: '首页' },

@@ -182,7 +182,7 @@
                 </div>
                 <div>
                   <div class="text-white font-medium text-sm">{{ user.username }}</div>
-                  <div class="text-xs text-dark-100">{{ formatDate(user.createdAt) }} 注册</div>
+                  <div class="text-xs text-dark-100">{{ formatDate(user.invited_at) }} 注册</div>
                 </div>
               </div>
               <div class="text-right">
