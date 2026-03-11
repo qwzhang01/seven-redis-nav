@@ -162,22 +162,21 @@
       <div v-if="activeTab === 'api'" class="space-y-6">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-white font-bold">API 密钥管理</h3>
-          <button class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5" @click="showAddForm = !showAddForm">
-            <Plus :size="14" /> {{ showAddForm ? '取消添加' : '添加密钥' }}
+        <button class="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5" @click="showAddForm ? resetForm() : (showAddForm = true)">
+            <Plus :size="14" /> {{ showAddForm ? '取消' : '添加密钥' }}
           </button>
         </div>
         
         <!-- Add API Key Form -->
         <div v-if="showAddForm" class="glass-card p-6 mb-6">
-          <h4 class="text-white font-semibold mb-4">添加API密钥</h4>
+          <h4 class="text-white font-semibold mb-4">{{ editingKeyId ? '编辑API密钥' : '添加API密钥' }}</h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-sm text-dark-100 mb-2">交易所</label>
               <select v-model="formData.exchange_id" class="w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-white text-sm focus:border-primary-500 focus:outline-none">
-                <option value="">选择交易所</option>
-                <option value="1">Binance</option>
-                <option value="2">OKX</option>
-                <option value="3">Huobi</option>
+                <option value="">{{ exchangeEnumLoading ? '加载中...' : '选择交易所' }}</option>
+                <option v-for="item in exchangeEnumItems" :key="item.id"
+                        :value="item.id">{{ item.exchange_name }}</option>
               </select>
             </div>
             <div>
@@ -294,14 +293,31 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { getApiKeys, addApiKey, updateApiKey, deleteApiKey, getApiKeyById } from '@/utils/userApi'
 import type { APIKeyResponse, CreateAPIKeyRequest, UpdateAPIKeyRequest } from '@/types/api/user'
+import { getExchanges } from '@/utils/systemApi'
+import { ExchangeDict} from '@/types/api/system'
 import type { FollowListItem } from '@/types/api/signal'
 import { getFollowList } from '@/utils/signalApi'
 
-const authStore = useAuthStore()
 const route = useRoute()
 const activeTab = ref('strategies')
 const strategyFilter = ref('all')
 const signalFilter = ref('all')
+
+// 交易所枚举
+const exchangeEnumItems = ref<ExchangeDict[]>([])
+const exchangeEnumLoading = ref(false)
+
+async function fetchExchangeEnum() {
+  exchangeEnumLoading.value = true
+  try {
+    const res = await getExchanges()
+    exchangeEnumItems.value = res || []
+  } catch (e) {
+    console.error('获取交易所枚举失败', e)
+  } finally {
+    exchangeEnumLoading.value = false
+  }
+}
 
 // API密钥管理相关状态
 const apiKeys = ref<APIKeyResponse[]>([])
@@ -404,8 +420,31 @@ async function fetchApiKeys() {
   }
 }
 
+/** 重置表单 */
+function resetForm() {
+  Object.assign(formData, {
+    exchange_id: '',
+    label: '',
+    api_key: '',
+    secret_key: '',
+    passphrase: '',
+    permissions: {
+      spot_trading: false,
+      margin_trading: false,
+      futures_trading: false,
+      withdraw: false
+    }
+  })
+  showAddForm.value = false
+  editingKeyId.value = null
+}
+
 /** 添加API密钥 */
 async function handleAddApiKey() {
+  if (!formData.exchange_id || !formData.label || !formData.api_key || !formData.secret_key) {
+    MessagePlugin.warning('请填写完整的API密钥信息')
+    return
+  }
   formLoading.value = true
   try {
     const request: CreateAPIKeyRequest = {
@@ -416,29 +455,13 @@ async function handleAddApiKey() {
       passphrase: formData.passphrase || undefined,
       permissions: formData.permissions
     }
-    
     await addApiKey(request)
-    
-    // 重置表单
-    Object.assign(formData, {
-      exchange_id: '',
-      label: '',
-      api_key: '',
-      secret_key: '',
-      passphrase: '',
-      permissions: {
-        spot_trading: false,
-        margin_trading: false,
-        futures_trading: false,
-        withdraw: false
-      }
-    })
-    showAddForm.value = false
-    
-    // 重新获取列表
+    MessagePlugin.success('API密钥提交成功，等待审核')
+    resetForm()
     await fetchApiKeys()
   } catch (e) {
     console.error('添加API密钥失败', e)
+    MessagePlugin.error('添加失败，请重试')
   } finally {
     formLoading.value = false
   }
@@ -461,16 +484,14 @@ async function handleViewApiKey(keyId: string) {
 
 /** 编辑API密钥 */
 async function handleEditApiKey(keyId: string) {
-  editingKeyId.value = keyId
   try {
     const keyDetail = await getApiKeyById(keyId)
-    
-    // 填充表单数据
+    // 填充表单数据（api_key 接口不返回明文，仅填充可编辑字段）
     Object.assign(formData, {
       exchange_id: keyDetail.exchange_id,
       label: keyDetail.label,
-      api_key: keyDetail.api_key,
-      secret_key: '', // 不显示原始密钥
+      api_key: '',
+      secret_key: '',
       passphrase: '',
       permissions: keyDetail.permissions || {
         spot_trading: false,
@@ -479,49 +500,31 @@ async function handleEditApiKey(keyId: string) {
         withdraw: false
       }
     })
-    
+    editingKeyId.value = keyId
     showAddForm.value = true
   } catch (e) {
     console.error('获取API密钥详情失败', e)
     MessagePlugin.error('获取密钥详情失败')
-  } finally {
-    editingKeyId.value = null
   }
 }
 
 /** 更新API密钥 */
 async function handleUpdateApiKey() {
   if (!editingKeyId.value) return
-  
+  if (!formData.label) {
+    MessagePlugin.warning('请填写密钥标签')
+    return
+  }
   formLoading.value = true
   try {
     const request: UpdateAPIKeyRequest = {
       label: formData.label,
       permissions: formData.permissions
     }
-    
     await updateApiKey(editingKeyId.value, request)
-    
-    // 重置表单
-    Object.assign(formData, {
-      exchange_id: '',
-      label: '',
-      api_key: '',
-      secret_key: '',
-      passphrase: '',
-      permissions: {
-        spot_trading: false,
-        margin_trading: false,
-        futures_trading: false,
-        withdraw: false
-      }
-    })
-    showAddForm.value = false
-    editingKeyId.value = null
-    
-    // 重新获取列表
-    await fetchApiKeys()
     MessagePlugin.success('API密钥更新成功')
+    resetForm()
+    await fetchApiKeys()
   } catch (e) {
     console.error('更新API密钥失败', e)
     MessagePlugin.error('更新失败，请重试')
@@ -556,6 +559,9 @@ watch(signalFilter, () => {
 watch(activeTab, (newTab) => {
   if (newTab === 'api') {
     fetchApiKeys()
+    if (exchangeEnumItems.value.length === 0) {
+      fetchExchangeEnum()
+    }
   }
 })
 

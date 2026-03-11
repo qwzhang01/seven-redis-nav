@@ -40,8 +40,7 @@ from quant_trading_system.api.users.models.user_models import (
     UserResponse, RegisterRequest, LoginRequest, LoginResponse,
     ChangePasswordRequest, ResetPasswordRequest, UpdateProfileRequest,
     ExchangeInfo, CreateAPIKeyRequest, APIKeyResponse, APIKeyListResponse,
-    UpdateAPIKeyRequest, RefreshTokenRequest, RefreshTokenResponse,
-    InvitationStatsResponse, InvitedUserListResponse  # 导入新的响应模型
+    UpdateAPIKeyRequest, RefreshTokenRequest, RefreshTokenResponse
 )
 from quant_trading_system.api.users.services.user_service import UserService
 from quant_trading_system.core.database import get_db
@@ -403,72 +402,3 @@ async def delete_api_key(
         raise HTTPException(status_code=404, detail="API 密钥不存在或无权删除")
 
     return {"success": True, "message": "API 密钥删除成功"}
-
-
-# ─────────────────────────────────────────────
-# 5. 邀请管理接口（需要认证）
-# ─────────────────────────────────────────────
-
-@router.get("/invitation/stats", response_model=InvitationStatsResponse)
-async def get_invitation_stats(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> InvitationStatsResponse:
-    """
-    获取我的邀请统计信息（需要认证）
-
-    返回当前用户的邀请码、邀请用户统计等信息。
-
-    - **invitation_code**: 我的邀请码
-    - **total_invited_users**: 总共邀请的用户数
-    - **active_invited_users**: 活跃用户数（有登录记录的用户）
-    - **total_reward**: 总奖励金额（可选）
-    """
-    user_service = UserService(db)
-
-    try:
-        stats = await user_service.get_invitation_stats(current_user["id"])
-        return InvitationStatsResponse(**stats)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.get("/invitation/users", response_model=InvitedUserListResponse)
-async def get_invited_users(
-    page: int = 1,
-    page_size: int = 20,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> InvitedUserListResponse:
-    """
-    获取我邀请的用户分页列表（需要认证）
-
-    返回当前用户邀请的所有用户的分页列表。
-
-    - **page**: 页码，默认为1
-    - **page_size**: 每页数量，默认为20，最大100
-
-    响应字段：
-    - **id**: 用户ID（字符串格式）
-    - **username**: 用户名
-    - **email**: 邮箱
-    - **phone**: 手机号（可选）
-    - **level**: 用户等级（可选）
-    - **invited_at**: 邀请时间
-    - **reward**: 奖励金额（可选）
-    """
-    user_service = UserService(db)
-
-    # 验证分页参数
-    if page < 1:
-        raise HTTPException(status_code=400, detail="页码必须大于0")
-    if page_size < 1 or page_size > 100:
-        raise HTTPException(status_code=400, detail="每页数量必须在1-100之间")
-
-    try:
-        users_list = await user_service.get_invited_users_list(
-            current_user["id"], page, page_size
-        )
-        return InvitedUserListResponse(**users_list)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))

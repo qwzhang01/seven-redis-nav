@@ -74,7 +74,8 @@
                   <span>管理后台</span>
                 </router-link>
                 <div class="h-px bg-white/[0.06] my-1"></div>
-                <button class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors w-full text-left">
+                <button @click="handleLogout"
+                        class="flex items-center gap-3 px-4 py-2 text-sm text-dark-100 hover:text-white hover:bg-white/[0.04] transition-colors w-full text-left">
                   <LogOut :size="14" />
                   退出登录
                 </button>
@@ -124,6 +125,7 @@ import {
   ShieldCheck
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import {MessagePlugin} from "tdesign-vue-next";
 
 const route = useRoute()
 const router = useRouter()
@@ -172,6 +174,12 @@ function openNewWindow() {
   window.open(window.location.href, '_blank')
 }
 
+function handleLogout() {
+  authStore.logout()
+  userDropdownOpen.value = false
+  MessagePlugin.success('已退出登录')
+  router.push('/')
+}
 onMounted(() => {
   updateTime()
   const timer = setInterval(updateTime, 1000)

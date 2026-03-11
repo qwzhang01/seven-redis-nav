@@ -300,34 +300,34 @@ _register_enum_meta("KlineInterval", {
 
 class ExchangeEnum(BaseEnum):
     """交易所"""
-    BINANCE = "binance"
-    BYBIT = "bybit"
+    # BINANCE = "binance"
+    # BYBIT = "bybit"
     BITGET = "bitget"
     GATE_IO = "gate_io"
-    HUOBI = "huobi"
-    KRAKEN = "kraken"
-    COINBASE = "coinbase"
-    WEEX = "weex"
+    # HUOBI = "huobi"
+    # KRAKEN = "kraken"
+    # COINBASE = "coinbase"
+    # WEEX = "weex"
 
 
 _register_enum_meta("ExchangeEnum", {
-    "binance": "Binance",
-    "bybit": "Bybit",
+    # "binance": "Binance",
+    # "bybit": "Bybit",
     "bitget": "Bitget",
     "gate_io": "Gate.io",
-    "huobi": "火币",
-    "kraken": "Kraken",
-    "coinbase": "Coinbase",
-    "weex": "WEEX",
+    # "huobi": "火币",
+    # "kraken": "Kraken",
+    # "coinbase": "Coinbase",
+    # "weex": "WEEX",
 }, {
-    "binance": "币安",
-    "bybit": "Bybit",
+    # "binance": "币安",
+    # "bybit": "Bybit",
     "bitget": "Bitget",
     "gate_io": "Gate.io",
-    "huobi": "火币",
-    "kraken": "Kraken",
-    "coinbase": "Coinbase",
-    "weex": "WEEX",
+    # "huobi": "火币",
+    # "kraken": "Kraken",
+    # "coinbase": "Coinbase",
+    # "weex": "WEEX",
 })
 
 

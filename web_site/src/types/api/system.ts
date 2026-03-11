@@ -280,6 +280,25 @@ export interface ResolveAlertRequest {
   note?: string
 }
 
+// ==================== 交易所 ====================
+
+/**
+ * 交易所信息
+ */
+export interface ExchangeDict {
+  id: number
+  exchange_code: string
+  exchange_name: string
+  exchange_type: string
+  base_url: string
+  api_doc_url: string
+  status: string
+  supported_pairs: string[]
+  rate_limits: Record<string, any>
+  create_time: string
+  update_time: string
+}
+
 // ==================== 枚举查询 ====================
 
 /**

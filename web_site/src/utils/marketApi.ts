@@ -99,9 +99,9 @@ export function getTicker(params: TickerParams): Promise<TickerData> {
  * 获取市场深度
  */
 export function getDepth(params: DepthParams): Promise<DepthData> {
-    let {symbol} = params
+    let {symbol, limit} = params
     symbol = symbol.replace('/', '-')
-    return get<DepthData>(`/api/v1/c/market/depth/${encodeURIComponent(symbol)}`)
+    return get<DepthData>(`/api/v1/c/market/depth/${encodeURIComponent(symbol)}`, { limit })
 }
 
 /**

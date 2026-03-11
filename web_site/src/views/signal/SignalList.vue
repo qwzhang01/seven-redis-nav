@@ -70,7 +70,8 @@
               <div>
                 <h4 class="text-white font-semibold text-sm group-hover:text-primary-400 transition-colors">{{ signal.name }}</h4>
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-dark-100">{{ signal.platform }}</span>
+                  <span class="text-xs text-dark-100">{{
+                      signal.followersCount }}跟</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded"
                         :class="signal.type === 'live' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'">
                     {{ signal.type === 'live' ? '实盘' : '模拟' }}

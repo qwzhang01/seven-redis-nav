@@ -183,13 +183,6 @@ class UserListAPIResponse(APIResponse):
     """用户列表API响应"""
     data: UserListResponse
 
-
-# 交易所列表响应包装
-class ExchangeListAPIResponse(APIResponse):
-    """交易所列表API响应"""
-    data: ExchangeListResponse
-
-
 # API密钥列表响应包装
 class APIKeyListAPIResponse(APIResponse):
     """API密钥列表API响应"""

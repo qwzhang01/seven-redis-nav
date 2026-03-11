@@ -1362,3 +1362,70 @@ CREATE INDEX IF NOT EXISTS idx_follow_orders_signal_id ON signal_follow_orders (
 -- TimescaleDB 数据保留策略
 SELECT add_retention_policy('signal_return_curve', INTERVAL '2 years', if_not_exists => TRUE);
 SELECT add_retention_policy('signal_follow_return_curve', INTERVAL '2 years', if_not_exists => TRUE);
+
+
+-- 插入Bitget交易所信息
+INSERT INTO exchange_info (
+    id,
+    exchange_code,
+    exchange_name,
+    exchange_type,
+    base_url,
+    api_doc_url,
+    status,
+    supported_pairs,
+    rate_limits,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    enable_flag
+) VALUES (
+    1000000000000000001,
+    'bitget',
+    'Bitget',
+    'spot',
+    'https://api.bitget.com',
+    'https://www.bitget.com/api-doc/common/introduction',
+    'active',
+    '["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT"]',
+    '{"requests_per_second": 10, "requests_per_minute": 600}',
+    'system',
+    NOW(),
+    'system',
+    NOW(),
+    TRUE
+) ON CONFLICT (exchange_code) DO NOTHING;
+
+-- 插入Gate.io交易所信息
+INSERT INTO exchange_info (
+    id,
+    exchange_code,
+    exchange_name,
+    exchange_type,
+    base_url,
+    api_doc_url,
+    status,
+    supported_pairs,
+    rate_limits,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    enable_flag
+) VALUES (
+    1000000000000000002,
+    'gate_io',
+    'Gate.io',
+    'spot',
+    'https://api.gateio.ws',
+    'https://www.gate.io/docs/developers/apiv4/intro',
+    'active',
+    '["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT"]',
+    '{"requests_per_second": 10, "requests_per_minute": 600}',
+    'system',
+    NOW(),
+    'system',
+    NOW(),
+    TRUE
+) ON CONFLICT (exchange_code) DO NOTHING;

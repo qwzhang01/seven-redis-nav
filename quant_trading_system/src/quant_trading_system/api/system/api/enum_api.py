@@ -5,10 +5,13 @@
 提供全局枚举信息查询接口，前端可以按枚举名称获取枚举 KV 信息。
 """
 
-from typing import Any
+from typing import Any, List, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from quant_trading_system.api.users.services.user_service import UserService
+from quant_trading_system.core.database import get_db
 from quant_trading_system.core.enums import ENUM_REGISTRY
 
 router = APIRouter()
@@ -81,3 +84,16 @@ async def get_batch_enum_values(enum_names: str) -> dict[str, Any]:
     return {
         "enums": result,
     }
+
+
+@router.get("/exchanges")
+async def get_exchanges(db: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
+    """
+    获取所有交易所列表
+
+    返回系统中注册的所有交易所信息。
+    """
+    user_service = UserService(db)
+
+    result = await user_service.get_exchanges()
+    return result

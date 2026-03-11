@@ -28,8 +28,7 @@
 
           <p class="text-lg md:text-xl text-dark-100 max-w-2xl mx-auto mb-10 animate-fade-in-up"
             style="animation-delay: 0.2s">
-            Quanta
-            的交易指标享誉全球并屡获殊荣是有原因的。融合先进的趋势逻辑、结构分析、流动性模型和成交量智能，为您提供反映真实市场行为而非猜测的信号。
+            Quanta 深耕底层逻辑与 AI 算法，深度融合趋势逻辑、结构分析、流动性模型与成交量智能，为您提供反映真实市场行为的精准信号。在这里，数据取代猜测，逻辑驱动决策。
           </p>
 
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up"
@@ -102,33 +101,17 @@
                 </div>
               </div>
 
-              <!-- Right: Chart Visualization -->
-              <div class="relative group">
-                <div
-                  class="bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
-                  <!-- Chart Background Grid -->
-                  <div class="absolute inset-0 opacity-10"
-                    style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
-
-                  <!-- Main Chart Line -->
-                  <div class="absolute bottom-0 left-0 right-0 h-32">
-                    <svg class="w-full h-full" viewBox="0 0 400 160">
-                      <path d="M20,100 Q60,80 100,120 Q140,60 180,100 Q220,140 260,80 Q300,120 340,100" fill="none"
-                        stroke="#3b82f6" stroke-width="2" class="animate-draw-line" style="animation-delay: 0.3s" />
-                    </svg>
-                  </div>
-
-                  <!-- Chart Points -->
-                  <div
-                    class="absolute top-1/4 left-1/4 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
-                  <div
-                    class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-accent-blue/80 shadow-lg shadow-blue-500/30 animate-pulse" />
-                  <div
-                    class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/30 animate-pulse" />
+              <!-- Right: Image -->
+              <div class="group">
+                <div class="relative overflow-hidden rounded-xl">
+                  <img
+                    src="@/assets/media/7266552474abd66a85bf22c661e38ecc.png"
+                    alt="信号与警报"
+                    class="w-full h-64 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-500"
+                  />
                 </div>
-
                 <!-- Performance Stats -->
-                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div class="grid grid-cols-3 gap-4 text-center mt-4">
                   <div>
                     <div class="text-lg font-bold text-white">98.7%</div>
                     <div class="text-xs text-dark-100">信号准确率</div>
@@ -149,33 +132,17 @@
           <!-- System Strategy Module -->
           <div class="glass-card p-8 rounded-2xl border border-white/10">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              <!-- Left: Chart Visualization -->
-              <div class="relative group">
-                <div
-                  class="bg-gradient-to-br from-accent-blue/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
-                  <!-- Chart Background Grid -->
-                  <div class="absolute inset-0 opacity-10"
-                    style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
-
-                  <!-- Strategy Performance Chart -->
-                  <div class="absolute bottom-0 left-0 right-0 h-32">
-                    <svg class="w-full h-full" viewBox="0 0 400 160">
-                      <path d="M20,140 Q60,100 100,120 Q140,80 180,100 Q220,60 260,80 Q300,100 340,60" fill="none"
-                        stroke="#0ea5e9" stroke-width="2" class="animate-draw-line" style="animation-delay: 0.3s" />
-                    </svg>
-                  </div>
-
-                  <!-- Chart Points -->
-                  <div
-                    class="absolute top-1/3 left-1/4 w-3 h-3 rounded-full bg-accent-blue/80 shadow-lg shadow-blue-500/30 animate-pulse" />
-                  <div
-                    class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
-                  <div
-                    class="absolute bottom-1/3 right-1/4 w-3 h-3 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/30 animate-pulse" />
+              <!-- Left: Image -->
+              <div class="group">
+                <div class="relative overflow-hidden rounded-xl">
+                  <img
+                    src="@/assets/media/a7cbaaca653ea72ae7057703de594c8a.png"
+                    alt="系统策略"
+                    class="w-full h-64 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-500"
+                  />
                 </div>
-
                 <!-- Performance Stats -->
-                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div class="grid grid-cols-3 gap-4 text-center mt-4">
                   <div>
                     <div class="text-lg font-bold text-white">85.2%</div>
                     <div class="text-xs text-dark-100">策略胜率</div>
@@ -264,33 +231,17 @@
                 </div>
               </div>
 
-              <!-- Right: Chart Visualization -->
-              <div class="relative group">
-                <div
-                  class="bg-gradient-to-br from-amber-500/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
-                  <!-- Chart Background Grid -->
-                  <div class="absolute inset-0 opacity-10"
-                    style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
-
-                  <!-- Depth Analysis Chart -->
-                  <div class="absolute bottom-0 left-0 right-0 h-32">
-                    <svg class="w-full h-full" viewBox="0 0 400 160">
-                      <path d="M20,80 Q60,120 100,100 Q140,140 180,120 Q220,100 260,140 Q300,120 340,100" fill="none"
-                        stroke="#f59e0b" stroke-width="2" class="animate-draw-line" style="animation-delay: 0.3s" />
-                    </svg>
-                  </div>
-
-                  <!-- Chart Points -->
-                  <div
-                    class="absolute top-1/4 left-1/4 w-3 h-3 rounded-full bg-amber-500/80 shadow-lg shadow-amber-500/30 animate-pulse" />
-                  <div
-                    class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
-                  <div
-                    class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-red-500/80 shadow-lg shadow-red-500/30 animate-pulse" />
+              <!-- Right: Image -->
+              <div class="group">
+                <div class="relative overflow-hidden rounded-xl">
+                  <img
+                    src="@/assets/media/c73d763cebb7c6be59ebe8a88d573a3b.png"
+                    alt="市场深度分析"
+                    class="w-full h-64 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-500"
+                  />
                 </div>
-
                 <!-- Performance Stats -->
-                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div class="grid grid-cols-3 gap-4 text-center mt-4">
                   <div>
                     <div class="text-lg font-bold text-white">92.3%</div>
                     <div class="text-xs text-dark-100">分析准确率</div>
@@ -311,33 +262,17 @@
           <!-- Risk Management Module -->
           <div class="glass-card p-8 rounded-2xl border border-white/10">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              <!-- Left: Chart Visualization -->
-              <div class="relative group">
-                <div
-                  class="bg-gradient-to-br from-purple-500/5 to-primary-500/5 rounded-xl border border-white/10 p-6 h-64 flex items-center justify-center">
-                  <!-- Chart Background Grid -->
-                  <div class="absolute inset-0 opacity-10"
-                    style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 20px 20px;" />
-
-                  <!-- Risk Management Chart -->
-                  <div class="absolute bottom-0 left-0 right-0 h-32">
-                    <svg class="w-full h-full" viewBox="0 0 400 160">
-                      <path d="M20,100 Q60,80 100,100 Q140,120 180,100 Q220,80 260,100 Q300,120 340,100" fill="none"
-                        stroke="#a855f7" stroke-width="2" class="animate-draw-line" style="animation-delay: 0.3s" />
-                    </svg>
-                  </div>
-
-                  <!-- Chart Points -->
-                  <div
-                    class="absolute top-1/4 left-1/4 w-3 h-3 rounded-full bg-purple-500/80 shadow-lg shadow-purple-500/30 animate-pulse" />
-                  <div
-                    class="absolute top-1/2 left-1/2 w-3 h-3 rounded-full bg-primary-500/80 shadow-lg shadow-primary-500/30 animate-pulse" />
-                  <div
-                    class="absolute bottom-1/4 right-1/4 w-3 h-3 rounded-full bg-green-500/80 shadow-lg shadow-green-500/30 animate-pulse" />
+              <!-- Left: Image -->
+              <div class="group">
+                <div class="relative overflow-hidden rounded-xl">
+                  <img
+                    src="@/assets/media/eb8a3720e6ae4ab681ea93d50686ac7a.jpg"
+                    alt="风险管理系统"
+                    class="w-full h-64 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-500"
+                  />
                 </div>
-
                 <!-- Performance Stats -->
-                <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div class="grid grid-cols-3 gap-4 text-center mt-4">
                   <div>
                     <div class="text-lg font-bold text-white">99.5%</div>
                     <div class="text-xs text-dark-100">风控成功率</div>
@@ -447,30 +382,25 @@
                 </div>
               </div>
 
-              <!-- Middle Column: Strategy Chart (Larger) -->
+              <!-- Middle Column: Strategy Image (Larger) -->
               <div class="relative flex items-center justify-center strategy-fade-in">
-                <div
-                  class="bg-gradient-to-br from-primary-500/5 to-accent-blue/5 rounded-xl border border-white/10 p-8 h-80 w-full">
-                  <!-- Animated Chart -->
-                  <div class="absolute inset-0 flex items-center justify-center">
-                    <svg class="w-full h-40" viewBox="0 0 400 200">
-                      <path :d="strategies[currentStrategyIndex].chartPath" fill="none"
-                        :stroke="strategies[currentStrategyIndex].chartColor" stroke-width="3"
-                        class="animate-draw-line color-transition" style="animation-delay: 0.2s" />
-                    </svg>
-                  </div>
-                  
-                  <!-- Performance Ring -->
-                  <div class="absolute top-6 right-6 w-20 h-20 float-animation">
+                <div class="relative overflow-hidden rounded-xl border border-white/10 h-80 w-full group">
+                  <img
+                    :src="strategies[currentStrategyIndex].bgImage"
+                    :alt="strategies[currentStrategyIndex].title"
+                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 color-transition"
+                  />
+                  <!-- Performance Ring Overlay -->
+                  <div class="absolute top-4 right-4 w-20 h-20 float-animation">
                     <svg class="w-full h-full" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none" />
+                      <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.2)" stroke-width="8" fill="none" />
                       <circle cx="50" cy="50" r="40" :stroke="strategies[currentStrategyIndex].chartColor"
                         stroke-width="8" fill="none" stroke-dasharray="251.2"
                         :stroke-dashoffset="251.2 - (strategies[currentStrategyIndex].performance * 251.2 / 100)"
                         class="performance-ring color-transition" />
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                      <span class="text-sm font-bold text-white">{{ strategies[currentStrategyIndex].performance }}%</span>
+                      <span class="text-sm font-bold text-white drop-shadow">{{ strategies[currentStrategyIndex].performance }}%</span>
                     </div>
                   </div>
                 </div>
@@ -728,6 +658,7 @@ const strategies = [
     chartPath: "M20,100 Q60,80 100,120 Q140,60 180,100 Q220,140 260,80 Q300,120 340,100",
     chartColor: "#10b981",
     performance: 87.5,
+    bgImage: new URL('@/assets/media/s/01de1cd83cd6c7d4aee99400478ede29.png', import.meta.url).href,
     colorClass: "bg-emerald-500/10 border border-emerald-500/20",
     dotColor: "bg-emerald-500",
     textColor: "text-emerald-400",
@@ -750,6 +681,7 @@ const strategies = [
     chartPath: "M20,100 Q60,120 100,80 Q140,100 180,120 Q220,80 260,100 Q300,80 340,100",
     chartColor: "#3b82f6",
     performance: 82.3,
+    bgImage: new URL('@/assets/media/s/a048ced9b6ce121bfa7a536ab9ef4e16.png', import.meta.url).href,
     colorClass: "bg-blue-500/10 border border-blue-500/20",
     dotColor: "bg-blue-500",
     textColor: "text-blue-400",
@@ -772,6 +704,7 @@ const strategies = [
     chartPath: "M20,100 Q60,90 100,110 Q140,95 180,105 Q220,100 260,95 Q300,105 340,100",
     chartColor: "#8b5cf6",
     performance: 76.8,
+    bgImage: new URL('@/assets/media/s/b9e35ad325ec207280296b2527d303ff.png', import.meta.url).href,
     colorClass: "bg-purple-500/10 border border-purple-500/20",
     dotColor: "bg-purple-500",
     textColor: "text-purple-400",

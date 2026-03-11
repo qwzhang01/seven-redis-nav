@@ -4,7 +4,7 @@
  */
 
 import { get, put } from './request'
-import type {
+import {
   SystemInfo,
   SystemConfig,
   ComponentHealth,
@@ -28,7 +28,7 @@ import type {
   EnumItem,
   EnumInfoResponse,
   EnumListResponse,
-  EnumBatchResponse,
+  EnumBatchResponse, ExchangeInfo, ExchangeDict,
 } from '../types'
 
 // 重新导出类型，保持向后兼容
@@ -198,6 +198,10 @@ export function getEnumBatch(enumNames: string[]): Promise<EnumBatchResponse> {
   return get<EnumBatchResponse>(`/api/v1/c/enum/batch/${enumNames.join(',')}`)
 }
 
+export function getExchanges(): Promise<ExchangeDict[]> {
+  return get<ExchangeDict[]>(`/api/v1/c/enum/exchanges`)
+}
+
 // 导出所有API
 export default {
   // 系统管理
@@ -223,4 +227,5 @@ export default {
   getEnumList,
   getEnumByName,
   getEnumBatch,
+  getExchanges
 }

@@ -845,21 +845,14 @@ async function loadDepthData() {
     
     // 模拟深度数据（实际应该从API获取）
     depthData.value = {
-      bids: depth.bids?.map((bid: any, index: number) => ({
-        price: bid.price || (parseFloat(currentPrice.value.replace(/,/g, '')) * (1 - (index + 1) * 0.001)),
-        amount: bid.amount || Math.random() * 10
-      })) || Array.from({ length: 10 }, (_, i) => ({
-        price: parseFloat(currentPrice.value.replace(/,/g, '')) * (1 - (i + 1) * 0.001),
-        amount: Math.random() * 10
-      })),
-      
-      asks: depth.asks?.map((ask: any, index: number) => ({
-        price: ask.price || (parseFloat(currentPrice.value.replace(/,/g, '')) * (1 + (index + 1) * 0.001)),
-        amount: ask.amount || Math.random() * 10
-      })) || Array.from({ length: 10 }, (_, i) => ({
-        price: parseFloat(currentPrice.value.replace(/,/g, '')) * (1 + (i + 1) * 0.001),
-        amount: Math.random() * 10
-      }))
+      bids: depth.bids?.map((bid: any) => ({
+        price: bid.price,
+        amount: bid.volume
+      })) || [],
+      asks: depth.asks?.map((ask: any) => ({
+        price: ask.price,
+        amount: ask.volume
+      })) || []
     }
   } catch (error) {
     console.error('加载深度数据失败:', error)
