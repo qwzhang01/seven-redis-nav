@@ -86,7 +86,7 @@ async def get_batch_enum_values(enum_names: str) -> dict[str, Any]:
     }
 
 
-@router.get("/exchanges")
+@router.get("/fine/exchanges")
 async def get_exchanges(db: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
     """
     获取所有交易所列表

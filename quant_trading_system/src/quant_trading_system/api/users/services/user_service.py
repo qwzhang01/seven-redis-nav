@@ -277,7 +277,7 @@ class UserService:
         exchanges = await self.exchange_repo.get_exchanges(exchange_type, status)
         return [
             {
-                "id": exchange.id,
+                "id": str(exchange.id),
                 "exchange_code": exchange.exchange_code,
                 "exchange_name": exchange.exchange_name,
                 "exchange_type": exchange.exchange_type,

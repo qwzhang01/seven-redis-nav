@@ -286,7 +286,7 @@ export interface ResolveAlertRequest {
  * 交易所信息
  */
 export interface ExchangeDict {
-  id: number
+  id: string
   exchange_code: string
   exchange_name: string
   exchange_type: string

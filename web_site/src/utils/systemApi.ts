@@ -199,7 +199,7 @@ export function getEnumBatch(enumNames: string[]): Promise<EnumBatchResponse> {
 }
 
 export function getExchanges(): Promise<ExchangeDict[]> {
-  return get<ExchangeDict[]>(`/api/v1/c/enum/exchanges`)
+  return get<ExchangeDict[]>("/api/v1/c/enum/fine/exchanges");
 }
 
 // 导出所有API
