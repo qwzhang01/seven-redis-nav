@@ -2,7 +2,6 @@
   <div class="min-h-screen bg-dark-900 flex flex-col">
     <!-- 顶部导航栏 -->
     <div class="h-16 bg-dark-800 border-b border-white/[0.06] flex items-center justify-between px-6">
-      <!-- 左侧：Quant Meta标志 -->
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-accent-blue flex items-center justify-center text-dark-900 font-extrabold text-sm">

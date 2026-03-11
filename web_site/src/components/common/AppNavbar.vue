@@ -5,10 +5,10 @@
         <!-- Logo -->
         <router-link to="/" class="flex items-center gap-3 group">
           <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-accent-blue flex items-center justify-center text-dark-900 font-extrabold text-sm transition-transform group-hover:scale-105">
-            QM
+            QA
           </div>
           <span class="text-white font-bold text-xl tracking-tight hidden sm:block">
-            Quant<span class="gradient-text ml-1">Meta</span>
+            Quanta<span class="gradient-text ml-1">量元</span>
           </span>
         </router-link>
 
