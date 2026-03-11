@@ -156,9 +156,12 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="bg-dark-800 rounded-lg border border-white/[0.06] p-4">
             <h3 class="text-sm font-semibold text-white mb-3">深度图</h3>
-            <div class="h-32 bg-dark-700/50 rounded flex items-center justify-center">
-              <span class="text-dark-100 text-sm">深度图表区域</span>
-            </div>
+            <DepthChart
+              ref="depthChartRef"
+              :depth-data="depthData"
+              :height="160"
+              @crosshair-move="handleDepthCrosshairMove"
+            />
           </div>
           <div class="bg-dark-800 rounded-lg border border-white/[0.06] p-4">
             <h3 class="text-sm font-semibold text-white mb-3">成交量</h3>
@@ -665,8 +668,7 @@ async function onSymbolChange() {
   if (!selectedSymbol.value) return
   
   // 更新选中的交易对信息
-  const symbolInfo = availableSymbols.value.find(s => s.value ===
-      selectedSymbol.value)
+  const symbolInfo = availableSymbols.value.find(s => s.value === selectedSymbol.value)
   if (symbolInfo) {
     selectedSymbolInfo.value = symbolInfo
     
@@ -675,12 +677,21 @@ async function onSymbolChange() {
       loadMarketData(),
       loadKlineData(),
       loadOrders(),
-      loadHistoryOrders()
+      loadHistoryOrders(),
+      loadDepthData()
     ])
     
     // 更新WebSocket订阅
     changeWebSocketSubscription()
   }
+}
+
+/**
+ * 处理深度图十字线移动
+ */
+function handleDepthCrosshairMove(price: number, amount: number) {
+  // 可以在这里显示深度图的详细信息
+  console.log('深度图十字线移动:', { price, amount })
 }
 
 // ==================== 现有方法 ====================
@@ -779,6 +790,60 @@ async function loadMarketData() {
     tradePrice.value = ticker.last_price.toFixed(2)
   } catch (error) {
     console.error('加载市场数据失败:', error)
+  }
+}
+
+/**
+ * 加载深度数据
+ */
+async function loadDepthData() {
+  try {
+    if (!selectedSymbol.value) return
+    
+    const depth = await marketApi.getDepth({
+      symbol: selectedSymbol.value,
+      limit: 20
+    })
+    
+    // 模拟深度数据（实际应该从API获取）
+    depthData.value = {
+      bids: depth.bids?.map((bid: any, index: number) => ({
+        price: bid.price || (parseFloat(currentPrice.value.replace(/,/g, '')) * (1 - (index + 1) * 0.001)),
+        amount: bid.amount || Math.random() * 10
+      })) || Array.from({ length: 10 }, (_, i) => ({
+        price: parseFloat(currentPrice.value.replace(/,/g, '')) * (1 - (i + 1) * 0.001),
+        amount: Math.random() * 10
+      })),
+      
+      asks: depth.asks?.map((ask: any, index: number) => ({
+        price: ask.price || (parseFloat(currentPrice.value.replace(/,/g, '')) * (1 + (index + 1) * 0.001)),
+        amount: ask.amount || Math.random() * 10
+      })) || Array.from({ length: 10 }, (_, i) => ({
+        price: parseFloat(currentPrice.value.replace(/,/g, '')) * (1 + (i + 1) * 0.001),
+        amount: Math.random() * 10
+      }))
+    }
+  } catch (error) {
+    console.error('加载深度数据失败:', error)
+    // 使用模拟数据作为备选
+    depthData.value = generateMockDepthData()
+  }
+}
+
+/**
+ * 生成模拟深度数据
+ */
+function generateMockDepthData() {
+  const currentPriceNum = parseFloat(currentPrice.value.replace(/,/g, ''))
+  return {
+    bids: Array.from({ length: 10 }, (_, i) => ({
+      price: currentPriceNum * (1 - (i + 1) * 0.001),
+      amount: Math.random() * 10
+    })),
+    asks: Array.from({ length: 10 }, (_, i) => ({
+      price: currentPriceNum * (1 + (i + 1) * 0.001),
+      amount: Math.random() * 10
+    }))
   }
 }
 
