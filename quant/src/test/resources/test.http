@@ -1,0 +1,2 @@
+### test
+GET http://localhost:6666/api/test/model/status

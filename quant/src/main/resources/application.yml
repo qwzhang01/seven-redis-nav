@@ -1,0 +1,134 @@
+server:
+  port: 6666
+
+spring:
+  application:
+    name: crypto-trading-engine
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://34.96.254.48:5432/test_py
+    username: postgres
+    password: 'uOp8JgVyKQHTGaUjc7d+ZZZZVocMjSuFrfOXYswW7Bs='
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# MyBatis-Plus配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  type-aliases-package: com.crypto.entity
+
+# 交易所配置
+exchange:
+  # 默认使用的交易所: BINANCE / OKX
+  default-exchange: BINANCE
+  binance:
+    api-key: ${BINANCE_API_KEY:your-binance-api-key}
+    secret-key: ${BINANCE_SECRET_KEY:your-binance-secret-key}
+    passphrase:
+    base-url: https://api.binance.com
+    futures-base-url: https://fapi.binance.com
+    ws-base-url: wss://stream.binance.com:9443/ws
+    futures-ws-base-url: wss://fstream.binance.com/ws
+    proxy:
+      enabled: false
+      host: 127.0.0.1
+      port: 7890
+  okx:
+    api-key: ${OKX_API_KEY:your-okx-api-key}
+    secret-key: ${OKX_SECRET_KEY:your-okx-secret-key}
+    passphrase: ${OKX_PASSPHRASE:your-okx-passphrase}
+    base-url: https://www.okx.com
+    ws-public-url: wss://ws.okx.com:8443/ws/v5/public
+    ws-private-url: wss://ws.okx.com:8443/ws/v5/private
+    simulated: false
+    proxy:
+      enabled: false
+      host: 127.0.0.1
+      port: 7890
+
+# 交易对配置
+trading:
+  # 同步的交易对列表
+  symbols:
+    spot:
+      - BTC/USDT
+      - ETH/USDT
+      - SOL/USDT
+      - BNB/USDT
+      - XRP/USDT
+    futures:
+      - BTC/USDT
+      - ETH/USDT
+      - SOL/USDT
+  # K线周期
+  kline-intervals:
+    - 1m
+    - 5m
+    - 15m
+    - 1h
+    - 4h
+    - 1d
+  # 行情同步间隔(ms)
+  sync:
+    kline-interval: 60000
+    tick-interval: 5000
+    depth-interval: 10000
+    history-days: 30
+    # 是否启用WebSocket实时同步 (true=WS推送, false=HTTP轮询)
+    ws-enabled: false
+
+# AI模型配置
+ai:
+  provider: openai
+  openai:
+    api-key: ${OPENAI_API_KEY:your-openai-api-key}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${LLM_MODEL:gpt-4}
+    max-tokens: 4096
+    temperature: 0.3
+  # 分析配置
+  analysis:
+    enabled: true
+    # 分析间隔(分钟)
+    interval-minutes: 15
+    # 分析使用的K线周期
+    analysis-intervals:
+      - 15m
+      - 1h
+      - 4h
+
+# 交易配置
+order:
+  # 是否启用自动交易
+  auto-trade-enabled: false
+  # 单笔最大仓位百分比
+  max-position-pct: 10
+  # 最大持仓数量
+  max-positions: 5
+  # 止损百分比
+  default-stop-loss-pct: 3
+  # 止盈百分比
+  default-take-profit-pct: 6
+  # 风控：最大日亏损百分比
+  max-daily-loss-pct: 5
+
+logging:
+  level:
+    com.crypto: DEBUG
+    com.baomidou: INFO
