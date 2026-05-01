@@ -1,0 +1,227 @@
+:root {
+  /* ======== Brand ======== */
+  --srn-color-primary: #DC382D;
+  --srn-color-primary-light: #FF6B6B;
+  --srn-color-primary-dark: #B82B22;
+  --srn-color-primary-contrast: #FFFFFF;
+
+  /* ======== Semantic ======== */
+  --srn-color-success: #34C759;
+  --srn-color-success-light: #66D981;
+  --srn-color-success-dark: #2AA348;
+  --srn-color-warning: #FF9500;
+  --srn-color-warning-light: #FFB366;
+  --srn-color-warning-dark: #CC7700;
+  --srn-color-danger: #FF3B30;
+  --srn-color-danger-light: #FF6B63;
+  --srn-color-danger-dark: #CC2F26;
+  --srn-color-info: #007AFF;
+  --srn-color-info-light: #3395FF;
+  --srn-color-info-dark: #005ECC;
+
+  /* ======== Backgrounds (Dark mode) ======== */
+  --srn-color-bg-1: #1E1E2E;
+  --srn-color-bg-2: #252536;
+  --srn-color-bg-3: #2D2D44;
+  --srn-color-bg-4: #363650;
+
+  /* ======== Backgrounds (Light mode — current default) ======== */
+  --srn-color-surface-1: #F5F5F7;
+  --srn-color-surface-2: #FFFFFF;
+  --srn-color-surface-3: #EEF0F4;
+  --srn-color-surface-4: #E5E7EB;
+
+  /* ======== Toolbar ======== */
+  --srn-color-toolbar: #fbfbfd;
+  --srn-color-toolbar-border: #e5e5e7;
+
+  /* ======== Sidebar ======== */
+  --srn-color-sidebar: #f2f2f4;
+  --srn-color-sidebar-border: #dcdcde;
+
+  /* ======== Statusbar ======== */
+  --srn-color-statusbar: #e8e8ed;
+  --srn-color-statusbar-text: #6E6E73;
+
+  /* ======== Border ======== */
+  --srn-color-border: #e5e5e7;
+  --srn-color-border-light: #f0f0f0;
+  --srn-color-border-dark: #3A3A52;
+  --srn-color-border-focus: #007AFF;
+
+  /* ======== Text ======== */
+  --srn-color-text-1: #1D1D1F;
+  --srn-color-text-2: #6E6E73;
+  --srn-color-text-3: #8E8E93;
+  --srn-color-text-disabled: #C7C7CC;
+  --srn-color-text-dark-1: #E8E8ED;
+  --srn-color-text-dark-2: #9DA0B0;
+  --srn-color-text-dark-3: #6E6E73;
+
+  /* ======== Traffic Lights ======== */
+  --srn-color-tl-close: #ff5f57;
+  --srn-color-tl-minimize: #febc2e;
+  --srn-color-tl-maximize: #28c840;
+
+  /* ======== Type Badges ======== */
+  --srn-type-string-bg: #dbeafe;
+  --srn-type-string-text: #1e40af;
+  --srn-type-hash-bg: #fef3c7;
+  --srn-type-hash-text: #92400e;
+  --srn-type-list-bg: #dcfce7;
+  --srn-type-list-text: #166534;
+  --srn-type-set-bg: #f3e8ff;
+  --srn-type-set-text: #6b21a8;
+  --srn-type-zset-bg: #fce7f3;
+  --srn-type-zset-text: #9f1239;
+  --srn-type-stream-bg: #cffafe;
+  --srn-type-stream-text: #155e75;
+
+  /* ======== Chart Colors ======== */
+  --srn-chart-ops: #3b82f6;
+  --srn-chart-memory: #a855f7;
+  --srn-chart-clients: #10b981;
+  --srn-chart-hitrate: #f59e0b;
+
+  /* ======== CLI ======== */
+  --srn-cli-header: #2c2c2e;
+  --srn-cli-output: #1d1d1f;
+  --srn-cli-input: #252527;
+  --srn-cli-cursor: #34c759;
+
+  /* ======== Spacing ======== */
+  --srn-spacing-xs: 4px;
+  --srn-spacing-sm: 8px;
+  --srn-spacing-md: 12px;
+  --srn-spacing-lg: 16px;
+  --srn-spacing-xl: 24px;
+  --srn-spacing-xxl: 32px;
+
+  /* ======== Radius ======== */
+  --srn-radius-xs: 4px;
+  --srn-radius-sm: 6px;
+  --srn-radius-md: 8px;
+  --srn-radius-lg: 12px;
+  --srn-radius-xl: 16px;
+
+  /* ======== Shadow ======== */
+  --srn-shadow-window: 0 20px 60px rgba(0, 0, 0, 0.4),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1) inset,
+    0 2px 0 rgba(255, 255, 255, 0.4) inset;
+  --srn-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --srn-shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --srn-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  /* ======== Motion ======== */
+  --srn-motion-fast: 150ms;
+  --srn-motion-normal: 200ms;
+  --srn-motion-slow: 400ms;
+
+  /* ======== Sizing ======== */
+  --srn-toolbar-h: 48px;
+  --srn-statusbar-h: 28px;
+  --srn-sidebar-w: 240px;
+  --srn-keypanel-w: 320px;
+  --srn-window-min-h: 720px;
+  --srn-input-height: 32px;
+  --srn-button-height: 30px;
+
+  /* ======== Font ======== */
+  --srn-font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --srn-font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Menlo", monospace;
+  --srn-font-size-xs: 10px;
+  --srn-font-size-sm: 11px;
+  --srn-font-size-md: 13px;
+  --srn-font-size-lg: 14px;
+  --srn-font-size-xl: 16px;
+  --srn-font-weight-normal: 400;
+  --srn-font-weight-medium: 500;
+  --srn-font-weight-semibold: 600;
+  --srn-font-weight-bold: 700;
+  --srn-line-height-tight: 1.2;
+  --srn-line-height-normal: 1.4;
+  --srn-line-height-relaxed: 1.6;
+}
+
+/* ======== Dark Theme ======== */
+[data-theme="dark"] {
+  /* Brand Colors */
+  --srn-color-primary: #FF6B6B;
+  --srn-color-primary-light: #FF8E8E;
+  --srn-color-primary-dark: #E05555;
+
+  /* Semantic Colors */
+  --srn-color-success: #34C759;
+  --srn-color-success-light: #66D981;
+  --srn-color-success-dark: #2AA348;
+  --srn-color-warning: #FF9500;
+  --srn-color-warning-light: #FFB366;
+  --srn-color-warning-dark: #CC7700;
+  --srn-color-danger: #FF3B30;
+  --srn-color-danger-light: #FF6B63;
+  --srn-color-danger-dark: #CC2F26;
+  --srn-color-info: #007AFF;
+  --srn-color-info-light: #3395FF;
+  --srn-color-info-dark: #005ECC;
+
+  /* Backgrounds */
+  --srn-color-surface-1: #1E1E2E;
+  --srn-color-surface-2: #252536;
+  --srn-color-surface-3: #2D2D44;
+  --srn-color-surface-4: #363650;
+
+  /* Toolbar */
+  --srn-color-toolbar: #252536;
+  --srn-color-toolbar-border: #3A3A52;
+
+  /* Sidebar */
+  --srn-color-sidebar: #2D2D44;
+  --srn-color-sidebar-border: #3A3A52;
+
+  /* Statusbar */
+  --srn-color-statusbar: #363650;
+  --srn-color-statusbar-text: #9DA0B0;
+
+  /* Border */
+  --srn-color-border: #3A3A52;
+  --srn-color-border-light: #4A4A62;
+  --srn-color-border-dark: #2A2A42;
+  --srn-color-border-focus: #007AFF;
+
+  /* Text */
+  --srn-color-text-1: #E8E8ED;
+  --srn-color-text-2: #9DA0B0;
+  --srn-color-text-3: #6E6E73;
+  --srn-color-text-disabled: #4A4A62;
+
+  /* Type Badges */
+  --srn-type-string-bg: #1E3A8A;
+  --srn-type-string-text: #93C5FD;
+  --srn-type-hash-bg: #78350F;
+  --srn-type-hash-text: #FCD34D;
+  --srn-type-list-bg: #065F46;
+  --srn-type-list-text: #6EE7B7;
+  --srn-type-set-bg: #5B21B6;
+  --srn-type-set-text: #C4B5FD;
+  --srn-type-zset-bg: #831843;
+  --srn-type-zset-text: #F9A8D4;
+  --srn-type-stream-bg: #164E63;
+  --srn-type-stream-text: #67E8F9;
+}
+
+/* ======== Responsive Breakpoints ======== */
+@media (max-width: 768px) {
+  :root {
+    --srn-sidebar-w: 200px;
+    --srn-keypanel-w: 280px;
+    --srn-window-min-h: 600px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --srn-sidebar-w: 180px;
+    --srn-keypanel-w: 240px;
+    --srn-window-min-h: 500px;
+  }
+}
