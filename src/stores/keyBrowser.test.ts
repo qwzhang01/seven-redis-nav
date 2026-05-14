@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useKeyBrowserStore } from './keyBrowser';
 import { useConnectionStore } from './connection';
 import { keysScan } from '@/ipc/data';
+import type { KeyMeta, KeyType } from '@/types/data';
 
 vi.mock('@/ipc/data', () => ({
   keysScan: vi.fn(),
@@ -12,8 +13,8 @@ vi.mock('./connection', () => ({
   useConnectionStore: vi.fn(),
 }));
 
-function mkKey(k: string, type: any = 'string') {
-  return { key: k, key_type: type, ttl: -1, size: 0 };
+function mkKey(k: string, type: KeyType = 'string'): KeyMeta {
+  return { key: k, key_type: type, ttl: -1, size: 0, encoding: 'raw' };
 }
 
 describe('KeyBrowser Store', () => {
@@ -194,15 +195,27 @@ describe('KeyBrowser Store', () => {
       expect(store.selectedKeys.has('k1')).toBe(false);
     });
 
-    it('rangeSelect 无 anchor 时等价于 toggleSelect', () => {
+    it('rangeSelect 无 anchor 时只选择目标键并设置 anchor', () => {
       store.rangeSelect('k2');
-      expect(store.selectedKeys.has('k2')).toBe(true);
+      expect([...store.selectedKeys]).toEqual(['k2']);
+      expect(store.lastSelectedKey).toBe('k2');
     });
 
     it('rangeSelect 应选择 anchor 到目标之间全部键', () => {
       store.toggleSelect('k1');
       store.rangeSelect('k3');
       expect([...store.selectedKeys].sort()).toEqual(['k1', 'k2', 'k3']);
+      expect(store.lastSelectedKey).toBe('k3');
+    });
+
+    it('普通选中当前键后首次 rangeSelect 应从当前键开始选中范围', () => {
+      store.selectKey('k1');
+      expect(store.selectedKeys.size).toBe(0);
+
+      store.rangeSelect('k3');
+
+      expect([...store.selectedKeys].sort()).toEqual(['k1', 'k2', 'k3']);
+      expect(store.lastSelectedKey).toBe('k3');
     });
 
     it('rangeSelect 反向范围也正确', () => {
@@ -217,17 +230,27 @@ describe('KeyBrowser Store', () => {
       expect(store.selectedKeys.size).toBe(1);
     });
 
+    it('rangeSelect 在 anchor 不可见时只选择目标键并重置 anchor', () => {
+      store.keys = [mkKey('k1', 'hash'), mkKey('k2', 'string'), mkKey('k3', 'string')];
+      store.toggleSelect('k1');
+      store.setTypeFilter('string');
+      store.rangeSelect('k3');
+      expect([...store.selectedKeys]).toEqual(['k3']);
+      expect(store.lastSelectedKey).toBe('k3');
+    });
+
     it('selectAll 选中全部过滤后的键', () => {
       store.selectAll();
       expect(store.selectedKeys.size).toBe(4);
       expect(store.lastSelectedKey).toBe('k4');
     });
 
-    it('clearSelection 清空多选', () => {
+    it('clearSelection 清空多选并保留当前详情键作为 anchor', () => {
+      store.selectKey('k2');
       store.selectAll();
       store.clearSelection();
       expect(store.selectedKeys.size).toBe(0);
-      expect(store.lastSelectedKey).toBe(null);
+      expect(store.lastSelectedKey).toBe('k2');
     });
   });
 
@@ -239,6 +262,7 @@ describe('KeyBrowser Store', () => {
       expect(store.pattern).toBe('foo*');
       expect(store.typeFilter).toBe('hash');
       expect(store.selectedKey).toBe('x');
+      expect(store.lastSelectedKey).toBe('x');
     });
 
     it('getKeyIndex 返回正确索引', async () => {

@@ -47,6 +47,7 @@ async function exportAllKeys() {
 const isClusterMode = computed(() =>
   connStore.activeConnection?.connection_type === 'cluster',
 );
+const hasBulkSelection = computed(() => keyBrowserStore.selectedKeys.size > 0);
 
 const searchInput = ref('');
 const typeFilterValue = ref<KeyType | ''>('');
@@ -56,6 +57,7 @@ const newKeyType = ref<KeyType>('string');
 const newKeyValue = ref('');
 
 // Virtual scroll setup
+const panelRef = ref<HTMLElement | null>(null);
 const parentRef = ref<HTMLElement | null>(null);
 const ROW_HEIGHT = 34;
 
@@ -94,7 +96,12 @@ function handleTypeFilter() {
   keyBrowserStore.setTypeFilter(typeFilterValue.value);
 }
 
-async function handleKeyClick(key: string, event: MouseEvent) {
+function focusKeyPanel() {
+  panelRef.value?.focus();
+}
+
+async function handleKeyClick(key: string | undefined, event: MouseEvent) {
+  if (!key) return;
   // ⌘/Ctrl + click: toggle multi-select
   if (event.metaKey || event.ctrlKey) {
     event.preventDefault();
@@ -122,8 +129,8 @@ function handleKeydown(e: KeyboardEvent) {
     return;
   }
   // Only trigger when focus is inside the key panel
-  const panel = parentRef.value?.closest('.key-panel') as HTMLElement | null;
-  if (!panel || !panel.contains(document.activeElement as Node) && document.activeElement !== document.body) {
+  const panel = panelRef.value;
+  if (!panel || !panel.contains(document.activeElement as Node)) {
     return;
   }
   e.preventDefault();
@@ -204,7 +211,7 @@ function formatSize(bytes: number) {
 </script>
 
 <template>
-  <section class="key-panel">
+  <section ref="panelRef" class="key-panel" tabindex="0" @mousedown="focusKeyPanel">
     <!-- 搜索与筛选 -->
     <div class="kp-header">
       <div class="kp-search-wrap">
@@ -307,7 +314,7 @@ function formatSize(bytes: number) {
             :key="virtualRow.index"
             class="key-item"
             :class="{
-              active: keyBrowserStore.filteredKeys[virtualRow.index]?.key === keyBrowserStore.selectedKey,
+              active: !hasBulkSelection && keyBrowserStore.filteredKeys[virtualRow.index]?.key === keyBrowserStore.selectedKey,
               'multi-selected': keyBrowserStore.selectedKeys.has(keyBrowserStore.filteredKeys[virtualRow.index]?.key ?? ''),
             }"
             :style="{
@@ -345,6 +352,7 @@ function formatSize(bytes: number) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  outline: none;
 }
 
 .kp-header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--srn-color-border); }

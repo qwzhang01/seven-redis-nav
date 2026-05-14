@@ -26,6 +26,23 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
     return keys.value.filter(k => k.key_type === typeFilter.value);
   });
 
+  function getVisibleKeySet() {
+    return new Set(filteredKeys.value.map(k => k.key));
+  }
+
+  function reconcileSelectionAnchor() {
+    const visibleKeys = getVisibleKeySet();
+    if (lastSelectedKey.value && visibleKeys.has(lastSelectedKey.value)) return;
+    lastSelectedKey.value = selectedKey.value && visibleKeys.has(selectedKey.value)
+      ? selectedKey.value
+      : null;
+  }
+
+  function selectOnlyForRange(key: string) {
+    selectedKeys.value = new Set([key]);
+    lastSelectedKey.value = key;
+  }
+
   const hasPrev = computed(() => cursorStack.value.length > 1);
   const hasNext = computed(() => nextCursor.value !== 0);
   const currentPage = computed(() => cursorStack.value.length);
@@ -43,6 +60,7 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
       totalScanned.value = page.total_scanned;
       currentCursor.value = cursor;
       allKeysLoaded.value = page.cursor === 0;
+      reconcileSelectionAnchor();
     } finally {
       loading.value = false;
     }
@@ -65,6 +83,7 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
       totalScanned.value += page.total_scanned;
       cursorStack.value.push(page.cursor);
       allKeysLoaded.value = page.cursor === 0;
+      reconcileSelectionAnchor();
     } finally {
       loading.value = false;
     }
@@ -95,10 +114,12 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
 
   function setTypeFilter(t: KeyType | '') {
     typeFilter.value = t;
+    reconcileSelectionAnchor();
   }
 
   function selectKey(key: string | null) {
     selectedKey.value = key;
+    lastSelectedKey.value = key;
   }
 
   /// Toggle a key's selection (⌘+click). Also updates lastSelectedKey anchor.
@@ -113,20 +134,20 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
     lastSelectedKey.value = key;
   }
 
-  /// Range-select between the last selected key and the given key (Shift+click).
-  /// If no anchor exists yet, behaves like toggleSelect.
+  /// Range-select between the current range anchor and the given key (Shift+click).
+  /// If no valid anchor exists, selects only the clicked key as the new anchor.
   function rangeSelect(key: string) {
     const list = filteredKeys.value;
     const anchor = lastSelectedKey.value;
     const targetIdx = list.findIndex((k) => k.key === key);
     if (targetIdx < 0) return;
     if (!anchor) {
-      toggleSelect(key);
+      selectOnlyForRange(key);
       return;
     }
     const anchorIdx = list.findIndex((k) => k.key === anchor);
     if (anchorIdx < 0) {
-      toggleSelect(key);
+      selectOnlyForRange(key);
       return;
     }
     const [from, to] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
@@ -150,10 +171,10 @@ export const useKeyBrowserStore = defineStore('keyBrowser', () => {
     }
   }
 
-  /// Clear all multi-selection state.
+  /// Clear all multi-selection state while keeping current detail key as range anchor.
   function clearSelection() {
     selectedKeys.value = new Set();
-    lastSelectedKey.value = null;
+    lastSelectedKey.value = selectedKey.value;
   }
 
   /// Scroll to a specific key by name (for search result navigation)
